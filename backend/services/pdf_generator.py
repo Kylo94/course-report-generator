@@ -6,10 +6,18 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from backend.utils.logger import get_logger
 
 log = get_logger(__name__)
+
+_DEFAULT_MARGIN: dict[str, str] = {
+    "top": "20mm",
+    "right": "18mm",
+    "bottom": "18mm",
+    "left": "18mm",
+}
 
 
 class PDFGenerationError(Exception):
@@ -26,8 +34,14 @@ class PDFGenerator:
     将 HTML 字符串通过 Chromium 内核转换为 PDF 文件或 bytes。
     """
 
-    async def generate_bytes(self, html: str) -> bytes:
-        """渲染 HTML → PDF bytes。"""
+    async def generate_bytes(self, html: str, margin: dict[str, Any] | None = None) -> bytes:
+        """渲染 HTML → PDF bytes。
+
+        margin: 边距字典如 {"top": "20mm", "right": "18mm", ...}，
+                不传则使用默认值 (20/18/18/18 mm)。
+        """
+        if margin is None:
+            margin = _DEFAULT_MARGIN
         try:
             from playwright.async_api import async_playwright
 
@@ -40,10 +54,10 @@ class PDFGenerator:
                         format="A4",
                         print_background=True,
                         margin={
-                            "top": "0mm",
-                            "right": "0mm",
-                            "bottom": "0mm",
-                            "left": "0mm",
+                            "top": str(margin["top"]),
+                            "right": str(margin["right"]),
+                            "bottom": str(margin["bottom"]),
+                            "left": str(margin["left"]),
                         },
                     )
                     return pdf_bytes
@@ -56,9 +70,14 @@ class PDFGenerator:
         except Exception as e:
             raise PDFGenerationError(f"PDF 渲染失败: {e}", original=e)
 
-    async def generate(self, html: str, output_path: str | Path) -> str:
+    async def generate(
+        self,
+        html: str,
+        output_path: str | Path,
+        margin: dict[str, Any] | None = None,
+    ) -> str:
         """渲染 HTML → 写入 PDF 文件。返回输出路径。"""
-        pdf_bytes = await self.generate_bytes(html)
+        pdf_bytes = await self.generate_bytes(html, margin=margin)
         path = Path(output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(pdf_bytes)

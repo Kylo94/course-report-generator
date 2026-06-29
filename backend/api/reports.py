@@ -32,6 +32,7 @@ from backend.services.report_renderer import (
     TemplateNotFoundError,
     get_template_config,
     list_templates,
+    merge_layout_with_theme,
     wrap_preview_html,
 )
 from backend.utils.logger import get_logger
@@ -358,9 +359,19 @@ async def export_report(
     filename = f"report_{record_id}_{timestamp}.pdf"
     output_path = default_output_dir / filename
 
+    # 从模板 + 布局配置计算页边距
+    template_config = get_template_config(template_id)
+    merged = merge_layout_with_theme(template_config, layout_config)
+    pdf_margin = {
+        "top": f"{merged['page_margin_top']}mm",
+        "right": f"{merged['page_margin_right']}mm",
+        "bottom": f"{merged['page_margin_bottom']}mm",
+        "left": f"{merged['page_margin_left']}mm",
+    }
+
     try:
         pdf_gen = PDFGenerator()
-        await pdf_gen.generate(html, str(output_path))
+        await pdf_gen.generate(html, str(output_path), margin=pdf_margin)
     except PDFGenerationError as e:
         log.exception("PDF 生成失败: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -370,7 +381,7 @@ async def export_report(
     if output_dir or settings.report.custom_output_dir:
         try:
             custom_path = _build_output_path(record, student_name, "pdf", output_dir)
-            await pdf_gen.generate(html, str(custom_path))
+            await pdf_gen.generate(html, str(custom_path), margin=pdf_margin)
             log.info("PDF 已同步到自定义路径: %s", custom_path)
         except Exception as e:
             log.warning("自定义输出路径保存失败: %s", e)
@@ -714,6 +725,15 @@ async def batch_generate_reports(
 
     # 7. 若 auto_export 则导出 PDF
     if body.auto_export and not shared_error:
+        # 计算模板页边距（批量共用同一个模板和布局）
+        tpl_cfg = get_template_config(body.template_id)
+        tpl_merged = merge_layout_with_theme(tpl_cfg, None)
+        batch_margin = {
+            "top": f"{tpl_merged['page_margin_top']}mm",
+            "right": f"{tpl_merged['page_margin_right']}mm",
+            "bottom": f"{tpl_merged['page_margin_bottom']}mm",
+            "left": f"{tpl_merged['page_margin_left']}mm",
+        }
         pdf_gen = PDFGenerator()
         for i, rec in enumerate(created):
             try:
@@ -728,7 +748,7 @@ async def batch_generate_reports(
                     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
                     output_path = Path(settings.report.output_dir) / f"report_{rec.id}_{timestamp}.pdf"
 
-                await pdf_gen.generate(html, str(output_path))
+                await pdf_gen.generate(html, str(output_path), margin=batch_margin)
                 log.info("批量导出 PDF 成功: record_id=%s", rec.id)
             except Exception as e:
                 log.warning("批量导出 PDF 失败 record_id=%s: %s", rec.id, e)
