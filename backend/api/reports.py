@@ -301,7 +301,7 @@ async def export_report(
 
     - 加载报告和学生信息
     - 用指定模板渲染 HTML
-    - WeasyPrint 转为 PDF
+    - Playwright（Chromium）渲染 PDF
     - 保存到 data/reports/ 并返回下载路径
     - 同时将报告状态更新为 finalized
     """
@@ -360,7 +360,7 @@ async def export_report(
 
     try:
         pdf_gen = PDFGenerator()
-        pdf_gen.generate(html, str(output_path))
+        await pdf_gen.generate(html, str(output_path))
     except PDFGenerationError as e:
         log.exception("PDF 生成失败: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -370,7 +370,7 @@ async def export_report(
     if output_dir or settings.report.custom_output_dir:
         try:
             custom_path = _build_output_path(record, student_name, "pdf", output_dir)
-            pdf_gen.generate(html, str(custom_path))
+            await pdf_gen.generate(html, str(custom_path))
             log.info("PDF 已同步到自定义路径: %s", custom_path)
         except Exception as e:
             log.warning("自定义输出路径保存失败: %s", e)
@@ -728,7 +728,7 @@ async def batch_generate_reports(
                     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
                     output_path = Path(settings.report.output_dir) / f"report_{rec.id}_{timestamp}.pdf"
 
-                pdf_gen.generate(html, str(output_path))
+                await pdf_gen.generate(html, str(output_path))
                 log.info("批量导出 PDF 成功: record_id=%s", rec.id)
             except Exception as e:
                 log.warning("批量导出 PDF 失败 record_id=%s: %s", rec.id, e)

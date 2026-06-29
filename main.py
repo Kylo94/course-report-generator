@@ -9,16 +9,12 @@
 """
 from __future__ import annotations
 
-import os
 import sys
 
 import uvicorn
 
 from backend.config import get_settings
 from backend.utils.logger import get_logger, setup_logging
-
-# WeasyPrint 系统依赖路径（macOS Homebrew）
-os.environ.setdefault("DYLD_FALLBACK_LIBRARY_PATH", "/opt/homebrew/lib")
 
 
 def main() -> int:

@@ -1,31 +1,15 @@
 """PDF 生成服务：HTML → PDF。
 
-使用 WeasyPrint 渲染 HTML 为 A4 PDF。
+使用 Playwright（Chromium 内核）渲染 HTML 为 A4 PDF。
+渲染效果与浏览器一致，零系统依赖（无需 GTK/Pango/Cairo）。
 """
 from __future__ import annotations
 
-import os
-import platform
 from pathlib import Path
 
 from backend.utils.logger import get_logger
 
 log = get_logger(__name__)
-
-# macOS：预加载 Homebrew 安装的 glib/Pango/Cairo 系统库
-if platform.system() == "Darwin":
-    _brew_lib = "/opt/homebrew/lib"
-    if os.path.isdir(_brew_lib):
-        os.environ.setdefault("DYLD_FALLBACK_LIBRARY_PATH", _brew_lib)
-        try:
-            import ctypes
-            for _lib in ("libgobject-2.0.0.dylib", "libpango-1.0.0.dylib", "libcairo.2.dylib",
-                         "libpangocairo-1.0.0.dylib", "libgdk_pixbuf-2.0.0.dylib"):
-                _p = os.path.join(_brew_lib, _lib)
-                if os.path.isfile(_p):
-                    ctypes.cdll.LoadLibrary(_p)
-        except Exception as _e:
-            log.warning("预加载 Homebrew 图形库失败: %s（PDF 导出可能不可用）", _e)
 
 
 class PDFGenerationError(Exception):
@@ -39,25 +23,42 @@ class PDFGenerationError(Exception):
 class PDFGenerator:
     """PDF 生成器。
 
-    将 HTML 字符串通过 WeasyPrint 转换为 PDF 文件或 bytes。
+    将 HTML 字符串通过 Chromium 内核转换为 PDF 文件或 bytes。
     """
 
-    def generate_bytes(self, html: str) -> bytes:
+    async def generate_bytes(self, html: str) -> bytes:
         """渲染 HTML → PDF bytes。"""
         try:
-            from weasyprint import HTML as WeasyHTML
-            doc = WeasyHTML(string=html)
-            return doc.write_pdf()
+            from playwright.async_api import async_playwright
+
+            async with async_playwright() as pw:
+                browser = await pw.chromium.launch()
+                try:
+                    page = await browser.new_page()
+                    await page.set_content(html, wait_until="networkidle")
+                    pdf_bytes = await page.pdf(
+                        format="A4",
+                        print_background=True,
+                        margin={
+                            "top": "0mm",
+                            "right": "0mm",
+                            "bottom": "0mm",
+                            "left": "0mm",
+                        },
+                    )
+                    return pdf_bytes
+                finally:
+                    await browser.close()
         except ImportError:
             raise PDFGenerationError(
-                "WeasyPrint 未安装，请运行: brew install pango glib gdk-pixbuf && uv add weasyprint"
+                "Playwright 未安装，请运行: uv add playwright && python -m playwright install chromium"
             )
         except Exception as e:
-            raise PDFGenerationError(f"WeasyPrint 渲染失败: {e}", original=e)
+            raise PDFGenerationError(f"PDF 渲染失败: {e}", original=e)
 
-    def generate(self, html: str, output_path: str | Path) -> str:
+    async def generate(self, html: str, output_path: str | Path) -> str:
         """渲染 HTML → 写入 PDF 文件。返回输出路径。"""
-        pdf_bytes = self.generate_bytes(html)
+        pdf_bytes = await self.generate_bytes(html)
         path = Path(output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(pdf_bytes)

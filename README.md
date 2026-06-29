@@ -48,7 +48,7 @@ uv run python main.py
 | **报告编辑** | 富文本编辑器，9 项内容均可手动修改；截图上传（支持 JPG/PNG/WebP） |
 | **草稿系统** | 自动保存（30s 间隔）+ 手动保存，关闭可续编。状态机：草稿 → 已导出 → 已归档 |
 | **模板系统** | 3 套内置 A4 模板（经典简约/少儿卡通/学术风），支持自定义排版 JSON 配置、Logo 上传（6 位置 × 3 尺寸） |
-| **PDF 导出** | Jinja2 + WeasyPrint 渲染，精准 4 页 A4 排版，图文混排 |
+| **PDF 导出** | Playwright（Chromium 内核）渲染，精准 4 页 A4 排版，图文混排 |
 | **Word 导出/导入** | python-docx 原生生成，结构清晰可编辑；修改后的 docx 可导回工具重新识别（AI 辅助字段匹配） |
 | **批量生成** | 单次 ≤ 50 名学生，共用知识点+差异化评价与作业难度 |
 | **报告中心** | 按学生/班级/日期检索历史报告，可二次编辑、重新导出 |
@@ -63,7 +63,7 @@ uv run python main.py
 | AI 编排 | LangChain 组件 + 自定义业务编排（多步链式生成 + 单步重试） |
 | LLM 适配 | 自定义 `LLMProvider` 抽象层，支持 **DeepSeek / 通义千问 / 智谱 GLM / OpenAI / Claude** |
 | 代码解析 | Python `ast` 模块 + 正则注释提取 |
-| PDF 渲染 | Jinja2 + WeasyPrint |
+| PDF 渲染 | Playwright（Chromium 内核，零系统依赖） |
 | Word 处理 | python-docx 原生生成（非 PDF 转 Word） |
 | 存储 | SQLite (aiosqlite) + 文件系统 |
 | 打包 | PyInstaller（目标：单文件夹发布） |
@@ -103,6 +103,8 @@ uv run python main.py
 
 ```python
 # Course: 飞翔的小鸟第一课
+# 1. 模拟重力效果
+# 2. 实现管道移动效果
 
 import pygame
 # ...
@@ -176,7 +178,6 @@ import pygame
 - 文件中至少要有 `# Course: <主题>` 一行，工具才能识别课程名称
 - 注释内容越详细，AI 生成的报告质量越高
 - 支持 Emoji 和中文标点
-- 项目文件夹路径中**不要有中文或特殊字符**（避免 WeasyPrint 字体加载问题）
 
 ### LLM 配置 (`config/llm.yaml`)
 
