@@ -151,11 +151,11 @@ const ClassesView = {
 
     async moveUp(row, index) {
       if (index === 0) return;
-      const prev = this.classes[index - 1];
-      const orders = [
-        { id: row.id, sort_order: prev.sort_order },
-        { id: prev.id, sort_order: row.sort_order },
-      ];
+      const items = [...this.classes];
+      // 交换数组中的位置
+      [items[index - 1], items[index]] = [items[index], items[index - 1]];
+      // 全部重新索引，确保顺序唯一
+      const orders = items.map((item, i) => ({ id: item.id, sort_order: i }));
       try {
         await API.classes.reorder(orders);
         await this.loadClasses();
@@ -166,11 +166,11 @@ const ClassesView = {
 
     async moveDown(row, index) {
       if (index === this.classes.length - 1) return;
-      const next = this.classes[index + 1];
-      const orders = [
-        { id: row.id, sort_order: next.sort_order },
-        { id: next.id, sort_order: row.sort_order },
-      ];
+      const items = [...this.classes];
+      // 交换数组中的位置
+      [items[index], items[index + 1]] = [items[index + 1], items[index]];
+      // 全部重新索引，确保顺序唯一
+      const orders = items.map((item, i) => ({ id: item.id, sort_order: i }));
       try {
         await API.classes.reorder(orders);
         await this.loadClasses();
