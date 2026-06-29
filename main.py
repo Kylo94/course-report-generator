@@ -4,13 +4,16 @@
 启动顺序：
   1. 初始化日志
   2. 加载配置
-  3. 启动后端服务（FastAPI）
-  4. 启动 pywebview 桌面窗口（计划中）
+  3. 启动 FastAPI 后端服务
+  4. (计划中) 启动 pywebview 桌面窗口
 """
 from __future__ import annotations
 
 import sys
 
+import uvicorn
+
+from backend.config import get_settings
 from backend.utils.logger import get_logger, setup_logging
 
 
@@ -20,20 +23,35 @@ def main() -> int:
     setup_logging()
     log = get_logger("main")
 
-    log.info("课程报告生成工具启动中... (Python %s)", sys.version.split()[0])
+    settings = get_settings()
+    log.info(
+        "%s v%s 启动中... (Python %s)",
+        settings.app.name,
+        settings.app.version,
+        sys.version.split()[0],
+    )
 
     try:
-        # 2. 加载配置
-        from backend.config import get_settings
-        settings = get_settings()
-        log.info("配置加载完成: app=%s v%s", settings.app.name, settings.app.version)
+        # 2. 启动 FastAPI 服务
+        log.info(
+            "FastAPI 服务: http://%s:%d",
+            settings.server.host,
+            settings.server.port,
+        )
+        log.info("API 文档: http://%s:%d/docs", settings.server.host, settings.server.port)
 
-        # 3. 启动后端服务（占位 - 将在 v0.4.0 完整实现）
-        log.info("P0 阶段：项目脚手架已完成，AI 集成将在 v0.4.0 启用")
-        log.info("下一步：v0.2.0 - 学生/班级管理")
-
+        uvicorn.run(
+            "backend.app:app",
+            host=settings.server.host,
+            port=settings.server.port,
+            reload=settings.server.reload,
+            log_config=None,  # 使用我们自己的日志配置
+        )
         return 0
 
+    except KeyboardInterrupt:
+        log.info("用户中断，正在退出...")
+        return 0
     except Exception as e:
         log.exception("启动失败: %s", e)
         return 1

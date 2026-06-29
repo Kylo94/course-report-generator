@@ -8,14 +8,17 @@
 """
 from __future__ import annotations
 
+import asyncio
 import os
 import shutil
 import sys
 import tempfile
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
+import pytest_asyncio
 
 # 把项目根加入 sys.path，确保 import 路径稳定
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -87,7 +90,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
 # 配置 fixture
 # =========================
 @pytest.fixture
-def sample_llm_config() -> dict:
+def sample_llm_config() -> dict[str, Any]:
     """示例 LLM 配置（用于单元测试，不发起真实网络请求）。"""
     return {
         "provider": "deepseek",
@@ -96,6 +99,82 @@ def sample_llm_config() -> dict:
         "timeout": 30,
         "max_retries": 1,
     }
+
+
+# =========================
+# 测试数据库 fixture（异步 SQLAlchemy + 内存 SQLite）
+# =========================
+@pytest_asyncio.fixture
+async def test_db(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[None]:
+    """
+    为每个测试创建独立的内存 SQLite 数据库。
+
+    使用 monkeypatch 覆盖 CRG_DATABASE__URL 环境变量，
+    然后调用 get_settings() 重新加载。
+    """
+    # 1. 强制重置 settings 缓存
+    from backend.config import reset_settings_cache
+    reset_settings_cache()
+
+    # 2. 设置测试用数据库 URL（内存 SQLite）
+    test_url = "sqlite+aiosqlite:///:memory:"
+    monkeypatch.setenv("CRG_DATABASE__URL", test_url)
+
+    # 3. 重置 settings 缓存让 env 生效
+    reset_settings_cache()
+
+    # 4. 重置 engine 和 session factory
+    from backend import db
+    if db._engine is not None:
+        try:
+            await db._engine.dispose()
+        except Exception:
+            pass
+    db._engine = None
+    db._session_factory = None
+
+    # 5. 初始化数据库表
+    from backend.db import init_db
+    await init_db()
+
+    yield
+
+    # 清理
+    if db._engine is not None:
+        try:
+            await db._engine.dispose()
+        except Exception:
+            pass
+    db._engine = None
+    db._session_factory = None
+    reset_settings_cache()
+
+
+@pytest_asyncio.fixture
+async def db_session(test_db) -> AsyncIterator[Any]:
+    """提供一个测试用的 AsyncSession。"""
+    from backend.db import get_session_factory
+    factory = get_session_factory()
+    async with factory() as session:
+        yield session
+
+
+# =========================
+# FastAPI TestClient fixture
+# =========================
+@pytest_asyncio.fixture
+async def api_client(test_db) -> AsyncIterator[Any]:
+    """提供一个配置好的 FastAPI AsyncClient。"""
+    from httpx import ASGITransport, AsyncClient
+
+    from backend.app import create_app
+
+    app = create_app()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # 触发 lifespan 启动
+        async with app.router.lifespan_context(app):
+            yield client
 
 
 # =========================
