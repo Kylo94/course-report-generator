@@ -69,6 +69,7 @@ const API = {
     patch(id, data) { return API.patch(`/api/reports/${id}`, data); },
     delete(id) { return API.delete(`/api/reports/${id}`); },
     updateStatus(id, status) { return API.patch(`/api/reports/${id}/status`, { status }); },
+    export(id, templateId = 'classic') { return API.post(`/api/reports/${id}/export`, { template_id: templateId }); },
   },
 
   // =====================
@@ -103,5 +104,12 @@ const API = {
     uploadScreenshot(file) { return API.upload('/api/assets/screenshot', file); },
     uploadLogo(file) { return API.upload('/api/assets/logo', file); },
     getLogo() { return API.get('/api/assets/logo'); },
+  },
+
+  // =====================
+  // 模板管理
+  // =====================
+  templates: {
+    list() { return API.get('/api/templates'); },
   },
 };

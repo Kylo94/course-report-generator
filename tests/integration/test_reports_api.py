@@ -345,3 +345,149 @@ class TestSerializationRoundtrip:
         assert patch_resp.status_code == 200
         assert patch_resp.json()["evaluation"] == "修改后的评价"
         assert patch_resp.json()["course_topic"] == "完整测试"  # 未变
+
+
+class TestTemplateAPI:
+    """模板 API 集成测试。"""
+
+    async def test_list_templates(self, api_client) -> None:
+        """GET /api/templates 返回内置模板列表。"""
+        resp = await api_client.get("/api/templates")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) >= 3
+        ids = [t["id"] for t in data]
+        assert "classic" in ids
+        assert "cartoon" in ids
+        assert "academic" in ids
+        t0 = data[0]
+        assert "name" in t0
+        assert "description" in t0
+        assert "page_size" in t0
+        assert t0["page_size"] == "A4"
+
+
+class TestExportPDF:
+    """PDF 导出集成测试。"""
+
+    async def test_export_success(self, api_client) -> None:
+        """POST /api/reports/{id}/export 返回 PDF 信息。"""
+        student_id = await _create_student(api_client)
+        cr = await api_client.post(
+            "/api/reports",
+            json={
+                "student_id": student_id,
+                "course_topic": "导出测试",
+                "course_date": "2026-06-29",
+                "knowledge_points": ["变量", "循环"],
+                "ability_improvement": "逻辑思维提升",
+                "content_items": [
+                    {"kp": "变量", "text": "学习变量基本概念和用法"},
+                ],
+                "homework": {
+                    "goal": "完成课后练习",
+                    "hints": ["先思考"],
+                    "criteria": ["代码正确"],
+                },
+                "vocabulary": {
+                    "word": "Variable",
+                    "phonetic": "/v/",
+                    "meaning": "变量",
+                    "example": "x=1",
+                },
+                "evaluation": "表现良好",
+            },
+        )
+        record_id = cr.json()["id"]
+
+        resp = await api_client.post(
+            f"/api/reports/{record_id}/export",
+            json={"template_id": "classic"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "pdf_path" in data
+        assert data["pdf_path"].endswith(".pdf")
+        assert data["pdf_path"].startswith("/api/reports/pdf/")
+        assert data["template_id"] == "classic"
+        assert data["page_size"] == "A4"
+
+    async def test_export_not_found(self, api_client) -> None:
+        """不存在的 record_id 返回 404。"""
+        resp = await api_client.post(
+            "/api/reports/99999/export",
+            json={"template_id": "classic"},
+        )
+        assert resp.status_code == 404
+
+    async def test_export_with_invalid_template(self, api_client) -> None:
+        """不存在的模板 ID 返回 400。"""
+        student_id = await _create_student(api_client)
+        cr = await api_client.post(
+            "/api/reports", json={"student_id": student_id}
+        )
+        record_id = cr.json()["id"]
+
+        resp = await api_client.post(
+            f"/api/reports/{record_id}/export",
+            json={"template_id": "nonexistent_template"},
+        )
+        assert resp.status_code == 400
+
+    async def test_export_default_template(self, api_client) -> None:
+        """不指定 template_id 时使用 classic。"""
+        student_id = await _create_student(api_client)
+        cr = await api_client.post(
+            "/api/reports",
+            json={
+                "student_id": student_id,
+                "course_topic": "默认模板导出",
+            },
+        )
+        record_id = cr.json()["id"]
+
+        resp = await api_client.post(
+            f"/api/reports/{record_id}/export",
+            json={},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["template_id"] == "classic"
+
+    async def test_export_all_templates(self, api_client) -> None:
+        """所有内置模板导出都不出错。"""
+        student_id = await _create_student(api_client)
+        cr = await api_client.post(
+            "/api/reports",
+            json={
+                "student_id": student_id,
+                "course_topic": "多模板测试",
+            },
+        )
+        record_id = cr.json()["id"]
+
+        for tid in ("classic", "cartoon", "academic"):
+            resp = await api_client.post(
+                f"/api/reports/{record_id}/export",
+                json={"template_id": tid},
+            )
+            assert resp.status_code == 200, f"模板 {tid} 导出失败: {resp.text}"
+            assert resp.json()["template_id"] == tid
+
+    async def test_export_updates_status(self, api_client) -> None:
+        """导出后草稿状态变为 finalized。"""
+        student_id = await _create_student(api_client)
+        cr = await api_client.post(
+            "/api/reports",
+            json={"student_id": student_id, "course_topic": "状态测试"},
+        )
+        record_id = cr.json()["id"]
+        assert cr.json()["status"] == "draft"
+
+        await api_client.post(
+            f"/api/reports/{record_id}/export",
+            json={"template_id": "classic"},
+        )
+
+        get_resp = await api_client.get(f"/api/reports/{record_id}")
+        assert get_resp.json()["status"] == "finalized"

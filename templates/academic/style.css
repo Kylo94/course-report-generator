@@ -1,0 +1,226 @@
+/* ===== 学术风模板 ===== */
+@page {
+  size: A4;
+  margin: 22mm 20mm 20mm 20mm;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: "STSong", "SimSun", serif;
+  font-size: 11pt;
+  line-height: 1.8;
+  color: #2D3748;
+  background: #fff;
+}
+
+.page {
+  page-break-after: always;
+  padding: 3mm 0;
+  position: relative;
+}
+
+/* ===== Logo ===== */
+.logo { position: absolute; }
+.logo-top-left    { top: 0; left: 0; }
+.logo-top-right   { top: 0; right: 0; }
+.logo-top-center  { top: 0; left: 50%; transform: translateX(-50%); }
+.logo-bottom-left     { bottom: 0; left: 0; }
+.logo-bottom-right    { bottom: 0; right: 0; }
+.logo-bottom-center   { bottom: 0; left: 50%; transform: translateX(-50%); }
+
+/* ===== 封面 ===== */
+.title {
+  font-family: "Heiti SC", "PingFang SC", sans-serif;
+  font-size: 22pt;
+  color: #1A365D;
+  text-align: center;
+  margin: 18mm 0 8mm;
+  letter-spacing: 1pt;
+  text-transform: uppercase;
+  border-bottom: 2px solid #1A365D;
+  padding-bottom: 4mm;
+}
+
+.student-info {
+  text-align: center;
+  font-size: 12pt;
+  color: #4A5568;
+  margin-bottom: 12mm;
+  font-style: italic;
+}
+
+.hero-image {
+  text-align: center;
+  margin: 6mm auto;
+  border: 1px solid #E2E8F0;
+  padding: 2mm;
+}
+.hero-image img {
+  max-width: 140mm;
+  max-height: 55mm;
+}
+
+/* ===== 通用标题 ===== */
+.section-title {
+  font-family: "Heiti SC", "PingFang SC", sans-serif;
+  font-size: 14pt;
+  color: #1A365D;
+  font-weight: bold;
+  margin: 6mm 0 3mm;
+  padding: 2mm 0;
+  border-bottom: 1px solid #CBD5E0;
+}
+
+.page-header {
+  font-family: "Heiti SC", "PingFang SC", sans-serif;
+  font-size: 15pt;
+  color: #1A365D;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 8mm;
+  padding-bottom: 3mm;
+  border-bottom: 1px solid #1A365D;
+}
+
+/* ===== 知识点 ===== */
+.knowledge-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2mm;
+  margin: 4mm 0;
+}
+.kp-card {
+  background: #F7FAFC;
+  border: 1px solid #CBD5E0;
+  padding: 2mm 5mm;
+  font-size: 11pt;
+  color: #2D3748;
+  font-family: "Heiti SC", "PingFang SC", sans-serif;
+}
+
+.ability {
+  font-size: 11pt;
+  line-height: 2;
+  color: #4A5568;
+  margin: 3mm 0;
+  text-align: justify;
+}
+
+/* ===== 内容块 ===== */
+.content-block {
+  margin-bottom: 4mm;
+  padding: 2mm 3mm;
+  border: 1px solid #E2E8F0;
+  background: #FAFBFC;
+}
+.content-block-title {
+  font-family: "Heiti SC", "PingFang SC", sans-serif;
+  font-size: 12pt;
+  font-weight: bold;
+  color: #1A365D;
+  margin-bottom: 1.5mm;
+}
+.content-block-text {
+  font-size: 11pt;
+  line-height: 1.8;
+  color: #4A5568;
+  text-align: justify;
+}
+
+/* ===== 词汇 ===== */
+.vocabulary-card {
+  border: 1px solid #CBD5E0;
+  padding: 4mm 6mm;
+  margin: 4mm 0;
+  background: #F7FAFC;
+}
+.vocab-row {
+  margin-bottom: 2mm;
+}
+.vocab-word {
+  font-family: "Heiti SC", "PingFang SC", sans-serif;
+  font-size: 13pt;
+  font-weight: bold;
+  color: #1A365D;
+  margin-right: 4mm;
+}
+.vocab-phonetic {
+  font-size: 11pt;
+  color: #718096;
+}
+.vocab-label {
+  font-weight: bold;
+  color: #4A5568;
+  margin-right: 2mm;
+}
+.vocab-meaning, .vocab-example {
+  font-size: 11pt;
+  color: #4A5568;
+}
+
+/* ===== 作业 ===== */
+.homework-section {
+  margin: 3mm 0 6mm;
+}
+.homework-goal {
+  font-size: 11pt;
+  line-height: 1.8;
+  color: #2D3748;
+  margin-bottom: 4mm;
+  padding: 2mm 4mm;
+  background: #F7FAFC;
+  border-left: 3px solid #1A365D;
+}
+.homework-subsection {
+  margin-bottom: 3mm;
+}
+.homework-subtitle {
+  font-family: "Heiti SC", "PingFang SC", sans-serif;
+  font-size: 12pt;
+  color: #1A365D;
+  font-weight: bold;
+  margin-bottom: 2mm;
+}
+.homework-list {
+  padding-left: 6mm;
+  list-style: square;
+}
+.homework-list li {
+  margin-bottom: 1mm;
+  font-size: 11pt;
+  color: #4A5568;
+}
+
+/* ===== 评价 ===== */
+.evaluation {
+  font-size: 11pt;
+  line-height: 2;
+  color: #4A5568;
+  margin: 3mm 0;
+  text-indent: 2em;
+  text-align: justify;
+}
+
+/* ===== 页脚 ===== */
+.footer {
+  margin-top: 18mm;
+  padding-top: 2mm;
+  border-top: 1px solid #CBD5E0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.signature-label {
+  font-size: 11pt;
+  color: #2D3748;
+}
+.signature-space {
+  font-size: 11pt;
+  color: #2D3748;
+  letter-spacing: 2mm;
+}
+.footer-date {
+  font-size: 11pt;
+  color: #718096;
+}

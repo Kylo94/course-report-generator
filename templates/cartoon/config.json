@@ -1,0 +1,17 @@
+{
+  "id": "cartoon",
+  "name": "少儿卡通",
+  "version": "1.0",
+  "is_builtin": true,
+  "thumbnail": "",
+  "description": "暖色背景、圆角卡片、大字号，适合低龄学生",
+  "theme": {
+    "primary_color": "#FF8C42",
+    "secondary_color": "#FFF3E0",
+    "font_title": "Heiti SC",
+    "font_body": "STSong",
+    "font_size_title": 28,
+    "font_size_body": 12
+  },
+  "page_size": "A4"
+}

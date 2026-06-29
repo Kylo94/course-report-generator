@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.config import get_settings
+from backend.config import PROJECT_ROOT, get_settings
 from backend.db import get_session
 from backend.schemas.course_record import (
     CourseRecordCreate,
@@ -17,8 +18,15 @@ from backend.schemas.course_record import (
     CourseRecordUpdate,
     StatusUpdate,
 )
+from backend.schemas.template import TemplateListItem
 from backend.services import course_records as record_svc
 from backend.services.course_records import RecordNotFoundError
+from backend.services.pdf_generator import PDFGenerationError, PDFGenerator
+from backend.services.report_renderer import (
+    ReportRenderer,
+    TemplateNotFoundError,
+    list_templates,
+)
 from backend.utils.logger import get_logger
 
 log = get_logger(__name__)
@@ -184,6 +192,100 @@ async def delete_record(
         await record_svc.delete_record(session, record_id)
     except RecordNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# =========================
+# PDF 导出
+# =========================
+
+@router.post(
+    "/api/reports/{record_id}/export",
+    response_model=dict,
+    summary="导出课程报告为 PDF",
+)
+async def export_report(
+    record_id: int,
+    body: dict = Body(default={"template_id": "classic"}),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """导出指定报告为 PDF 文件。
+
+    - 加载报告和学生信息
+    - 用指定模板渲染 HTML
+    - WeasyPrint 转为 PDF
+    - 保存到 data/reports/ 并返回下载路径
+    - 同时将报告状态更新为 finalized
+    """
+    template_id = body.get("template_id", "classic")
+
+    # 1. 加载报告
+    try:
+        record = await record_svc.get_record(session, record_id)
+    except RecordNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # 2. 获取学生名
+    student_name = ""
+    if record.student_id:
+        try:
+            from backend.models import Student as StudentModel
+            student = await session.get(
+                StudentModel,
+                record.student_id,
+            )
+            if student:
+                student_name = student.name
+        except Exception:
+            pass
+
+    # 3. 渲染 HTML
+    try:
+        renderer = ReportRenderer(template_id)
+    except TemplateNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    html = renderer.render(record, student_name=student_name)
+
+    # 4. 生成 PDF
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    output_dir = Path(settings.report.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"report_{record_id}_{timestamp}.pdf"
+    output_path = output_dir / filename
+
+    try:
+        pdf_gen = PDFGenerator()
+        pdf_gen.generate(html, str(output_path))
+    except PDFGenerationError as e:
+        log.exception("PDF 生成失败: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # 5. 更新状态为 finalized
+    if record.status == "draft":
+        await record_svc.update_record_status(session, record_id, "finalized")
+
+    log.info("报告导出成功: record_id=%s template=%s pdf=%s", record_id, template_id, filename)
+    return {
+        "pdf_path": f"/api/reports/pdf/{filename}",
+        "filename": filename,
+        "template_id": template_id,
+        "page_size": renderer.config.get("page_size", "A4"),
+    }
+
+
+# =========================
+# 模板管理
+# =========================
+
+@router.get(
+    "/api/templates",
+    response_model=list[TemplateListItem],
+    summary="获取可用内置模板列表",
+)
+async def templates_list() -> list[TemplateListItem]:
+    """返回所有可用模板及其元信息。"""
+    templates = list_templates()
+    return [TemplateListItem(**t) for t in templates]
 
 
 # =========================

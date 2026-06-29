@@ -68,6 +68,15 @@ def _mount_static(app: FastAPI) -> None:
         name="assets",
     )
 
+    # 报告 PDF 文件
+    report_dir = Path(settings.report.output_dir)
+    report_dir.mkdir(parents=True, exist_ok=True)
+    app.mount(
+        "/api/reports/pdf",
+        StaticFiles(directory=str(report_dir)),
+        name="reports_pdf",
+    )
+
 
 def create_app() -> FastAPI:
     """创建 FastAPI 应用实例。"""

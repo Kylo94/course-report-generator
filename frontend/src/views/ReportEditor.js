@@ -232,13 +232,31 @@ const ReportEditorView = {
               <el-button type="primary" @click="saveDraft" :loading="saving">
                 💾 保存草稿
               </el-button>
-              <el-button @click="exportFinal" :loading="exporting">
-                📄 标记已导出
+              <el-button type="success" @click="exportPdf" :loading="exporting">
+                📄 导出 PDF
               </el-button>
+              <div v-if="pdfDownloadUrl" style="margin-top:4px;">
+                <el-alert type="success" :closable="false" show-icon>
+                  <template #title>
+                    PDF 已生成
+                    <a :href="pdfDownloadUrl" target="_blank" style="margin-left:8px;font-weight:bold;">下载</a>
+                  </template>
+                </el-alert>
+              </div>
               <el-button type="danger" plain @click="confirmDeleteRecord">
                 🗑️ 删除
               </el-button>
             </div>
+          </el-card>
+
+          <!-- 模板选择 -->
+          <el-card class="section-card">
+            <template #header>🎨 模板选择</template>
+            <el-radio-group v-model="selectedTemplate" @change="onTemplateChange">
+              <el-radio v-for="t in templateList" :key="t.id" :value="t.id" style="display:block;margin-bottom:6px;">
+                {{ t.name }}
+              </el-radio>
+            </el-radio-group>
           </el-card>
 
           <!-- 截图上传 -->
@@ -341,6 +359,13 @@ const ReportEditorView = {
       aiGenerating: false,
       aiErrors: {},
 
+      // PDF 导出
+      pdfDownloadUrl: '',
+
+      // 模板选择
+      selectedTemplate: 'classic',
+      templateList: [],
+
       // 需要重建项目的元信息
       projectMeta: null,
     };
@@ -375,6 +400,9 @@ const ReportEditorView = {
 
     // 加载 Logo 信息
     await this.loadLogoInfo();
+
+    // 加载模板列表
+    await this.loadTemplates();
 
     // 启动自动保存
     this.startAutoSave();
@@ -636,21 +664,47 @@ const ReportEditorView = {
       }
     },
 
-    async exportFinal() {
+    async exportPdf() {
       if (!this.recordId) {
         this.$message.warning('请先保存草稿');
         return;
       }
       this.exporting = true;
+      this.pdfDownloadUrl = '';
       try {
-        await API.reports.updateStatus(this.recordId, 'finalized');
+        // 先保存再导出
+        if (this.dirty) {
+          await this.saveDraft();
+        }
+        const result = await API.reports.export(this.recordId, this.selectedTemplate);
         this.form.status = 'finalized';
-        this.$message.success('已标记为已导出');
+        this.pdfDownloadUrl = result.pdf_path;
+        this.$message.success('PDF 导出成功！');
       } catch (e) {
-        this.$message.error('操作失败: ' + e.message);
+        this.$message.error('导出失败: ' + e.message);
       } finally {
         this.exporting = false;
       }
+    },
+
+    async loadTemplates() {
+      try {
+        this.templateList = await API.templates.list();
+        if (this.templateList.length > 0 && this.form.template_id) {
+          // 尝试匹配已有模板 ID（去除 _default 后缀兼容旧数据）
+          const match = this.templateList.find(
+            t => t.id === this.form.template_id || t.id === this.form.template_id.replace('_default', '')
+          );
+          if (match) this.selectedTemplate = match.id;
+        }
+      } catch (e) {
+        console.error('加载模板列表失败:', e);
+      }
+    },
+
+    onTemplateChange(val) {
+      this.form.template_id = val;
+      this.markDirty();
     },
 
     confirmDeleteRecord() {

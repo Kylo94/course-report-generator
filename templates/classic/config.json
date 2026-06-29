@@ -1,0 +1,17 @@
+{
+  "id": "classic",
+  "name": "经典简约",
+  "version": "1.0",
+  "is_builtin": true,
+  "thumbnail": "",
+  "description": "白底蓝条、简洁专业，适合正式场合",
+  "theme": {
+    "primary_color": "#2B5FC3",
+    "secondary_color": "#F0F4FA",
+    "font_title": "Heiti SC",
+    "font_body": "STSong",
+    "font_size_title": 24,
+    "font_size_body": 11
+  },
+  "page_size": "A4"
+}

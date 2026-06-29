@@ -12,6 +12,11 @@ from backend.schemas.ai_generation import (
     HomeworkSchema,
     VocabularySchema,
 )
+from backend.schemas.template import (
+    TemplateConfig,
+    TemplateListItem,
+    ThemeConfig,
+)
 from backend.schemas.course_record import (
     AiMetaSchema,
     CourseRecordCreate,
@@ -65,6 +70,9 @@ __all__ = [
     "PyStructureSchema",
     "StatusUpdate",
     "StudentCreate",
+    "TemplateConfig",
+    "TemplateListItem",
+    "ThemeConfig",
     "StudentList",
     "StudentRead",
     "StudentUpdate",
