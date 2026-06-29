@@ -233,20 +233,20 @@ uv run ruff check .
 uv add pyinstaller --dev
 
 # 2. 安装 Playwright + Chromium
-python -m playwright install chromium
+uv run python -m playwright install chromium
 ```
 
 ### 构建
 
 ```bash
 # 标准构建（含 Chromium，约 400MB）
-python build.py
+uv run python build.py
 
 # 不含 Chromium 的轻量构建（约 60MB，需接收方自行安装 Chromium）
-python build.py --no-chrome
+uv run python build.py --no-chrome
 
 # 清理旧构建后重新打包
-python build.py --clean
+uv run python build.py --clean
 ```
 
 构建产物在 `dist/课程报告生成工具/` 目录下。
@@ -266,18 +266,18 @@ python build.py --clean
 接收方需先安装 Playwright Chromium：
 
 ```bash
-python -m playwright install chromium
+uv run python -m playwright install chromium
 ```
 
 ### 跨平台打包
 
-在对应的平台上分别执行 `python build.py`：
+在对应的平台上分别执行 `uv run python build.py`：
 
 | 平台 | 构建命令 | 产物 |
 |------|---------|------|
-| Windows | `python build.py` | `dist/课程报告生成工具/课程报告生成工具.exe` |
-| macOS | `python build.py` | `dist/课程报告生成工具.app` |
-| Linux | `python build.py` | `dist/课程报告生成工具/课程报告生成工具` |
+| Windows | `uv run python build.py` | `dist/课程报告生成工具/课程报告生成工具.exe` |
+| macOS | `uv run python build.py` | `dist/课程报告生成工具.app` |
+| Linux | `uv run python build.py` | `dist/课程报告生成工具/课程报告生成工具` |
 
 > **注意：** PyInstaller 不支持交叉编译。Windows 包必须在 Windows 上构建，macOS 包同理。
 

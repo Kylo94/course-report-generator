@@ -11,6 +11,9 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
+import time
+import webbrowser
 from pathlib import Path
 
 import uvicorn
@@ -24,6 +27,26 @@ def _ensure_data_dir() -> None:
     if getattr(sys, "frozen", False):
         exe_dir = Path(sys.executable).resolve().parent
         os.chdir(str(exe_dir))
+
+
+def _schedule_browser_open(url: str, delay: float = 1.5) -> None:
+    """延迟打开默认浏览器访问应用 URL。
+
+    延迟是为了等 uvicorn 完成 socket 绑定，否则浏览器会先撞到拒绝连接。
+    通过 CRG_NO_BROWSER=1 环境变量可以关闭（CI/测试场景用）。
+    """
+    if os.environ.get("CRG_NO_BROWSER") == "1":
+        return
+
+    def _open() -> None:
+        time.sleep(delay)
+        try:
+            webbrowser.open(url)
+        except Exception:
+            # 浏览器打开失败不影响主进程
+            pass
+
+    threading.Thread(target=_open, daemon=True, name="browser-launcher").start()
 
 
 def main() -> int:
@@ -44,6 +67,13 @@ def main() -> int:
 
     try:
         # 2. 启动 FastAPI 服务
+        # 打包模式下强制关闭 reload：uvicorn 的 reload 机制会 fork/spawn
+        # 子进程重新 import app，对 frozen 可执行文件无效且会找不到 backend.app
+        is_frozen = getattr(sys, "frozen", False)
+        reload_enabled = settings.server.reload and not is_frozen
+        if is_frozen and settings.server.reload:
+            log.info("检测到打包模式，强制关闭 reload")
+
         log.info(
             "FastAPI 服务: http://%s:%d",
             settings.server.host,
@@ -51,11 +81,16 @@ def main() -> int:
         )
         log.info("API 文档: http://%s:%d/docs", settings.server.host, settings.server.port)
 
+        # 自动打开默认浏览器（可通过 CRG_NO_BROWSER=1 关闭）
+        _schedule_browser_open(
+            f"http://{settings.server.host}:{settings.server.port}"
+        )
+
         uvicorn.run(
             "backend.app:app",
             host=settings.server.host,
             port=settings.server.port,
-            reload=settings.server.reload,
+            reload=reload_enabled,
             log_config=None,  # 使用我们自己的日志配置
         )
         return 0

@@ -88,6 +88,9 @@ data/backups/*
 logs/*.log
 logs/*.log.*
 !logs/.gitkeep
+# 调试/测试产物（运行 exe 时产生的临时日志）
+dist_run.log
+*.run.log
 
 # =========================
 # Local config (含 API Key，绝不入库)

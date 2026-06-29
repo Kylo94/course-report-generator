@@ -23,8 +23,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 项目根目录（兼容 PyInstaller 打包模式）
 from backend.paths import get_app_root, get_user_config_dir, _is_frozen
+from backend.utils.logger import get_logger
 
 PROJECT_ROOT = get_app_root()
+log = get_logger("config")
+
+# 应用版本号（与 build.spec / pyproject.toml 保持一致）
+APP_VERSION = "1.0.0"
 
 # 环境变量前缀
 ENV_PREFIX = "CRG_"
@@ -196,7 +201,102 @@ def _init_user_config() -> Path:
                 # 兜底：生成基础模板
                 _write_default_llm_yaml(llm_yaml)
                 log.info("已生成默认 %s（请编辑 API Key 后重启）", llm_yaml)
+
+        # 首次运行引导文档（exe 同级目录，方便用户一眼看到）
+        _write_first_run_guide(user_cfg.parent)
+
     return user_cfg
+
+
+# 首次使用说明模板（UTF-8，{version} / {config_rel} 由调用方填充）
+_FIRST_RUN_GUIDE_TEMPLATE = """\
+课程报告生成工具 v{version} — 首次使用说明
+================================================================
+
+感谢使用！本工具需要配置 AI 服务的 API Key 才能生成报告内容。
+
+────────────────────────────────────────────────────────────────
+步骤 1：找到配置文件
+────────────────────────────────────────────────────────────────
+本目录下应有 {config_rel}/ 文件夹，内含：
+
+  • app.yaml            应用配置（端口、数据库、日志等，一般无需修改）
+  • llm.yaml            ⭐ AI 配置（需要你编辑填入 API Key）
+  • llm.yaml.example    配置模板（参考用，不要直接编辑）
+
+────────────────────────────────────────────────────────────────
+步骤 2：编辑 llm.yaml
+────────────────────────────────────────────────────────────────
+用记事本、VSCode 或任意文本编辑器打开 llm.yaml，
+找到 api_key 这一行：
+
+    api_key: YOUR_API_KEY_HERE
+
+替换成你从 AI 供应商网站申请到的真实 API Key，例如：
+
+    api_key: sk-abc123def456xxxxxxxxxx
+
+────────────────────────────────────────────────────────────────
+步骤 3：选择 AI 供应商（可选）
+────────────────────────────────────────────────────────────────
+llm.yaml 顶部的 provider 字段决定使用哪家 AI 服务：
+
+  ┌───────────┬──────────────────┬──────────────────────────┐
+  │ provider  │ 供应商           │ 推荐模型                 │
+  ├───────────┼──────────────────┼──────────────────────────┤
+  │ deepseek  │ DeepSeek         │ deepseek-chat            │
+  │ qwen      │ 通义千问（阿里） │ qwen-plus                │
+  │ glm       │ 智谱 AI          │ glm-4                    │
+  │ openai    │ OpenAI           │ gpt-4o-mini              │
+  │ claude    │ Anthropic Claude │ claude-sonnet-4-6        │
+  └───────────┴──────────────────┴──────────────────────────┘
+
+切换供应商 = 改 provider 字段 + 填对应供应商的 api_key + 改 default_model。
+
+────────────────────────────────────────────────────────────────
+步骤 4：重启应用
+────────────────────────────────────────────────────────────────
+保存 llm.yaml 后，关闭本程序再双击启动，新配置生效。
+（也可以在前端「设置」页面运行时重载。）
+
+────────────────────────────────────────────────────────────────
+常见问题
+────────────────────────────────────────────────────────────────
+Q：浏览器没有自动弹出？
+A：手动访问 http://127.0.0.1:8765
+
+Q：8765 端口被占用？
+A：编辑 app.yaml，把 server.port 改成其它端口（如 8766）
+
+Q：日志在哪？
+A：logs/ 目录下的 .log 文件
+
+Q：报告、截图存在哪？
+A：data/ 目录（reports / screenshots / assets 子目录）
+
+Q：怎么彻底卸载？
+A：删除整个程序目录即可，无注册表项、无系统残留
+
+────────────────────────────────────────────────────────────────
+技术支持：参考 README.md 或提交 Issue
+================================================================
+"""
+
+
+def _write_first_run_guide(exe_dir: Path) -> None:
+    """在 exe 同级目录生成首次使用说明（仅打包模式、仅首次）。"""
+    target = exe_dir / "首次使用说明.txt"
+    if target.exists():
+        return  # 已生成过就不覆盖，保留用户可能的手改
+    try:
+        content = _FIRST_RUN_GUIDE_TEMPLATE.format(
+            version=APP_VERSION,
+            config_rel="config",
+        )
+        target.write_text(content, encoding="utf-8")
+        log.info("已生成首次使用说明: %s", target)
+    except Exception as e:
+        log.warning("生成首次使用说明失败: %s", e)
 
 
 def _write_default_llm_yaml(path: Path) -> None:

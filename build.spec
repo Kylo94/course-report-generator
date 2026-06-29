@@ -10,17 +10,22 @@ PyInstaller 打包配置文件。
 
 打包前请确保已安装 Playwright 和 Chromium：
     uv add playwright
-    python -m playwright install chromium
+    uv run python -m playwright install chromium
 
 输出目录：dist/course-report-generator/
 """
 from __future__ import annotations
 
+import os
 import platform
+import sys
 from pathlib import Path
 
 # ── 项目根目录 ──
-PROJECT_ROOT = Path(__file__).resolve().parent
+# PyInstaller 在 exec() spec 时会把 spec 文件的绝对路径注入到全局变量 `SPEC`
+# （大写），但不会注入 `__file__`。这里优先用 SPEC 反推，回退到 sys.argv[0]。
+_SPEC_PATH = globals().get("SPEC") or sys.argv[0]
+PROJECT_ROOT = Path(os.path.dirname(os.path.abspath(_SPEC_PATH)))
 
 # ── 应用元信息 ──
 APP_NAME = "课程报告生成工具"
@@ -31,11 +36,8 @@ EXCLUDES = [
     "tkinter",
     "test",
     "unittest",
-    "email",
     "http.server",
-    "distutils",
     "lib2to3",
-    "multiprocessing",
     "pdb",  # 调试器
     "pydoc",
     "curses",
@@ -45,6 +47,19 @@ EXCLUDES = [
 
 # ── 隐藏 import（PyInstaller 可能找不到的隐式依赖） ──
 HIDDEN_IMPORTS = [
+    # uvicorn 通过字符串 "backend.app:app" 动态加载，PyInstaller 看不到
+    # 这里把 backend 包全部声明，避免漏抓子模块
+    "backend",
+    "backend.app",
+    "backend.config",
+    "backend.db",
+    "backend.paths",
+    "backend.api",
+    "backend.services",
+    "backend.schemas",
+    "backend.models",
+    "backend.llm",
+    "backend.utils",
     # FastAPI 运行时动态加载的模块
     "uvicorn.logging",
     "uvicorn.loops.auto",
