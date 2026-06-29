@@ -1,7 +1,9 @@
 """项目扫描 API 路由。"""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from pathlib import Path
+
+from fastapi import APIRouter, Body, HTTPException
 
 from backend.schemas.project import (
     FileInfoSchema,
@@ -10,8 +12,74 @@ from backend.schemas.project import (
     PyStructureSchema,
 )
 from backend.services import code_analyzer
+from backend.utils.logger import get_logger
+
+log = get_logger(__name__)
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
+
+# 常用项目起始目录
+_DEFAULT_BROWSER_ROOTS = ["~", "~/Desktop", "~/Documents"]
+
+
+@router.post(
+    "/list-dir",
+    summary="列出指定路径下的子目录（用于前端文件夹浏览器）",
+    response_model=dict,
+)
+async def list_directory(
+    body: dict = Body(default={"path": ""}),
+) -> dict:
+    """列出指定路径的子目录，返回目录树供前端浏览器使用。
+
+    如果 path 为空，返回常用起始目录（桌面、文稿等）。
+    """
+    path_str = (body.get("path") or "").strip()
+
+    if not path_str:
+        # 默认起始页：列出常用根目录
+        items = []
+        for d in _DEFAULT_BROWSER_ROOTS:
+            p = Path(d).expanduser().resolve()
+            if p.exists():
+                items.append({
+                    "name": "📁 " + p.name,
+                    "path": str(p),
+                    "is_parent": False,
+                    "is_root": True,
+                })
+        return {"path": "", "items": items, "is_root": True, "error": None}
+
+    target = Path(path_str).expanduser().resolve()
+    if not target.exists():
+        return {"path": path_str, "items": [], "is_root": False, "error": "目录不存在"}
+    if not target.is_dir():
+        return {"path": path_str, "items": [], "is_root": False, "error": "不是目录"}
+
+    items = []
+    # 返回上级
+    parent = target.parent
+    if parent != target and parent.exists():
+        items.append({
+            "name": ".. 返回上级",
+            "path": str(parent),
+            "is_parent": True,
+            "is_root": False,
+        })
+
+    try:
+        for child in sorted(target.iterdir(), key=lambda x: (not x.is_dir(), x.name)):
+            if child.is_dir() and not child.name.startswith("."):
+                items.append({
+                    "name": "📁 " + child.name,
+                    "path": str(child.resolve()),
+                    "is_parent": False,
+                    "is_root": False,
+                })
+    except PermissionError:
+        pass
+
+    return {"path": str(target), "items": items, "is_root": False, "error": None}
 
 
 @router.post(

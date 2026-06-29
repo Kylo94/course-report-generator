@@ -10,14 +10,23 @@ const DashboardView = {
       <!-- 统计卡片 -->
       <div class="dashboard-stats">
         <el-card class="stat-card" shadow="hover">
+          <div class="stat-icon">
+            <el-icon :size="28" color="#409eff"><DocumentCopy /></el-icon>
+          </div>
           <div class="stat-number">{{ draftCount }}</div>
           <div class="stat-label">草稿数量</div>
         </el-card>
         <el-card class="stat-card" shadow="hover">
+          <div class="stat-icon">
+            <el-icon :size="28" color="#67c23a"><User /></el-icon>
+          </div>
           <div class="stat-number">{{ studentCount }}</div>
           <div class="stat-label">学生总数</div>
         </el-card>
         <el-card class="stat-card" shadow="hover">
+          <div class="stat-icon">
+            <el-icon :size="28" color="#e6a23c"><CircleCheckFilled /></el-icon>
+          </div>
           <div class="stat-number">{{ finalizedCount }}</div>
           <div class="stat-label">已导出报告</div>
         </el-card>
@@ -26,24 +35,24 @@ const DashboardView = {
       <!-- 快捷操作 -->
       <el-row :gutter="16" style="margin-bottom: 20px;">
         <el-col :span="8">
-          <el-card class="dashboard-card" shadow="hover" @click="startNewReport">
-            <el-icon :size="32" color="#409eff"><Plus /></el-icon>
+          <el-card class="dashboard-card dashboard-card-primary" shadow="hover" @click="startNewReport">
+            <el-icon :size="36" color="#fff" style="background:linear-gradient(135deg,#409eff,#667eea);padding:12px;border-radius:12px;"><Plus /></el-icon>
             <h3>新建报告</h3>
-            <p style="color:#909399;font-size:13px;">选择学生 → AI 生成 → 编辑 → 导出</p>
+            <p>选择学生 → AI 生成 → 编辑 → 导出</p>
           </el-card>
         </el-col>
         <el-col :span="8">
           <el-card class="dashboard-card" shadow="hover" @click="Router.navigate('drafts')">
-            <el-icon :size="32" color="#67c23a"><Document /></el-icon>
+            <el-icon :size="36" color="#67c23a" style="background:rgba(103,194,58,0.1);padding:12px;border-radius:12px;"><Document /></el-icon>
             <h3>草稿管理</h3>
-            <p style="color:#909399;font-size:13px;">查看、编辑、删除已保存的草稿</p>
+            <p>查看、编辑、删除已保存的草稿</p>
           </el-card>
         </el-col>
         <el-col :span="8">
           <el-card class="dashboard-card" shadow="hover" @click="Router.navigate('editor?new')">
-            <el-icon :size="32" color="#e6a23c"><Edit /></el-icon>
+            <el-icon :size="36" color="#e6a23c" style="background:rgba(230,162,60,0.1);padding:12px;border-radius:12px;"><Edit /></el-icon>
             <h3>快速编辑</h3>
-            <p style="color:#909399;font-size:13px;">直接进入报告编辑器</p>
+            <p>直接进入报告编辑器</p>
           </el-card>
         </el-col>
       </el-row>

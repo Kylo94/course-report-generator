@@ -120,7 +120,7 @@ def _make_student(name: str = "小明") -> StudentRead:
 class TestGenerateAll:
     async def test_success_all_steps(self) -> None:
         provider = _ScriptedProvider({
-            "提取本节课涉及的": json.dumps(
+            "学生能力提升": json.dumps(
                 ["print 使用", "if 分支"], ensure_ascii=False
             ),
             "为家长写一段课程内容概述": json.dumps({
@@ -135,7 +135,7 @@ class TestGenerateAll:
         orch = AIOrchestrator(provider)
         result = await orch.generate_all(_make_project(), _make_student())
         assert isinstance(result, GenerationResult)
-        assert len(result.knowledge_points) == 2
+        assert len(result.knowledge_points) == 5  # 不足 5 条时补齐
         assert len(result.content_items) == 2
         assert result.ability_improvement == "逻辑思维提升"
         assert "小明" in result.evaluation
@@ -151,7 +151,7 @@ class TestGenerateAll:
     async def test_step_continues_after_step3_failure(self) -> None:
         """Step 3 失败不应阻止 Step 4 执行。"""
         provider = _ScriptedProvider({
-            "提取本节课涉及的": json.dumps(
+            "学生能力提升": json.dumps(
                 ["print 使用"], ensure_ascii=False
             ),
             "为家长写一段课程内容概述": json.dumps({
@@ -172,7 +172,7 @@ class TestGenerateAll:
 class TestRegenerateOne:
     async def test_knowledge_points(self) -> None:
         provider = _ScriptedProvider({
-            "提取本节课涉及的": json.dumps(
+            "学生能力提升": json.dumps(
                 ["新知识点1", "新知识点2"], ensure_ascii=False
             ),
         })
@@ -180,7 +180,7 @@ class TestRegenerateOne:
         result = await orch.regenerate_one(
             "knowledge_points", _make_project(), _make_student()
         )
-        assert result == ["新知识点1", "新知识点2"]
+        assert result == ["新知识点1", "新知识点2", "for 循环强化重复思维", "函数定义培养分解能力", "调试代码提升排查技能"]
 
     async def test_evaluation(self) -> None:
         provider = _ScriptedProvider({

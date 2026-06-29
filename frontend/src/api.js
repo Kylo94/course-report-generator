@@ -69,8 +69,34 @@ const API = {
     patch(id, data) { return API.patch(`/api/reports/${id}`, data); },
     delete(id) { return API.delete(`/api/reports/${id}`); },
     updateStatus(id, status) { return API.patch(`/api/reports/${id}/status`, { status }); },
-    export(id, templateId = 'classic') { return API.post(`/api/reports/${id}/export`, { template_id: templateId }); },
-    exportWord(id, templateId = 'classic') { return API.post(`/api/reports/${id}/export-word`, { template_id: templateId }); },
+    export(id, templateId = 'classic', layoutConfig = null, outputDir = null) {
+      const body = { template_id: templateId };
+      if (layoutConfig) body.layout_config = layoutConfig;
+      if (outputDir) body.output_dir = outputDir;
+      return API.post(`/api/reports/${id}/export`, body);
+    },
+    exportWord(id, templateId = 'classic', layoutConfig = null, outputDir = null) {
+      const body = { template_id: templateId };
+      if (layoutConfig) body.layout_config = layoutConfig;
+      if (outputDir) body.output_dir = outputDir;
+      return API.post(`/api/reports/${id}/export-word`, body);
+    },
+    batchGenerate(data) { return API.post('/api/reports/batch', data); },
+
+    preview(id, templateId = 'classic', layoutConfig = null, screenshotPaths = null) {
+      // 预览接口返回 HTML（非 JSON），需要用 fetch 直接获取文本
+      const body = { template_id: templateId };
+      if (layoutConfig) body.layout_config = layoutConfig;
+      if (screenshotPaths && screenshotPaths.length > 0) body.screenshot_paths = screenshotPaths;
+      return fetch(API.baseURL + `/api/reports/${id}/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(r => {
+        if (!r.ok) throw new Error('预览生成失败: HTTP ' + r.status);
+        return r.text();
+      });
+    },
   },
 
   // =====================
@@ -117,6 +143,7 @@ const API = {
   // =====================
   projects: {
     scan(data) { return API.post('/api/projects/scan', data); },
+    listDir(data) { return API.post('/api/projects/list-dir', data); },
   },
 
   // =====================
@@ -139,6 +166,22 @@ const API = {
   // =====================
   templates: {
     list() { return API.get('/api/templates'); },
+    getConfig(id) { return API.get(`/api/templates/${id}/config`); },
+    create(data) { return API.post('/api/templates', data); },
+    update(id, data) { return API.put(`/api/templates/${id}`, data); },
+    delete(id) { return API.delete(`/api/templates/${id}`); },
+    preview(id, themeOverrides = null) {
+      const body = {};
+      if (themeOverrides) body.theme_overrides = themeOverrides;
+      return fetch(API.baseURL + `/api/templates/${id}/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(r => {
+        if (!r.ok) throw new Error('模板预览失败: HTTP ' + r.status);
+        return r.text();
+      });
+    },
   },
 
 };

@@ -50,6 +50,8 @@ const Router = {
       editor: '报告编辑',
       students: '学生管理',
       classes: '班级管理',
+      templates: '模板管理',
+      batch: '批量生成',
     };
     return titles[route] || '课程报告生成工具';
   },

@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>课程报告生成工具</title>
   <!-- Vue 3 -->
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="/vendor/vue.global.prod.js"></script>
   <!-- Element Plus -->
-  <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
-  <script src="https://unpkg.com/element-plus/dist/index.full.min.js"></script>
+  <link rel="stylesheet" href="/vendor/element-plus.css">
+  <script src="/vendor/element-plus.full.min.js"></script>
   <!-- Element Plus Icons -->
-  <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+  <script src="/vendor/element-plus-icons.min.js"></script>
   <!-- 应用样式 -->
   <link rel="stylesheet" href="/styles/app.css">
 </head>
@@ -20,7 +20,8 @@
       <!-- 侧边栏 -->
       <el-aside width="200px" class="app-sidebar">
         <div class="sidebar-header">
-          <h2>📋 课程报告</h2>
+          <el-icon class="sidebar-icon"><Document /></el-icon>
+          <h2>课程报告</h2>
         </div>
         <el-menu
           :default-active="currentRoute"
@@ -46,6 +47,14 @@
           <el-menu-item index="classes">
             <el-icon><School /></el-icon>
             <span>班级管理</span>
+          </el-menu-item>
+          <el-menu-item index="templates">
+            <el-icon><Setting /></el-icon>
+            <span>模板管理</span>
+          </el-menu-item>
+          <el-menu-item index="batch">
+            <el-icon><Files /></el-icon>
+            <span>批量生成</span>
           </el-menu-item>
         </el-menu>
       </el-aside>
@@ -80,6 +89,8 @@
   <script src="/src/views/ReportEditor.js"></script>
   <script src="/src/views/Students.js"></script>
   <script src="/src/views/Classes.js"></script>
+  <script src="/src/views/TemplateManager.js"></script>
+  <script src="/src/views/BatchReport.js"></script>
   <!-- 启动应用 -->
   <script src="/src/app.js"></script>
 </body>

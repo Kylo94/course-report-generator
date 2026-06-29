@@ -20,12 +20,8 @@
   <div class="student-info">{{ student_name }} ｜ {{ course_date }}</div>
 
   {% if screenshots %}
-  <div class="screenshot-gallery">
-    {% for s in screenshots %}
-    <div class="screenshot-item">
-      <img src="{{ s }}" alt="课程截图 {{ loop.index }}">
-    </div>
-    {% endfor %}
+  <div class="hero-image">
+    <img src="{{ screenshots[0] }}" alt="课程截图">
   </div>
   {% endif %}
 

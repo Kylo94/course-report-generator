@@ -18,6 +18,7 @@ from langchain_core.runnables import Runnable
 
 from backend.llm.base import LLMProvider
 from backend.llm.prompts import (
+    CODE_ANALYSIS_PROMPT,
     CONTENT_SUMMARY_PROMPT,
     EVALUATION_PROMPT,
     HOMEWORK_VOCAB_PROMPT,
@@ -69,11 +70,17 @@ def _extract_json(text: str) -> Any:
 # =========================
 def build_chains(provider: LLMProvider) -> dict[str, Runnable]:
     """
-    构建 4 个独立子链，返回 dict[field_name, Runnable]。
+    构建 5 个子链（代码分析 + 4 个生成链），返回 dict[field_name, Runnable]。
 
     每个 chain 是 prompt | llm | output_parser 的标准 LCEL 组合。
     """
     temps = provider.config.temperature
+
+    # 代码分析链：输出 JSON 对象
+    ca_prompt = ChatPromptTemplate.from_template(CODE_ANALYSIS_PROMPT)
+    ca_chain = ca_prompt | provider.get_chat_model(
+        temperature=temps.get("code_analysis", 0.2)
+    ) | StrOutputParser() | _extract_json  # type: ignore[arg-type]
 
     # 知识点链：输出 JSON 列表
     kp_prompt = ChatPromptTemplate.from_template(KNOWLEDGE_POINTS_PROMPT)
@@ -100,12 +107,13 @@ def build_chains(provider: LLMProvider) -> dict[str, Runnable]:
     ) | StrOutputParser()
 
     chains = {
+        "code_analysis": ca_chain,
         "knowledge_points": kp_chain,
         "content_summary": cs_chain,
         "homework_vocab": hw_chain,
         "evaluation": ev_chain,
     }
-    log.info("已构建 %d 个 AI 子链", len(chains))
+    log.info("已构建 %d 个子链（代码分析 + 4 个生成链）", len(chains))
     return chains
 
 

@@ -21,8 +21,9 @@ const ClassesView = {
           <template #default="{ row }">{{ row.schedule_time || '-' }}</template>
         </el-table-column>
         <el-table-column prop="student_count" label="学生数" width="80" />
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
+            <el-button size="small" @click="viewStudents(row)">学生</el-button>
             <el-button size="small" @click="editClass(row)">编辑</el-button>
             <el-button size="small" type="danger" @click="deleteClass(row)">删除</el-button>
           </template>
@@ -81,7 +82,8 @@ const ClassesView = {
     async loadClasses() {
       this.loading = true;
       try {
-        this.classes = await API.classes.list();
+        const result = await API.classes.list();
+        this.classes = result.items || [];
       } catch (e) {
         this.$message.error('加载班级列表失败: ' + e.message);
       } finally {
@@ -95,6 +97,10 @@ const ClassesView = {
       this.form = { name: '', schedule_day: '', schedule_time: '' };
       this.scheduleTime = null;
       this.dialogVisible = true;
+    },
+
+    viewStudents(row) {
+      Router.navigate('students');
     },
 
     editClass(row) {

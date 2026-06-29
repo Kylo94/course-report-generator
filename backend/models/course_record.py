@@ -53,6 +53,11 @@ class CourseRecord(Base):
         Text, nullable=True, default=None
     )  # JSON {enabled, position, size, show_on_all_pages}
 
+    # 布局设置（用户自定义排版）
+    layout_config: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )  # JSON {primary_color, font_title, ...}
+
     # 状态
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="draft", index=True

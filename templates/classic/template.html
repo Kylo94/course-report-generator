@@ -2,7 +2,8 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<style>{{ css_content }}</style>
+<style>{{ css_content | safe }}</style>
+<style>{{ custom_style | safe }}</style>
 </head>
 <body>
 
@@ -19,8 +20,12 @@
   <div class="student-info">{{ student_name }} ｜ {{ course_date }}</div>
 
   {% if screenshots %}
-  <div class="hero-image">
-    <img src="{{ screenshots[0] }}" alt="课程截图">
+  <div class="screenshot-gallery">
+    {% for s in screenshots %}
+    <div class="screenshot-item">
+      <img src="{{ s }}" alt="课程截图 {{ loop.index }}">
+    </div>
+    {% endfor %}
   </div>
   {% endif %}
 
@@ -35,15 +40,22 @@
   <div class="ability">{{ ability_improvement }}</div>
 </div>
 
-<!-- ===== 第 2 页：内容详解（前 3 项） ===== -->
+<!-- ===== 第 2 页：内容详解 + 代码展示 ===== -->
 <div class="page page-2">
   <div class="page-header">课程内容详解</div>
-  {% for item in content_items[:3] %}
+  {% for item in content_items[:2] %}
   <div class="content-block">
     <div class="content-block-title">{{ item.kp }}</div>
     <div class="content-block-text">{{ item.text }}</div>
   </div>
   {% endfor %}
+
+  {% if code_excerpt %}
+  <div class="section-title">💻 本节课代码展示</div>
+  <div class="code-block">
+    <pre><code>{{ code_excerpt | e }}</code></pre>
+  </div>
+  {% endif %}
 </div>
 
 <!-- ===== 第 3 页：剩余内容 + 单词学习 ===== -->
@@ -115,13 +127,6 @@
   <div class="section-title">⭐ 学生评价</div>
   <div class="evaluation">{{ evaluation }}</div>
 
-  <div class="footer">
-    <div class="signature-line">
-      <span class="signature-label">教师签名：</span>
-      <span class="signature-space">______________</span>
-    </div>
-    <div class="footer-date">{{ course_date }}</div>
-  </div>
 </div>
 
 </body>

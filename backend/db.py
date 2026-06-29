@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
+import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -93,11 +94,37 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 # =========================
 # 初始化 / 销毁
 # =========================
+async def _migrate_schema() -> None:
+    """执行增量 schema 迁移（新增列等）。
+
+    SQLite 的 create_all 不会为已有表增加列，
+    需要手动 ALTER TABLE ADD COLUMN。
+    """
+    from backend.utils.logger import get_logger as _get_logger
+
+    _log = _get_logger(__name__)
+    engine = get_engine()
+
+    async with engine.begin() as conn:
+
+        # 检查 course_records 是否已有 layout_config 列
+        def _has_column(connection, table: str, column: str) -> bool:
+            import sqlite3
+            cursor = connection.connection.cursor()
+            cursor.execute(f"PRAGMA table_info({table})")
+            cols = [row[1] for row in cursor.fetchall()]
+            return column in cols
+
+        if not await conn.run_sync(_has_column, "course_records", "layout_config"):
+            _log.info("迁移数据库: 添加 course_records.layout_config 列")
+            await conn.execute(
+                sa.text("ALTER TABLE course_records ADD COLUMN layout_config TEXT")
+            )
+
+
 async def init_db(echo: bool = False) -> None:
     """
     初始化数据库：创建所有表。
-
-    注意：生产环境应使用 Alembic 迁移，而非 create_all。
     """
     # 确保所有 model 已导入（register tables）
     from backend.models import course_record, klass, student  # noqa: F401
@@ -106,6 +133,9 @@ async def init_db(echo: bool = False) -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     log.info("数据库表已创建")
+
+    # 执行增量迁移
+    await _migrate_schema()
 
 
 async def reset_db() -> None:

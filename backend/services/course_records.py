@@ -64,6 +64,9 @@ def _serialize_for_db(data: CourseRecordCreate) -> dict[str, Any]:
     result["logo_config"] = _dump_json(
         data.logo_config.model_dump() if data.logo_config else None
     )
+    result["layout_config"] = _dump_json(
+        data.layout_config.model_dump(exclude_none=True) if data.layout_config else None
+    )
     result["project_meta"] = _dump_json(data.project_meta)
     result["ai_meta"] = _dump_json(
         data.ai_meta.model_dump() if data.ai_meta else None
@@ -98,6 +101,7 @@ def _deserialize_from_record(record: CourseRecord, include_content: bool = True)
             "evaluation": record.evaluation or "",
             "screenshot_paths": _load_json(record.screenshot_paths, []),
             "logo_config": _load_json(record.logo_config, {}),
+            "layout_config": _load_json(record.layout_config, {}),
             "ai_meta": _load_json(record.ai_meta, {}),
         })
 
@@ -170,29 +174,11 @@ async def update_record(
     update_data = data.model_dump(exclude_unset=True)
 
     # 序列化 JSON 字段（如果提供了）
-    if "knowledge_points" in update_data:
-        update_data["knowledge_points"] = _dump_json(update_data["knowledge_points"])
-    if "content_items" in update_data:
-        items = update_data["content_items"]
-        update_data["content_items"] = _dump_json(
-            [c.model_dump() for c in items] if items else None
-        )
-    if "homework" in update_data:
-        hw = update_data["homework"]
-        update_data["homework"] = _dump_json(hw.model_dump() if hw else None)
-    if "vocabulary" in update_data:
-        vocab = update_data["vocabulary"]
-        update_data["vocabulary"] = _dump_json(vocab.model_dump() if vocab else None)
-    if "screenshot_paths" in update_data:
-        update_data["screenshot_paths"] = _dump_json(update_data["screenshot_paths"])
-    if "logo_config" in update_data:
-        lc = update_data["logo_config"]
-        update_data["logo_config"] = _dump_json(lc.model_dump() if lc else None)
-    if "project_meta" in update_data:
-        update_data["project_meta"] = _dump_json(update_data["project_meta"])
-    if "ai_meta" in update_data:
-        ai = update_data["ai_meta"]
-        update_data["ai_meta"] = _dump_json(ai.model_dump() if ai else None)
+    # 注意：model_dump() 已将嵌套 Pydantic 模型转为 dict，直接序列化即可
+    for json_field in ["knowledge_points", "content_items", "homework", "vocabulary",
+                       "screenshot_paths", "logo_config", "layout_config", "project_meta", "ai_meta"]:
+        if json_field in update_data:
+            update_data[json_field] = _dump_json(update_data[json_field])
 
     for key, value in update_data.items():
         setattr(record, key, value)
@@ -232,3 +218,24 @@ async def delete_record(session: AsyncSession, record_id: int) -> None:
     await session.delete(record)
     await session.commit()
     log.info("课程记录已删除: id=%s", record_id)
+
+
+# =========================
+# 批量操作
+# =========================
+
+async def batch_create_records(
+    session: AsyncSession, records_data: list[dict[str, Any]]
+) -> list[CourseRecord]:
+    """批量创建课程记录（单个事务）。
+
+    records_data: 每个 dict 包含 CourseRecord 的所有字段（JSON 字段需已序列化为字符串）。
+    """
+    records = [CourseRecord(**data) for data in records_data]
+    for rec in records:
+        session.add(rec)
+    await session.commit()
+    for rec in records:
+        await session.refresh(rec)
+    log.info("批量创建课程记录完成: %d 条", len(records))
+    return records

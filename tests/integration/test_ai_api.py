@@ -58,7 +58,7 @@ def mock_ai(monkeypatch: pytest.MonkeyPatch):
     from backend.services import ai_orchestrator
 
     scripts = {
-        "提取本节课涉及的": json.dumps(
+        "学生能力提升": json.dumps(
             ["print 使用", "if 分支"], ensure_ascii=False
         ),
         "为家长写一段课程内容概述": json.dumps({
@@ -169,7 +169,7 @@ class TestGenerate:
         assert data["student_id"] == student_id
         assert data["errors"] == {}
         content = data["content"]
-        assert len(content["knowledge_points"]) == 2
+        assert len(content["knowledge_points"]) == 5  # 不足 5 条时补齐
         assert "能力提升" in content["ability_improvement"] or "逻辑" in content["ability_improvement"]
         assert len(content["content_items"]) == 2
         assert content["homework"]["goal"] == "练习 if"
@@ -218,7 +218,7 @@ class TestRegenerate:
         data = resp.json()
         assert data["field"] == "knowledge_points"
         assert isinstance(data["value"], list)
-        assert len(data["value"]) == 2
+        assert len(data["value"]) == 5  # 不足 5 条时补齐
 
     async def test_regenerate_invalid_field(
         self, api_client, mock_ai

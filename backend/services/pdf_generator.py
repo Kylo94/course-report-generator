@@ -4,11 +4,28 @@
 """
 from __future__ import annotations
 
+import os
+import platform
 from pathlib import Path
 
 from backend.utils.logger import get_logger
 
 log = get_logger(__name__)
+
+# macOS：预加载 Homebrew 安装的 glib/Pango/Cairo 系统库
+if platform.system() == "Darwin":
+    _brew_lib = "/opt/homebrew/lib"
+    if os.path.isdir(_brew_lib):
+        os.environ.setdefault("DYLD_FALLBACK_LIBRARY_PATH", _brew_lib)
+        try:
+            import ctypes
+            for _lib in ("libgobject-2.0.0.dylib", "libpango-1.0.0.dylib", "libcairo.2.dylib",
+                         "libpangocairo-1.0.0.dylib", "libgdk_pixbuf-2.0.0.dylib"):
+                _p = os.path.join(_brew_lib, _lib)
+                if os.path.isfile(_p):
+                    ctypes.cdll.LoadLibrary(_p)
+        except Exception as _e:
+            log.warning("预加载 Homebrew 图形库失败: %s（PDF 导出可能不可用）", _e)
 
 
 class PDFGenerationError(Exception):

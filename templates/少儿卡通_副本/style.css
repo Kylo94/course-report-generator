@@ -57,16 +57,13 @@ body {
   border-radius: 20px;
 }
 
-.screenshot-gallery {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4mm;
-  justify-content: center;
+.hero-image {
+  text-align: center;
   margin: 6mm auto;
 }
-.screenshot-item img {
-  max-width: 80mm;
-  max-height: 50mm;
+.hero-image img {
+  max-width: 130mm;
+  max-height: 55mm;
   border-radius: 8mm;
   box-shadow: 0 4px 12px rgba(255,140,66,0.2);
   border: 3px solid #FFD0A0;

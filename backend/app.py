@@ -40,16 +40,6 @@ def _mount_static(app: FastAPI) -> None:
     """挂载前端和资产文件的静态目录。"""
     settings = get_settings()
 
-    # 前端静态文件
-    frontend_dir = PROJECT_ROOT / "frontend"
-    if frontend_dir.exists():
-        app.mount(
-            "/",
-            StaticFiles(directory=str(frontend_dir), html=True),
-            name="frontend",
-        )
-        log.info("前端已挂载: %s", frontend_dir)
-
     # 截图文件访问
     screenshot_dir = Path(settings.report.screenshot_dir)
     screenshot_dir.mkdir(parents=True, exist_ok=True)
@@ -76,6 +66,16 @@ def _mount_static(app: FastAPI) -> None:
         StaticFiles(directory=str(report_dir)),
         name="reports_pdf",
     )
+
+    # 前端静态文件（必须最后挂载，避免拦截 API 资产路径）
+    frontend_dir = PROJECT_ROOT / "frontend"
+    if frontend_dir.exists():
+        app.mount(
+            "/",
+            StaticFiles(directory=str(frontend_dir), html=True),
+            name="frontend",
+        )
+        log.info("前端已挂载: %s", frontend_dir)
 
 
 def create_app() -> FastAPI:

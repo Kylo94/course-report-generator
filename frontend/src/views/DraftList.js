@@ -20,8 +20,10 @@ const DraftListView = {
             <el-input v-model="filters.keyword" placeholder="搜索..." clearable style="width:180px" />
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="search">查询</el-button>
-            <el-button @click="resetFilters">重置</el-button>
+            <div class="btn-group">
+              <el-button type="primary" @click="search">查询</el-button>
+              <el-button @click="resetFilters">重置</el-button>
+            </div>
           </el-form-item>
         </el-form>
       </el-card>

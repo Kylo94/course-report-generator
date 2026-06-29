@@ -317,6 +317,11 @@ class TestSerializationRoundtrip:
             },
             "evaluation": "本节课学生表现非常出色，能独立完成所有练习。",
             "screenshot_paths": ["/img/1.png", "/img/2.png"],
+            "layout_config": {
+                "primary_color": "#FF5722",
+                "font_title": "KaiTi",
+                "font_size_body": 14,
+            },
         }
 
         create_resp = await api_client.post("/api/reports", json=create_payload)
@@ -329,6 +334,8 @@ class TestSerializationRoundtrip:
         assert len(data["homework"]["hints"]) == 2
         assert data["vocabulary"]["word"] == "Function"
         assert len(data["screenshot_paths"]) == 2
+        assert data["layout_config"]["primary_color"] == "#FF5722"
+        assert data["layout_config"]["font_title"] == "KaiTi"
 
         # 读取验证
         get_resp = await api_client.get(f"/api/reports/{data['id']}")
@@ -365,6 +372,72 @@ class TestTemplateAPI:
         assert "description" in t0
         assert "page_size" in t0
         assert t0["page_size"] == "A4"
+
+    async def test_get_template_config(self, api_client) -> None:
+        """GET /api/templates/{id}/config 返回完整配置。"""
+        resp = await api_client.get("/api/templates/classic/config")
+        assert resp.status_code == 200
+        config = resp.json()
+        assert config["id"] == "classic"
+        assert "theme" in config
+        assert "primary_color" in config["theme"]
+
+    async def test_get_template_config_not_found(self, api_client) -> None:
+        """不存在的模板返回 404。"""
+        resp = await api_client.get("/api/templates/nonexistent/config")
+        assert resp.status_code == 404
+
+
+class TestPreviewAPI:
+    """报告预览 API 集成测试。"""
+
+    async def test_preview_return_html(self, api_client) -> None:
+        """POST /api/reports/{id}/preview 返回 HTML。"""
+        student_id = await _create_student(api_client)
+        cr = await api_client.post(
+            "/api/reports",
+            json={
+                "student_id": student_id,
+                "course_topic": "预览测试",
+                "course_date": "2026-06-29",
+                "knowledge_points": ["变量"],
+            },
+        )
+        assert cr.status_code == 201
+        record_id = cr.json()["id"]
+
+        resp = await api_client.post(f"/api/reports/{record_id}/preview", json={})
+        assert resp.status_code == 200
+        html = resp.text
+        assert "预览测试" in html
+        assert "text/html" in resp.headers.get("content-type", "")
+
+    async def test_preview_with_layout_config(self, api_client) -> None:
+        """预览时传递 layout_config 看到自定义颜色。"""
+        student_id = await _create_student(api_client)
+        cr = await api_client.post(
+            "/api/reports",
+            json={
+                "student_id": student_id,
+                "course_topic": "布局预览",
+                "course_date": "2026-06-29",
+                "knowledge_points": ["循环", "条件"],
+            },
+        )
+        assert cr.status_code == 201
+        record_id = cr.json()["id"]
+
+        resp = await api_client.post(
+            f"/api/reports/{record_id}/preview",
+            json={"layout_config": {"primary_color": "#9C27B0"}},
+        )
+        assert resp.status_code == 200
+        assert "#9C27B0" in resp.text
+
+    async def test_preview_not_found(self, api_client) -> None:
+        """不存在的记录返回 404。"""
+        resp = await api_client.post("/api/reports/99999/preview", json={})
+        assert resp.status_code == 404
 
 
 class TestExportPDF:

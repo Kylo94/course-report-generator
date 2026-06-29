@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from backend.schemas.template import LayoutConfigSchema
+
 
 class ContentItemSchema(BaseModel):
     """单个知识点内容描述（复用于兼容 ai_generation）。"""
@@ -66,6 +68,9 @@ class CourseRecordCreate(BaseModel):
     screenshot_paths: list[str] | None = Field(default=None, description="截图路径列表")
     logo_config: LogoConfigSchema | None = Field(default=None, description="Logo 配置")
 
+    # 布局设置
+    layout_config: LayoutConfigSchema | None = Field(default=None, description="布局设置")
+
     # 状态
     status: str = Field(default="draft", pattern="^(draft|finalized|archived)$")
     template_id: str = Field(default="classic_default", description="模板 ID")
@@ -91,6 +96,9 @@ class CourseRecordUpdate(BaseModel):
     screenshot_paths: list[str] | None = Field(default=None, description="截图路径列表")
     logo_config: LogoConfigSchema | None = Field(default=None, description="Logo 配置")
 
+    # 布局设置
+    layout_config: LayoutConfigSchema | None = Field(default=None, description="布局设置")
+
     status: str | None = Field(default=None, pattern="^(draft|finalized|archived)$")
     template_id: str | None = Field(default=None, description="模板 ID")
 
@@ -107,6 +115,9 @@ class CourseRecordRead(BaseModel):
     course_topic: str
     project_folder: str
     project_meta: dict | None = None
+
+    # 布局设置
+    layout_config: LayoutConfigSchema | None = Field(default=None, description="布局设置")
 
     knowledge_points: list[str] = Field(default_factory=list)
     ability_improvement: str = ""

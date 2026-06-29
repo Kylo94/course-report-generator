@@ -175,6 +175,98 @@ class TestRenderer:
             assert f"内容{i}" in html
 
 
+class TestLayoutConfigRendering:
+    """带 layout_config 的渲染测试。"""
+
+    def _make_fake_record(self, **overrides) -> MagicMock:
+        defaults = {
+            "course_topic": "Test Topic",
+            "course_date": "2026-06-29",
+            "ability_improvement": "Ability text",
+            "evaluation": "Evaluation text",
+            "knowledge_points": json.dumps(["KP1", "KP2"]),
+            "content_items": json.dumps([{"kp": "KP1", "text": "Content1"}]),
+            "homework": json.dumps({"goal": "Goal", "hints": [], "criteria": []}),
+            "vocabulary": json.dumps({"word": "Test", "phonetic": "/test/", "meaning": "测试", "example": "test"}),
+            "screenshot_paths": json.dumps([]),
+            "logo_config": json.dumps({"enabled": False}),
+            "layout_config": None,
+        }
+        defaults.update(overrides)
+        return MagicMock(**defaults)
+
+    def test_render_with_layout_config_injects_custom_style(self) -> None:
+        """传递 layout_config 时 HTML 中包含自定义 CSS。"""
+        renderer = ReportRenderer("classic")
+        record = self._make_fake_record()
+        layout = {"primary_color": "#FF0000", "font_body": "SimSun"}
+        html = renderer.render(record, student_name="测试", layout_config=layout)
+        # 自定义样式块应注入
+        assert "custom_style" in renderer.html_template or "--primary: #FF0000" in html
+        # 实际检查 HTML 中是否包含颜色值
+        assert "#FF0000" in html
+
+    def test_render_without_layout_uses_default_colors(self) -> None:
+        """不传 layout_config 时使用主题默认色。"""
+        renderer = ReportRenderer("classic")
+        record = self._make_fake_record()
+        html = renderer.render(record, student_name="测试")
+        # 主题默认色应出现在 CSS 变量中
+        assert "--primary" in html
+        assert "3B7DDD" in html or renderer.config.get("theme", {}).get("primary_color", "") in html
+
+    def test_render_with_layout_font_size(self) -> None:
+        """layout_config 中的字体大小生效。"""
+        renderer = ReportRenderer("classic")
+        record = self._make_fake_record()
+        layout = {"font_size_title": 36, "font_size_body": 16}
+        html = renderer.render(record, layout_config=layout)
+        assert "--fs-title: 36pt" in html
+        assert "--fs-body: 16pt" in html
+
+    def test_render_with_background_color(self) -> None:
+        """layout_config 中的背景色生效。"""
+        renderer = ReportRenderer("classic")
+        record = self._make_fake_record()
+        layout = {"background_color": "#FFF3E0"}
+        html = renderer.render(record, layout_config=layout)
+        assert "--bg-color: #FFF3E0" in html
+
+    def test_render_all_templates_with_layout(self) -> None:
+        """三种模板带 layout_config 都能正常渲染。"""
+        record = self._make_fake_record()
+        layout = {"primary_color": "#9C27B0", "font_title": "KaiTi"}
+        for tid in ("classic", "cartoon", "academic"):
+            renderer = ReportRenderer(tid)
+            html = renderer.render(record, student_name="测试", layout_config=layout)
+            assert isinstance(html, str)
+            assert "#9C27B0" in html
+
+    def test_custom_style_block_has_valid_css(self) -> None:
+        """_build_custom_style 生成有效的 CSS 变量块。"""
+        merged = {
+            "primary_color": "#E91E63",
+            "secondary_color": "#FCE4EC",
+            "font_title": "KaiTi",
+            "font_body": "SimSun",
+            "font_size_title": 30,
+            "font_size_body": 14,
+            "background_color": "#FFFFFF",
+            "background_image": None,
+            "page_margin_top": 20,
+            "page_margin_right": 18,
+            "page_margin_bottom": 18,
+            "page_margin_left": 18,
+        }
+        style = ReportRenderer._build_custom_style(merged)
+        assert ":root {" in style
+        assert "--primary: #E91E63;" in style
+        assert "--font-title: \"KaiTi\"" in style
+        assert "--fs-title: 30pt;" in style
+        assert "--page-margin-top: 20mm;" in style
+        assert "}" in style
+
+
 class TestHelpers:
     """辅助函数测试。"""
 

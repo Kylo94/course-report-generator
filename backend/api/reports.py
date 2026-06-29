@@ -1,12 +1,15 @@
 """报告编辑 + 资产管理 API 路由。"""
 from __future__ import annotations
 
+import json
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import PROJECT_ROOT, get_settings
@@ -20,6 +23,7 @@ from backend.schemas.course_record import (
     StatusUpdate,
 )
 from backend.schemas.template import TemplateListItem
+from backend.schemas.batch import BatchGenerateRequest, BatchGenerateResponse, BatchStudentResult
 from backend.services import course_records as record_svc
 from backend.services.course_records import RecordNotFoundError
 from backend.services.pdf_generator import PDFGenerationError, PDFGenerator
@@ -28,6 +32,7 @@ from backend.services.report_renderer import (
     TemplateNotFoundError,
     get_template_config,
     list_templates,
+    wrap_preview_html,
 )
 from backend.utils.logger import get_logger
 
@@ -54,6 +59,63 @@ def _record_to_list_item(record) -> CourseRecordListItem:
     from backend.services.course_records import _deserialize_from_record
     data = _deserialize_from_record(record, include_content=False)
     return CourseRecordListItem(**data)
+
+
+# =========================
+# 辅助：输出路径构建
+# =========================
+
+def _sanitize_filename(name: str) -> str:
+    """清理文件名中的非法字符。"""
+    # 替换 Windows 和通用非法字符
+    return re.sub(r'[<>:"/\\|?*]', '_', name).strip(' .') or '未命名'
+
+
+def _build_output_path(
+    record,
+    student_name: str,
+    extension: str,
+    output_dir_override: str | None = None,
+) -> Path:
+    """构建带日期子目录和语义文件名的输出路径。
+
+    优先级：
+    1. output_dir_override（请求参数）
+    2. settings.report.custom_output_dir（全局配置）
+    3. settings.report.output_dir（默认 data/reports/）
+
+    目录结构：{base_dir}/{YYYY年MM月}/{学生名}_{课程名}.{ext}
+    文件名冲突时追加时间戳。
+    """
+    # 1. 确定基础目录
+    base_str = output_dir_override or settings.report.custom_output_dir or settings.report.output_dir
+    base_dir = Path(base_str)
+    if not base_dir.is_absolute():
+        base_dir = PROJECT_ROOT / base_dir
+
+    # 2. 日期子目录
+    course_date = getattr(record, "course_date", None) or ""
+    try:
+        dt = datetime.strptime(course_date, "%Y-%m-%d")
+        sub_dir = dt.strftime("%Y年%m月")
+    except (ValueError, TypeError):
+        sub_dir = datetime.now().strftime("%Y年%m月")
+
+    target_dir = base_dir / sub_dir
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    # 3. 文件名
+    safe_name = _sanitize_filename(student_name or "学生")
+    safe_topic = _sanitize_filename(getattr(record, "course_topic", None) or "课程")
+    filename = f"{safe_name}_{safe_topic}.{extension.lstrip('.')}"
+
+    output_path = target_dir / filename
+    if output_path.exists():
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        stem = output_path.stem
+        output_path = target_dir / f"{stem}_{timestamp}.{extension.lstrip('.')}"
+
+    return output_path
 
 
 # =========================
@@ -219,12 +281,19 @@ async def export_report(
     - 同时将报告状态更新为 finalized
     """
     template_id = body.get("template_id", "classic")
+    layout_config = body.get("layout_config")
+    output_dir = body.get("output_dir")
 
     # 1. 加载报告
     try:
         record = await record_svc.get_record(session, record_id)
     except RecordNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+    # 如果没有传 layout_config，尝试从数据库记录加载
+    if layout_config is None:
+        from backend.services.course_records import _load_json
+        layout_config = _load_json(getattr(record, "layout_config", None))
 
     # 2. 获取学生名
     student_name = ""
@@ -246,14 +315,14 @@ async def export_report(
     except TemplateNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    html = renderer.render(record, student_name=student_name)
+    html = renderer.render(record, student_name=student_name, layout_config=layout_config)
 
-    # 4. 生成 PDF
+    # 4. 生成 PDF（先保存到默认目录用于下载链接）
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    output_dir = Path(settings.report.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    default_output_dir = Path(settings.report.output_dir)
+    default_output_dir.mkdir(parents=True, exist_ok=True)
     filename = f"report_{record_id}_{timestamp}.pdf"
-    output_path = output_dir / filename
+    output_path = default_output_dir / filename
 
     try:
         pdf_gen = PDFGenerator()
@@ -262,17 +331,30 @@ async def export_report(
         log.exception("PDF 生成失败: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-    # 5. 更新状态为 finalized
+    # 5. 若有自定义输出路径，额外保存一份到指定目录
+    custom_path = None
+    if output_dir or settings.report.custom_output_dir:
+        try:
+            custom_path = _build_output_path(record, student_name, "pdf", output_dir)
+            pdf_gen.generate(html, str(custom_path))
+            log.info("PDF 已同步到自定义路径: %s", custom_path)
+        except Exception as e:
+            log.warning("自定义输出路径保存失败: %s", e)
+
+    # 6. 更新状态为 finalized
     if record.status == "draft":
         await record_svc.update_record_status(session, record_id, "finalized")
 
     log.info("报告导出成功: record_id=%s template=%s pdf=%s", record_id, template_id, filename)
-    return {
+    resp = {
         "pdf_path": f"/api/reports/pdf/{filename}",
         "filename": filename,
         "template_id": template_id,
         "page_size": renderer.config.get("page_size", "A4"),
     }
+    if custom_path:
+        resp["custom_path"] = str(custom_path)
+    return resp
 
 
 # =========================
@@ -305,6 +387,8 @@ async def export_report_word(
 
     # 获取模板配置
     template_id = body.get("template_id", "classic")
+    layout_config = body.get("layout_config")
+    output_dir = body.get("output_dir")
     template_config = None
     try:
         template_config = get_template_config(template_id)
@@ -314,7 +398,7 @@ async def export_report_word(
     from backend.services.docx_generator import DocxGenerationError, generate as generate_docx
 
     try:
-        docx_bytes = generate_docx(record, student_name, template_config)
+        docx_bytes = generate_docx(record, student_name, template_config, layout_config)
     except DocxGenerationError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -323,11 +407,25 @@ async def export_report_word(
     output_path = Path(settings.report.output_dir) / filename
     output_path.write_bytes(docx_bytes)
 
+    # 若有自定义输出路径，额外保存一份
+    custom_path = None
+    if output_dir or settings.report.custom_output_dir:
+        try:
+            custom_path = _build_output_path(record, student_name, "docx", output_dir)
+            custom_path.parent.mkdir(parents=True, exist_ok=True)
+            custom_path.write_bytes(docx_bytes)
+            log.info("Word 已同步到自定义路径: %s", custom_path)
+        except Exception as e:
+            log.warning("自定义输出路径保存失败: %s", e)
+
     log.info("Word 导出成功: record_id=%s template=%s", record_id, template_id)
-    return {
+    resp = {
         "docx_path": f"/api/reports/pdf/{filename}",
         "filename": filename,
     }
+    if custom_path:
+        resp["custom_path"] = str(custom_path)
+    return resp
 
 
 @router.post(
@@ -355,6 +453,7 @@ async def export_report_word_stream(
             student_name = student.name
 
     template_id = body.get("template_id", "classic")
+    layout_config = body.get("layout_config")
     template_config = None
     try:
         template_config = get_template_config(template_id)
@@ -364,7 +463,7 @@ async def export_report_word_stream(
     from backend.services.docx_generator import DocxGenerationError, generate as generate_docx
 
     try:
-        docx_bytes = generate_docx(record, student_name, template_config)
+        docx_bytes = generate_docx(record, student_name, template_config, layout_config)
     except DocxGenerationError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -374,6 +473,291 @@ async def export_report_word_stream(
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# =========================
+# 批量报告生成（以班级为单位）
+# =========================
+
+@router.post(
+    "/api/reports/batch",
+    response_model=BatchGenerateResponse,
+    summary="批量生成班级报告",
+)
+async def batch_generate_reports(
+    body: BatchGenerateRequest,
+    session: AsyncSession = Depends(get_session),
+) -> BatchGenerateResponse:
+    """为班级内所有学生批量生成报告。
+
+    流程：
+    1. 验证班级存在，获取学生列表
+    2. 若有 project_folder 则扫描项目
+    3. 执行 AI 共享内容生成（Steps 1-3）
+    4. 为每个学生生成个性评价（Step 4）
+    5. 为每个学生创建 CourseRecord
+    6. 若 auto_export 则导出 PDF
+    """
+    from datetime import date
+
+    from backend.models import Class as ClassModel, Student as StudentModel
+    from backend.schemas.project import ProjectMetaSchema
+    from backend.schemas.student import StudentRead
+    from backend.services.ai_orchestrator import AIOrchestrator
+
+    # 1. 获取班级
+    klass = await session.get(ClassModel, body.class_id)
+    if klass is None:
+        raise HTTPException(status_code=404, detail="班级不存在")
+
+    # 2. 获取班级所有学生
+    stmt = select(StudentModel).where(StudentModel.class_id == body.class_id)
+    result = await session.execute(stmt)
+    students = list(result.scalars().all())
+    if not students:
+        raise HTTPException(status_code=400, detail="该班级没有学生")
+
+    # 3. 构建 ProjectMeta
+    project_meta: ProjectMetaSchema | None = None
+    scan_error: str | None = None
+    if body.project_folder:
+        from backend.schemas.project import FileInfoSchema, PyStructureSchema
+        from backend.services import code_analyzer
+        try:
+            meta = code_analyzer.analyze_project(body.project_folder)
+            project_meta = ProjectMetaSchema(
+                folder=meta.folder,
+                entry_file=meta.entry_file,
+                project_type=meta.project_type,
+                course_title=meta.course_title,
+                all_files=[FileInfoSchema(**vars(f)) for f in meta.all_files],
+                py_files=[
+                    PyStructureSchema(
+                        path=s.path,
+                        imports=s.imports,
+                        from_imports=[{"module": m, "name": n} for m, n in s.from_imports],
+                        function_names=s.function_names,
+                        class_names=s.class_names,
+                        decorators=s.decorators,
+                        top_comment=s.top_comment,
+                        course_title=s.course_title,
+                        line_count=s.line_count,
+                    )
+                    for s in meta.py_files
+                ],
+                all_imports=meta.all_imports,
+                total_lines=meta.total_lines,
+                warnings=meta.warnings,
+            )
+        except Exception as e:
+            log.warning("项目扫描失败: %s", e)
+            scan_error = str(e)
+
+    # 补充 course_topic
+    course_topic = body.course_topic or (project_meta.course_title if project_meta else "") or "课程报告"
+    course_date = body.course_date or date.today().isoformat()
+
+    # 4. 生成共享内容（Steps 1-3）
+    orchestrator = AIOrchestrator()
+    shared = {}
+    shared_error = None
+    if project_meta:
+        try:
+            # 使用第一个学生作为"默认学生"（仅用于 homework_vocab 中的 level 参考）
+            default_student_read = StudentRead(
+                id=students[0].id,
+                name=students[0].name,
+                gender=students[0].gender or "",
+                grade=students[0].grade or "",
+                base_level=students[0].base_level,
+                characteristics=students[0].characteristics or [],
+                parent_contact=students[0].parent_contact or "",
+                note=students[0].note or "",
+                class_id=students[0].class_id,
+                created_at=students[0].created_at,
+                updated_at=students[0].updated_at,
+            )
+            shared = await orchestrator.generate_shared(project_meta, default_student_read, body.teacher_observation)
+        except Exception as e:
+            log.exception("共享内容生成失败: %s", e)
+            shared_error = str(e)
+
+    # 5. 为每个学生生成评价
+    student_reads = [
+        StudentRead(
+            id=s.id, name=s.name, gender=s.gender or "", grade=s.grade or "",
+            base_level=s.base_level, characteristics=s.characteristics or [],
+            parent_contact=s.parent_contact or "", note=s.note or "",
+            class_id=s.class_id,
+            created_at=s.created_at, updated_at=s.updated_at,
+        )
+        for s in students
+    ]
+
+    # 获取 analysis_text（利用缓存，不会重复调用 LLM）
+    analysis_text = await orchestrator.get_analysis_text(project_meta) if project_meta else ""
+
+    evaluations: list[str | Exception] = []
+    if project_meta and shared and not shared_error:
+        try:
+            evaluations = await orchestrator.generate_evaluations(
+                project_meta, student_reads, shared, body.teacher_observation,
+                analysis_text=analysis_text,
+            )
+        except Exception as e:
+            log.exception("批量评价生成失败: %s", e)
+            evaluations = [e] * len(students)
+    elif scan_error:
+        evaluations = [f"项目扫描失败: {scan_error}"] * len(students)
+    elif not body.project_folder:
+        evaluations = [""] * len(students)
+    elif shared_error:
+        evaluations = [f"AI 内容生成失败: {shared_error}"] * len(students)
+    else:
+        evaluations = [""] * len(students)
+
+    # 6. 为每个学生创建 CourseRecord
+    results: list[BatchStudentResult] = []
+    records_data = []
+    serialized_kp = json.dumps(shared.get("knowledge_points", []), ensure_ascii=False)
+    serialized_content = json.dumps(shared.get("content_items", []), ensure_ascii=False)
+    serialized_homework = json.dumps(shared.get("homework", {}), ensure_ascii=False)
+    serialized_vocab = json.dumps(shared.get("vocabulary", {}), ensure_ascii=False)
+
+    for i, student in enumerate(students):
+        evaluation_text = ""
+        error_text = None
+
+        eval_result = evaluations[i] if i < len(evaluations) else None
+        if isinstance(eval_result, Exception):
+            error_text = str(eval_result)
+        elif isinstance(eval_result, str):
+            evaluation_text = eval_result
+        elif eval_result is None:
+            error_text = "评价生成为空"
+
+        records_data.append({
+            "student_id": student.id,
+            "course_date": course_date,
+            "course_topic": course_topic,
+            "project_folder": body.project_folder,
+            "project_meta": json.dumps(project_meta.model_dump() if project_meta else None, ensure_ascii=False),
+            "knowledge_points": serialized_kp,
+            "ability_improvement": shared.get("ability_improvement", ""),
+            "content_items": serialized_content,
+            "homework": serialized_homework,
+            "vocabulary": serialized_vocab,
+            "evaluation": evaluation_text,
+            "status": "draft",
+            "template_id": body.template_id,
+            "screenshot_paths": json.dumps(body.screenshot_paths, ensure_ascii=False),
+            "ai_meta": json.dumps(shared.get("code_analysis"), ensure_ascii=False) if shared.get("code_analysis") else None,
+        })
+
+        results.append(BatchStudentResult(
+            student_id=student.id,
+            student_name=student.name,
+            evaluation=evaluation_text[:300] if evaluation_text else "",
+            error=error_text,
+        ))
+
+    # 批量保存
+    try:
+        created = await record_svc.batch_create_records(session, records_data)
+        for i, rec in enumerate(created):
+            if i < len(results):
+                results[i].record_id = rec.id
+    except Exception as e:
+        log.exception("批量保存记录失败: %s", e)
+        # 即使保存失败，也返回已生成的内容
+
+    # 7. 若 auto_export 则导出 PDF
+    if body.auto_export and not shared_error:
+        pdf_gen = PDFGenerator()
+        for i, rec in enumerate(created):
+            try:
+                student_name = results[i].student_name if i < len(results) else "学生"
+                template_id = body.template_id
+                renderer = ReportRenderer(template_id)
+                html = renderer.render(rec, student_name=student_name)
+
+                if body.output_dir or settings.report.custom_output_dir:
+                    output_path = _build_output_path(rec, student_name, "pdf", body.output_dir)
+                else:
+                    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+                    output_path = Path(settings.report.output_dir) / f"report_{rec.id}_{timestamp}.pdf"
+
+                pdf_gen.generate(html, str(output_path))
+                log.info("批量导出 PDF 成功: record_id=%s", rec.id)
+            except Exception as e:
+                log.warning("批量导出 PDF 失败 record_id=%s: %s", rec.id, e)
+
+    success_count = sum(1 for r in results if r.error is None)
+    return BatchGenerateResponse(
+        class_name=klass.name,
+        total=len(results),
+        success=success_count,
+        failed=len(results) - success_count,
+        results=results,
+    )
+
+
+# =========================
+# 报告预览
+# =========================
+
+@router.post(
+    "/api/reports/{record_id}/preview",
+    response_class=Response,
+    summary="预览报告 HTML（可带布局覆盖）",
+)
+async def preview_report(
+    record_id: int,
+    body: dict = Body(default={}),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """预览报告 HTML，支持传递 layout_config 即时生效。
+
+    POST body 可选字段:
+      - template_id (str): 默认 "classic"
+      - layout_config (dict): 布局覆盖（与 LayoutConfigSchema 一致）
+      - screenshot_paths (list[str]): 覆盖截图路径（不传则使用数据库记录中的截图）
+
+    返回 Content-Type: text/html，可直接在 iframe 中展示。
+    """
+    import json as _json
+
+    template_id = body.get("template_id", "classic")
+    layout_config = body.get("layout_config")
+    body_screenshots = body.get("screenshot_paths")
+
+    try:
+        record = await record_svc.get_record(session, record_id)
+    except RecordNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # 如果请求中传了截图路径，覆盖数据库中的
+    if body_screenshots is not None:
+        record.screenshot_paths = _json.dumps(body_screenshots, ensure_ascii=False)
+
+    student_name = ""
+    if record.student_id:
+        try:
+            from backend.models import Student as StudentModel
+            student = await session.get(StudentModel, record.student_id)
+            if student:
+                student_name = student.name
+        except Exception:
+            pass
+
+    try:
+        renderer = ReportRenderer(template_id)
+    except TemplateNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    html = renderer.render(record, student_name=student_name, layout_config=layout_config)
+    html = wrap_preview_html(html)
+    return Response(content=html, media_type="text/html; charset=utf-8")
 
 
 # =========================
@@ -389,6 +773,25 @@ async def templates_list() -> list[TemplateListItem]:
     """返回所有可用模板及其元信息。"""
     templates = list_templates()
     return [TemplateListItem(**t) for t in templates]
+
+
+@router.get(
+    "/api/templates/{template_id}/config",
+    response_model=dict,
+    summary="获取单个模板完整配置（含主题默认值）",
+)
+async def template_config(
+    template_id: str,
+) -> dict:
+    """返回指定模板的完整 config.json。
+
+    前端可用此接口初始化布局设置面板的默认值。
+    """
+    try:
+        config = get_template_config(template_id)
+        return config
+    except TemplateNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 # =========================

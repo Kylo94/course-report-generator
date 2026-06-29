@@ -21,6 +21,7 @@ class DeepSeekProvider(LLMProvider):
             temperature=temperature,
             timeout=self.config.timeout,
             max_retries=self.config.max_retries,
+            max_tokens=self.config.max_tokens or 8192,
         )
 
     def test_connection(self) -> tuple[bool, str]:

@@ -18,6 +18,9 @@ const StudentsView = {
       <el-table :data="students" v-loading="loading" stripe style="width:100%">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="name" label="姓名" width="100" />
+        <el-table-column label="班级" width="120">
+          <template #default="{ row }">{{ className(row.class_id) }}</template>
+        </el-table-column>
         <el-table-column prop="gender" label="性别" width="60">
           <template #default="{ row }">{{ row.gender || '-' }}</template>
         </el-table-column>
@@ -64,6 +67,11 @@ const StudentsView = {
         <el-form ref="formRef" :model="form" label-width="100px" size="small">
           <el-form-item label="姓名" required>
             <el-input v-model="form.name" maxlength="20" />
+          </el-form-item>
+          <el-form-item label="所属班级">
+            <el-select v-model="form.class_id" placeholder="不分配" clearable style="width:200px">
+              <el-option v-for="c in classList" :key="c.id" :label="c.name" :value="c.id" />
+            </el-select>
           </el-form-item>
           <el-form-item label="性别">
             <el-select v-model="form.gender" placeholder="选择" style="width:120px">
@@ -127,6 +135,7 @@ const StudentsView = {
   data() {
     return {
       students: [],
+      classList: [],
       loading: false,
       searchKeyword: '',
       page: 1,
@@ -145,20 +154,36 @@ const StudentsView = {
   },
 
   async mounted() {
-    await this.loadStudents();
+    await Promise.all([this.loadStudents(), this.loadClasses()]);
   },
 
   methods: {
     getEmptyForm() {
       return {
         name: '',
+        class_id: null,
         gender: '',
         grade: '',
-        base_level: '',
+        base_level: '入门',
         characteristics: [],
         parent_contact: '',
         note: '',
       };
+    },
+
+    className(classId) {
+      if (!classId) return '-';
+      const c = this.classList.find(cls => cls.id === classId);
+      return c ? c.name : '未知班级';
+    },
+
+    async loadClasses() {
+      try {
+        const result = await API.classes.list();
+        this.classList = result.items || [];
+      } catch (e) {
+        console.error('加载班级列表失败:', e);
+      }
     },
 
     levelType(level) {
@@ -203,6 +228,7 @@ const StudentsView = {
       this.editingId = row.id;
       this.form = {
         name: row.name,
+        class_id: row.class_id || null,
         gender: row.gender || '',
         grade: row.grade || '',
         base_level: row.base_level || '',

@@ -72,10 +72,36 @@ def _set_run_font(run, font_name: str = "宋体", size: int = 11, bold: bool = F
     run._element.rPr.rFonts.set(qn("w:eastAsia"), font_name)
 
 
+def merge_layout_with_theme(
+    template_config: dict | None,
+    layout_config: dict | None,
+) -> dict:
+    """将布局覆盖与模板主题合并（与 report_renderer 逻辑一致）。"""
+    theme = (template_config or {}).get("theme", {})
+    result = {
+        "primary_color": theme.get("primary_color", "#3B7DDD"),
+        "secondary_color": theme.get("secondary_color", "#F5F5F5"),
+        "font_title": theme.get("font_title", "Heiti SC"),
+        "font_body": theme.get("font_body", "STSong"),
+        "font_size_title": theme.get("font_size_title", 24),
+        "font_size_body": theme.get("font_size_body", 11),
+        "page_margin_top": 20,
+        "page_margin_bottom": 18,
+        "page_margin_left": 18,
+        "page_margin_right": 18,
+    }
+    if layout_config:
+        for key in result:
+            if key in layout_config and layout_config[key] is not None:
+                result[key] = layout_config[key]
+    return result
+
+
 def generate(
     record,
     student_name: str = "",
     template_config: dict | None = None,
+    layout_config: dict | None = None,
 ) -> bytes:
     """生成 Word 文档字节流。
 
@@ -83,24 +109,36 @@ def generate(
         record: CourseRecord ORM 对象
         student_name: 学生姓名
         template_config: 模板配置 dict（可选）
+        layout_config: 布局覆盖配置 dict（可选）
 
     Returns:
         .docx 文件 bytes
     """
+    merged = merge_layout_with_theme(template_config, layout_config)
+
     doc = Document()
+
+    # 应用页边距
+    section = doc.sections[0]
+    section.top_margin = Mm(merged["page_margin_top"])
+    section.bottom_margin = Mm(merged["page_margin_bottom"])
+    section.left_margin = Mm(merged["page_margin_left"])
+    section.right_margin = Mm(merged["page_margin_right"])
+
+    font_body_name = merged["font_body"]
+    font_body_size = merged["font_size_body"]
 
     # 设置默认样式
     style = doc.styles["Normal"]
-    style.font.name = "宋体"
-    style.font.size = Pt(11)
+    style.font.name = font_body_name
+    style.font.size = Pt(font_body_size)
     from docx.oxml.ns import qn
-    style.element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+    style.element.rPr.rFonts.set(qn("w:eastAsia"), font_body_name)
 
-    # 主题色
-    primary_color = "#3B7DDD"
-    if template_config:
-        theme = template_config.get("theme", {})
-        primary_color = theme.get("primary_color", primary_color)
+    # 主题
+    primary_color = merged["primary_color"]
+    font_title_name = merged["font_title"]
+    font_title_size = merged["font_size_title"]
 
     # 反序列化 JSON 字段
     kp = _load_json(getattr(record, "knowledge_points", None), [])
@@ -112,31 +150,31 @@ def generate(
     def add_heading(text: str) -> None:
         h = doc.add_heading(text, level=1)
         for run in h.runs:
-            _set_run_font(run, "黑体", 14, bold=True, color=primary_color)
+            _set_run_font(run, font_title_name, max(14, font_body_size + 2), bold=True, color=primary_color)
 
     def add_body(text: str) -> None:
         p = doc.add_paragraph(text)
         for run in p.runs:
-            _set_run_font(run)
+            _set_run_font(run, font_body_name, font_body_size)
 
     def add_bullet(text: str) -> None:
         p = doc.add_paragraph(text, style="List Bullet")
         for run in p.runs:
-            _set_run_font(run)
+            _set_run_font(run, font_body_name, font_body_size)
 
     def add_labeled(label: str, value: str) -> None:
         p = doc.add_paragraph()
         r1 = p.add_run(f"{label}：")
-        _set_run_font(r1, "黑体", 11, bold=True)
+        _set_run_font(r1, font_title_name, font_body_size, bold=True)
         r2 = p.add_run(value)
-        _set_run_font(r2)
+        _set_run_font(r2, font_body_name, font_body_size)
 
     # ===== 正文 =====
     # 标题
     title_p = doc.add_paragraph()
     title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r = title_p.add_run("课程报告")
-    _set_run_font(r, "黑体", 22, bold=True, color=primary_color)
+    _set_run_font(r, font_title_name, max(18, font_body_size + 8), bold=True, color=primary_color)
 
     # 基本信息
     add_heading("基本信息")

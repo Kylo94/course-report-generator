@@ -60,6 +60,7 @@ class ReportConfig(BaseModel):
     output_dir: str = "./data/reports"
     screenshot_dir: str = "./data/screenshots"
     asset_dir: str = "./data/assets"
+    custom_output_dir: str = ""
 
 
 class DraftConfig(BaseModel):
@@ -79,6 +80,7 @@ class LLMConfig(BaseModel):
     api_key: str = ""
     base_url: str | None = None
     default_model: str = "deepseek-chat"
+    max_tokens: int = 8192
     timeout: int = 60
     max_retries: int = 2
     temperature: dict[str, float] = Field(default_factory=lambda: {

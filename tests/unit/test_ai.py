@@ -199,6 +199,7 @@ class TestBuildChains:
         chains = build_chains(provider)
         result = chains["homework_vocab"].invoke({
             "knowledge_points": "if",
+            "code_content": "print('hello')\nif x > 5:",
             "project_type": "cli",
             "student_level": "入门",
         })
@@ -219,6 +220,7 @@ class TestBuildChains:
             "student_characteristics": "内向",
             "course_topic": "if 语句",
             "knowledge_points": "if, else",
+            "code_content": "print('hello')\nif x > 5:",
             "teacher_observation": "（无）",
         })
         assert isinstance(result, str)
@@ -265,6 +267,7 @@ class TestPrompts:
         )
         HOMEWORK_VOCAB_PROMPT.format(
             knowledge_points="a",
+            code_content="x = 1",
             project_type="cli",
             student_level="入门",
         )
@@ -275,6 +278,7 @@ class TestPrompts:
             student_characteristics="",
             course_topic="test",
             knowledge_points="a, b",
+            code_content="x = 1",
             teacher_observation="",
         )
 

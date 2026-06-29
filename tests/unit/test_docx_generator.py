@@ -160,6 +160,51 @@ class TestGenerate:
         assert "Python 入门" in full_text
 
 
+class TestLayoutConfigGeneration:
+    """测试 layout_config 对 Word 生成的影响。"""
+
+    def test_layout_config_custom_font(self, full_record):
+        """layout_config 中的字体应在 Word 中生效。"""
+        layout = {"font_body": "SimSun", "font_size_body": 14}
+        result = generate(full_record, template_config=None, layout_config=layout)
+        assert isinstance(result, bytes)
+
+        doc = _open_docx(result)
+        style = doc.styles["Normal"]
+        assert style.font.size == Pt(14)
+
+    def test_layout_config_with_template_theme_override(self, full_record):
+        """layout_config 应优先于模板主题。"""
+        tpl = {"theme": {"primary_color": "#FF5722", "font_title": "Heiti SC"}}
+        layout = {"primary_color": "#E91E63", "font_title": "KaiTi"}
+        result = generate(full_record, template_config=tpl, layout_config=layout)
+        assert isinstance(result, bytes)
+
+    def test_layout_config_margins(self, full_record):
+        """layout_config 中的页边距生效。"""
+        layout = {"page_margin_top": 30, "page_margin_bottom": 25}
+        result = generate(full_record, template_config=None, layout_config=layout)
+        doc = _open_docx(result)
+        section = doc.sections[0]
+        # 允许 EMU 单位转换时的微小舍入误差（< 0.02mm）
+        assert abs(section.top_margin - Mm(30)) < 1000
+        assert abs(section.bottom_margin - Mm(25)) < 1000
+
+    def test_layout_config_null_values_use_defaults(self, full_record):
+        """layout_config 中的 null 值使用默认值。"""
+        layout = {"primary_color": None, "font_size_body": None}
+        result = generate(full_record, template_config=None, layout_config=layout)
+        assert isinstance(result, bytes)
+
+    def test_layout_empty_dict_falls_back(self, full_record):
+        """空 layout 使用默认样式。"""
+        result = generate(full_record, template_config=None, layout_config={})
+        doc = _open_docx(result)
+        style = doc.styles["Normal"]
+        # 默认字号应为 11pt
+        assert style.font.size == Pt(11)
+
+
 class TestGenerationEdgeCases:
     def test_none_json_fields(self, minimal_record):
         """None JSON 字段不应导致错误。"""
