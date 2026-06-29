@@ -281,23 +281,62 @@ python -m playwright install chromium
 
 > **注意：** PyInstaller 不支持交叉编译。Windows 包必须在 Windows 上构建，macOS 包同理。
 
+### 首次运行
+
+启动后自动在 exe 同级创建：
+
+```
+config/
+├── app.yaml            # 应用配置（可编辑）
+└── llm.yaml            # AI 配置（填入 API Key）
+data/
+├── app.db              # SQLite 数据库
+├── reports/            # 导出 PDF
+├── screenshots/        # 上传截图
+└── assets/             # Logo 等资产
+```
+
+### AI 配置
+
+打包后的程序首次启动时，会自动在 exe 同级目录生成 `config/llm.yaml`。**使用前需编辑此文件**填入 API Key，然后重启应用：
+
+```yaml
+# config/llm.yaml（用记事本/VSCode 打开编辑）
+provider: deepseek
+api_key: sk-你的API密钥       # ← 填在这里
+default_model: deepseek-chat
+timeout: 60
+max_retries: 2
+```
+
+支持的供应商：
+
+| 供应商 | `provider` 值 | 推荐 `default_model` |
+|--------|--------------|-------------------|
+| DeepSeek | `deepseek` | `deepseek-chat` |
+| 通义千问 | `qwen` | `qwen-plus` |
+| 智谱 GLM | `glm` | `glm-4` |
+| OpenAI | `openai` | `gpt-4o-mini` |
+| Claude | `claude` | `claude-sonnet-4-6` |
+
+> 编辑后**必须重启应用**才能使新配置生效。也可以在运行中修改后通过前端「设置」页面重载。
+
 ### 打包文件结构
 
 ```
 dist/课程报告生成工具/
-├── 课程报告生成工具.exe    # 主程序（Windows）
-├── _internal/              # Python 运行时 + 依赖库
-├── frontend/               # Vue 3 前端静态文件
-├── templates/              # 报告模板（classic/cartoon/academic/python）
-├── config/
-│   ├── app.yaml            # 应用配置
-│   └── llm.yaml.example    # LLM 配置模板
-├── browser/               #（可选）Chromium 浏览器引擎
-└── data/                   # 首次运行时创建
-    ├── app.db              # SQLite 数据库
-    ├── reports/            # 导出 PDF
-    ├── screenshots/        # 上传截图
-    └── assets/             # Logo 等资产
+├── 课程报告生成工具.exe    # 主程序（Windows）— 直接双击运行
+├── _internal/              # Python 运行时 + 依赖库（不要动里面的文件）
+├── browser/               # [可选] Chromium 浏览器引擎（~200MB）
+└── 首次启动后自动创建:
+    ├── config/            # 用户配置文件目录
+    │   ├── app.yaml       # 应用设置
+    │   └── llm.yaml       # AI API Key（首次使用必填）
+    └── data/              # 运行数据
+        ├── app.db         # 数据库
+        ├── reports/       # 导出 PDF
+        ├── screenshots/   # 截图
+        └── assets/        # Logo
 ```
 
 ## 版本历史

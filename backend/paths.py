@@ -45,6 +45,17 @@ def get_data_root() -> Path:
     return get_app_root() / "data"
 
 
+def get_user_config_dir() -> Path:
+    """用户可编辑的配置目录。
+
+    打包模式下返回 exe 同级 config/ 目录，
+    开发模式下返回项目 config/ 目录。
+    """
+    if _is_frozen():
+        return Path(sys.executable).resolve().parent / "config"
+    return get_app_root() / "config"
+
+
 def get_chromium_path() -> str | None:
     """查找 Playwright Chromium 可执行文件路径。
 
