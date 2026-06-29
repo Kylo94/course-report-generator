@@ -11,7 +11,11 @@
     "font_title": "Heiti SC",
     "font_body": "STSong",
     "font_size_title": 28,
-    "font_size_body": 12
+    "font_size_body": 12,
+    "page_margin_top": 18,
+    "page_margin_right": 16,
+    "page_margin_bottom": 16,
+    "page_margin_left": 16
   },
   "page_size": "A4"
 }
