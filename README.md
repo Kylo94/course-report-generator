@@ -6,9 +6,27 @@
 
 ## 快速体验
 
+### 安装 uv（包管理器）
+
 ```bash
-# 1. 安装依赖
-pip install uv && uv sync
+# macOS（Homebrew）
+brew install uv
+
+# macOS / Linux（官方脚本）
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows（PowerShell）
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# 或用 pip 安装
+pip install uv
+```
+
+### 安装 & 启动
+
+```bash
+# 1. 安装项目依赖
+uv sync
 
 # 2. 配置 LLM（编辑 config/llm.yaml，填入 API Key）
 #    支持 DeepSeek / 通义千问 / 智谱 GLM / OpenAI / Claude
