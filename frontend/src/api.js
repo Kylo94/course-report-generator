@@ -68,17 +68,20 @@ const API = {
     update(id, data) { return API.put(`/api/reports/${id}`, data); },
     patch(id, data) { return API.patch(`/api/reports/${id}`, data); },
     delete(id) { return API.delete(`/api/reports/${id}`); },
+    batchDelete(ids) { return API.post('/api/reports/batch-delete', { ids }); },
     updateStatus(id, status) { return API.patch(`/api/reports/${id}/status`, { status }); },
-    export(id, templateId = 'classic', layoutConfig = null, outputDir = null) {
+    export(id, templateId = 'classic', layoutConfig = null, outputDir = null, screenshotPaths = null) {
       const body = { template_id: templateId };
       if (layoutConfig) body.layout_config = layoutConfig;
       if (outputDir) body.output_dir = outputDir;
+      if (screenshotPaths && screenshotPaths.length > 0) body.screenshot_paths = screenshotPaths;
       return API.post(`/api/reports/${id}/export`, body);
     },
-    exportWord(id, templateId = 'classic', layoutConfig = null, outputDir = null) {
+    exportWord(id, templateId = 'classic', layoutConfig = null, outputDir = null, screenshotPaths = null) {
       const body = { template_id: templateId };
       if (layoutConfig) body.layout_config = layoutConfig;
       if (outputDir) body.output_dir = outputDir;
+      if (screenshotPaths && screenshotPaths.length > 0) body.screenshot_paths = screenshotPaths;
       return API.post(`/api/reports/${id}/export-word`, body);
     },
     batchGenerate(data) { return API.post('/api/reports/batch', data); },

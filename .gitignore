@@ -103,3 +103,9 @@ config/app.yaml.local
 build_artifacts/
 *.spec
 installer/
+
+# ============================
+# Course report DB
+# ============================
+data/course_reports.db
+data/course_reports.db-*

@@ -33,6 +33,9 @@ const TemplateManagerView = {
             <template #default="{ row }">
               <el-button size="small" type="primary" link @click="previewTemplate(row.id)">预览</el-button>
               <el-button size="small" type="success" link @click="cloneFromBuiltin(row)">以此创建</el-button>
+              <el-button size="small" link @click="setDefault(row)" :type="defaultTemplateId === row.id ? 'warning' : 'default'">
+                {{ defaultTemplateId === row.id ? '⭐ 默认' : '设为默认' }}
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -65,6 +68,9 @@ const TemplateManagerView = {
               <el-button size="small" type="primary" link @click="editTemplate(row)">编辑</el-button>
               <el-button size="small" link @click="previewTemplate(row.id)">预览</el-button>
               <el-button size="small" type="danger" link @click="confirmDelete(row)">删除</el-button>
+              <el-button size="small" link @click="setDefault(row)" :type="defaultTemplateId === row.id ? 'warning' : 'default'">
+                {{ defaultTemplateId === row.id ? '⭐ 默认' : '设为默认' }}
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -389,6 +395,7 @@ const TemplateManagerView = {
       previewError: '',
 
       // 字体选项
+      defaultTemplateId: localStorage.getItem('crg_default_template') || '',
       fontOptions: [
         { value: 'Heiti SC', label: '黑体' },
         { value: 'STSong', label: '宋体' },
@@ -660,6 +667,12 @@ const TemplateManagerView = {
     /** 创建对话框中预览（带着未保存的主题设置） */
     previewCreate() {
       this.previewTemplate(this.createForm.base_template_id, this._buildPreviewOverrides(this.createForm));
+    },
+
+    setDefault(template) {
+      localStorage.setItem('crg_default_template', template.id);
+      this.defaultTemplateId = template.id;
+      this.$message.success(`已将「${template.name}」设为默认模板`);
     },
 
     confirmDelete(template) {

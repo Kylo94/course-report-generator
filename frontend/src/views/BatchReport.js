@@ -420,6 +420,11 @@ const BatchReportView = {
     async loadTemplates() {
       try {
         this.templateList = await API.templates.list();
+      // 优先使用用户设置的默认模板
+      const savedDefault = localStorage.getItem('crg_default_template');
+      if (savedDefault && this.templateList.some(t => t.id === savedDefault)) {
+        this.config.template_id = savedDefault;
+      }
       } catch (e) {
         console.error('加载模板列表失败:', e);
       }
@@ -435,7 +440,7 @@ const BatchReportView = {
     async loadFirstStudentId(classId) {
       try {
         // 加载较多学生以确保覆盖目标班级的学生
-        const result = await API.students.list({ page: 1, page_size: 500 });
+        const result = await API.students.list({ page: 1, page_size: 200 });
         const students = result.items || [];
         this.studentList = students.filter(s => s.class_id === classId);
         this.firstStudentId = this.studentList.length > 0 ? this.studentList[0].id : null;
@@ -715,7 +720,7 @@ const BatchReportView = {
     async exportSinglePdf(row) {
       if (!row.record_id) return;
       try {
-        await API.reports.export(row.record_id, this.config.template_id, null, this.config.output_dir);
+        await API.reports.export(row.record_id, this.config.template_id, null, this.config.output_dir, this.config.screenshot_paths);
         this.$message.success(row.student_name + ' PDF 已导出');
       } catch (e) {
         this.$message.error('导出失败: ' + e.message);
@@ -751,7 +756,7 @@ const BatchReportView = {
       let count = 0;
       for (const r of records) {
         try {
-          await API.reports.export(r.record_id, this.config.template_id, null, this.config.output_dir);
+          await API.reports.export(r.record_id, this.config.template_id, null, this.config.output_dir, this.config.screenshot_paths);
           count++;
         } catch (e) {
           console.error('导出失败:', r.student_name, e);
@@ -770,9 +775,10 @@ const BatchReportView = {
       this.wordExporting = true;
       this.$message.info('开始导出 Word（共 ' + records.length + ' 份）...');
       let count = 0;
+      const ss = this.config.screenshot_paths;
       for (const r of records) {
         try {
-          await API.reports.exportWord(r.record_id, this.config.template_id, null, this.config.output_dir);
+          await API.reports.exportWord(r.record_id, this.config.template_id, null, this.config.output_dir, ss);
           count++;
         } catch (e) {
           console.error('导出失败:', r.student_name, e);

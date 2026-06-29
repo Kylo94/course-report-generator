@@ -683,8 +683,11 @@ const ReportEditorView = {
     // 加载 Logo 信息
     await this.loadLogoInfo();
 
-    // 加载模板列表
+    // 加载模板列表并应用模板配置
     await this.loadTemplates();
+    if (this.selectedTemplate) {
+      await this.applyTemplateConfig(this.selectedTemplate);
+    }
 
     // 启动自动保存
     this.startAutoSave();
@@ -713,7 +716,7 @@ const ReportEditorView = {
         logo_config: { enabled: true, position: 'top-right', size: 'medium', show_on_all_pages: true, margin: 0 },
         layout_config: null,  // 布局设置，存储为 {primary_color, font_title, ...}
         status: 'draft',
-        template_id: 'classic_default',
+        template_id: 'classic',
         project_meta: null,
       };
     },
@@ -774,7 +777,7 @@ const ReportEditorView = {
           Object.assign(this.layoutColors, this.form.layout_config);
         }
         this.form.status = record.status || 'draft';
-        this.form.template_id = record.template_id || 'classic_default';
+        this.form.template_id = record.template_id || 'classic';
         this.form.project_meta = record.project_meta;
 
         // 获取学生名
@@ -1121,7 +1124,8 @@ const ReportEditorView = {
       this.wordExporting = true;
       try {
         const layoutConfig = this.cleanLayoutConfig(this.layoutColors);
-        const result = await API.reports.exportWord(this.recordId, this.selectedTemplate, layoutConfig, this.outputDir);
+        const ss = this.form && this.form.screenshot_paths;
+        const result = await API.reports.exportWord(this.recordId, this.selectedTemplate, layoutConfig, this.outputDir, ss);
         window.open(result.docx_path, '_blank');
         if (result.custom_path) {
           this.$message.success('Word 已保存到: ' + result.custom_path);
@@ -1221,7 +1225,8 @@ const ReportEditorView = {
           await this.saveDraft();
         }
         const layoutConfig = this.cleanLayoutConfig(this.layoutColors);
-        const result = await API.reports.export(this.recordId, this.selectedTemplate, layoutConfig, this.outputDir);
+        const ss = this.form && this.form.screenshot_paths;
+        const result = await API.reports.export(this.recordId, this.selectedTemplate, layoutConfig, this.outputDir, ss);
         this.form.status = 'finalized';
         this.pdfDownloadUrl = result.pdf_path;
         if (result.custom_path) {
@@ -1238,21 +1243,30 @@ const ReportEditorView = {
     async loadTemplates() {
       try {
         this.templateList = await API.templates.list();
-        if (this.templateList.length > 0 && this.form.template_id) {
-          // 尝试匹配已有模板 ID（去除 _default 后缀兼容旧数据）
-          const match = this.templateList.find(
-            t => t.id === this.form.template_id || t.id === this.form.template_id.replace('_default', '')
-          );
-          if (match) this.selectedTemplate = match.id;
+        if (this.templateList.length > 0) {
+          // 优先使用已保存的记录模板
+          if (this.form.template_id) {
+            const match = this.templateList.find(
+              t => t.id === this.form.template_id || t.id === this.form.template_id.replace('_default', '')
+            );
+            if (match) {
+              this.selectedTemplate = match.id;
+            } else {
+              // 保存的模板不存在时，用默认或 fallback
+              this.selectedTemplate = this._resolveDefaultTemplate() || 'classic';
+            }
+          } else {
+            // 记录没有设模板时，使用用户设置的默认模板
+            this.selectedTemplate = this._resolveDefaultTemplate() || 'classic';
+          }
         }
       } catch (e) {
         console.error('加载模板列表失败:', e);
       }
     },
 
-    async onTemplateChange(val) {
-      this.form.template_id = val;
-      // 切换模板时加载该模板的默认主题、Logo 和布局设置
+    async applyTemplateConfig(val) {
+      // 加载模板的默认主题、Logo 和布局设置（不标记脏状态）
       try {
         const config = await API.templates.getConfig(val);
         if (config) {
@@ -1279,8 +1293,21 @@ const ReportEditorView = {
             Object.assign(this.form.logo_config, config.logo_config);
           }
         }
-      } catch (_) { /* 不阻塞切换 */ }
+      } catch (_) { /* 不阻塞 */ }
       this.onLayoutChange();
+    },
+
+    _resolveDefaultTemplate() {
+      const savedDefault = localStorage.getItem('crg_default_template');
+      if (savedDefault && this.templateList.some(t => t.id === savedDefault)) {
+        return savedDefault;
+      }
+      return null;
+    },
+
+    async onTemplateChange(val) {
+      this.form.template_id = val;
+      await this.applyTemplateConfig(val);
       this.markDirty();
     },
 

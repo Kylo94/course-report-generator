@@ -38,7 +38,27 @@ const DraftListView = {
           <el-icon><FolderDelete /></el-icon>
           <p>暂无记录</p>
         </div>
-        <el-table v-else :data="items" stripe style="width:100%">
+        <template v-else>
+          <!-- 批量操作栏 -->
+          <div style="margin-bottom:12px;display:flex;align-items:center;gap:12px;">
+            <el-checkbox v-model="selectAll" :indeterminate="isIndeterminate" @change="onSelectAllChange">
+              全选
+            </el-checkbox>
+            <span style="color:#909399;font-size:13px;">已选 {{ selectedIds.length }} 项</span>
+            <el-button
+              size="small" type="danger" :disabled="selectedIds.length === 0"
+              @click="confirmBatchDelete"
+              :loading="batchDeleting"
+            >
+              批量删除
+            </el-button>
+          </div>
+          <el-table
+            ref="tableRef"
+            :data="items" stripe style="width:100%"
+            @selection-change="onSelectionChange"
+          >
+            <el-table-column type="selection" width="40" />
           <el-table-column prop="id" label="ID" width="60" />
           <el-table-column prop="course_topic" label="课程名称" min-width="160" />
           <el-table-column label="状态" width="90">
@@ -71,6 +91,7 @@ const DraftListView = {
             </template>
           </el-table-column>
         </el-table>
+          </template>
 
         <!-- 分页 -->
         <div style="margin-top:16px;text-align:right;">
@@ -96,6 +117,10 @@ const DraftListView = {
       pageSize: 20,
       loading: false,
       filters: { status: '', keyword: '' },
+      selectedIds: [],
+      selectAll: false,
+      isIndeterminate: false,
+      batchDeleting: false,
     };
   },
 
@@ -129,6 +154,46 @@ const DraftListView = {
       this.filters = { status: '', keyword: '' };
       this.page = 1;
       this.loadList();
+    },
+
+    onSelectionChange(selection) {
+      this.selectedIds = selection.map(r => r.id);
+      this.selectAll = selection.length === this.items.length && this.items.length > 0;
+      this.isIndeterminate = selection.length > 0 && selection.length < this.items.length;
+    },
+
+    onSelectAllChange(val) {
+      if (this.$refs.tableRef) {
+        this.$refs.tableRef.clearSelection();
+        if (val) {
+          this.$nextTick(() => {
+            this.items.forEach(r => this.$refs.tableRef.toggleRowSelection(r, true));
+          });
+        }
+      }
+    },
+
+    confirmBatchDelete() {
+      const count = this.selectedIds.length;
+      this.$confirm(`确定删除选中的 ${count} 条记录？此操作不可撤销。`, '批量删除', {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+      }).then(async () => {
+        this.batchDeleting = true;
+        try {
+          const result = await API.reports.batchDelete(this.selectedIds);
+          this.$message.success(`成功删除 ${result.deleted} 条记录`);
+          this.selectedIds = [];
+          this.selectAll = false;
+          this.isIndeterminate = false;
+          this.loadList();
+        } catch (e) {
+          this.$message.error('批量删除失败: ' + e.message);
+        } finally {
+          this.batchDeleting = false;
+        }
+      }).catch(() => {});
     },
 
     openDraft(id) {

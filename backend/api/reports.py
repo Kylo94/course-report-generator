@@ -258,6 +258,31 @@ async def delete_record(
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.post(
+    "/api/reports/batch-delete",
+    status_code=status.HTTP_200_OK,
+    summary="批量删除课程记录",
+)
+async def batch_delete_records(
+    body: dict = Body(...),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """批量删除课程记录。
+
+    POST body:
+      {"ids": [1, 2, 3]}
+    """
+    ids = body.get("ids", [])
+    if not ids or not isinstance(ids, list):
+        raise HTTPException(status_code=400, detail="ids 必须是非空数组")
+    try:
+        deleted = await record_svc.batch_delete_records(session, ids)
+        return {"deleted": deleted, "total": len(ids)}
+    except Exception as e:
+        log.exception("批量删除失败: %s", e)
+        raise HTTPException(status_code=500, detail=f"批量删除失败: {e}")
+
+
 # =========================
 # PDF 导出
 # =========================
@@ -294,6 +319,15 @@ async def export_report(
     if layout_config is None:
         from backend.services.course_records import _load_json
         layout_config = _load_json(getattr(record, "layout_config", None))
+
+    # 如果请求中传了截图路径，覆盖数据库中的（与预览接口一致）
+    body_screenshots = body.get("screenshot_paths")
+    if body_screenshots is not None:
+        import json as _json
+        log.info("PDF导出: 收到截图路径 %d 条: %s", len(body_screenshots), body_screenshots[:3])
+        record.screenshot_paths = _json.dumps(body_screenshots, ensure_ascii=False)
+    else:
+        log.info("PDF导出: 请求体中没有 screenshot_paths，使用 DB 中的原始值 (type=%s)", type(record.screenshot_paths).__name__)
 
     # 2. 获取学生名
     student_name = ""
@@ -389,6 +423,16 @@ async def export_report_word(
     template_id = body.get("template_id", "classic")
     layout_config = body.get("layout_config")
     output_dir = body.get("output_dir")
+
+    # 如果请求中传了截图路径，覆盖数据库中的（与 PDF 导出一致）
+    body_screenshots = body.get("screenshot_paths")
+    if body_screenshots is not None:
+        import json as _json
+        log.info("Word导出: 收到截图路径 %d 条", len(body_screenshots))
+        record.screenshot_paths = _json.dumps(body_screenshots, ensure_ascii=False)
+    else:
+        log.info("Word导出: 使用 DB 中的截图路径 (type=%s)", type(record.screenshot_paths).__name__)
+
     template_config = None
     try:
         template_config = get_template_config(template_id)
@@ -594,15 +638,12 @@ async def batch_generate_reports(
         for s in students
     ]
 
-    # 获取 analysis_text（利用缓存，不会重复调用 LLM）
-    analysis_text = await orchestrator.get_analysis_text(project_meta) if project_meta else ""
-
+    # 批量生成评价（利用共享会话的记忆，不重复调用 LLM 读代码）
     evaluations: list[str | Exception] = []
     if project_meta and shared and not shared_error:
         try:
             evaluations = await orchestrator.generate_evaluations(
                 project_meta, student_reads, shared, body.teacher_observation,
-                analysis_text=analysis_text,
             )
         except Exception as e:
             log.exception("批量评价生成失败: %s", e)
@@ -738,7 +779,10 @@ async def preview_report(
 
     # 如果请求中传了截图路径，覆盖数据库中的
     if body_screenshots is not None:
+        log.info("预览: 收到截图路径 %d 条: %s", len(body_screenshots), body_screenshots[:3])
         record.screenshot_paths = _json.dumps(body_screenshots, ensure_ascii=False)
+    else:
+        log.info("预览: 请求体中没有 screenshot_paths，使用 DB 原始值 (type=%s)", type(record.screenshot_paths).__name__)
 
     student_name = ""
     if record.student_id:

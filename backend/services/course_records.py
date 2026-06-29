@@ -224,6 +224,22 @@ async def delete_record(session: AsyncSession, record_id: int) -> None:
 # 批量操作
 # =========================
 
+async def batch_delete_records(
+    session: AsyncSession, record_ids: list[int]
+) -> int:
+    """批量删除课程记录。返回实际删除的条数。"""
+    from sqlalchemy import delete as sa_delete
+    from backend.models.course_record import CourseRecord
+
+    result = await session.execute(
+        sa_delete(CourseRecord).where(CourseRecord.id.in_(record_ids))
+    )
+    await session.commit()
+    deleted = result.rowcount
+    log.info("批量删除课程记录: ids=%s count=%d", record_ids, deleted)
+    return deleted
+
+
 async def batch_create_records(
     session: AsyncSession, records_data: list[dict[str, Any]]
 ) -> list[CourseRecord]:

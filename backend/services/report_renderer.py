@@ -192,11 +192,19 @@ class ReportRenderer:
 
         # 处理所有截图路径：URL → 文件路径
         resolved_screenshots: list[str] = []
+        log.info("渲染器: screenshot_paths 类型=%s 值(前200)=%s", type(screenshots).__name__, str(screenshots)[:200])
         for s in screenshots:  # 处理所有截图
-            fs_path = _url_to_fs_path(s) if isinstance(s, str) else None
+            if not isinstance(s, str):
+                log.warning("渲染器: 截图路径非字符串: %s", type(s).__name__)
+                continue
+            fs_path = _url_to_fs_path(s)
+            log.info("渲染器: 解析截图 URL=%s → fs_path=%s", s, fs_path)
             if fs_path:
                 data_uri = _image_to_data_uri(fs_path)
                 resolved_screenshots.append(data_uri or fs_path)
+            else:
+                log.warning("渲染器: 截图路径无法解析为文件路径: %s", s)
+        log.info("渲染器: 截图解析完成 %d 条 → %d 条", len(screenshots), len(resolved_screenshots))
 
         # 提取代码片段：优先使用 AI 分析结果中的 line range 精确截取，最多 15 行
         code_excerpt = ""
