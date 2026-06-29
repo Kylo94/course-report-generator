@@ -1,0 +1,36 @@
+# 应用全局配置（不含敏感信息，可入 git）
+
+app:
+  name: 课程报告生成工具
+  version: 0.1.0
+  debug: true
+  log_level: INFO
+
+# 数据库
+database:
+  url: sqlite+aiosqlite:///./data/app.db
+  echo: false  # 开发时可设为 true 看 SQL
+
+# 服务器
+server:
+  host: 127.0.0.1
+  port: 8765
+  reload: true   # 开发时自动重载
+
+# 报告
+report:
+  default_template: classic_default
+  output_dir: ./data/reports
+  screenshot_dir: ./data/screenshots
+  asset_dir: ./data/assets
+
+# 草稿
+draft:
+  auto_save_interval_seconds: 30
+
+# Logo
+logo:
+  enabled: false
+  position: top-right
+  size: medium
+  show_on_all_pages: true

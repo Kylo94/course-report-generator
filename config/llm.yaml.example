@@ -1,0 +1,30 @@
+# LLM 配置文件模板
+# 复制为 llm.yaml 并填入你的 API Key
+# 此文件不入 git（见 .gitignore）
+
+# 当前激活的供应商（必须）
+provider: deepseek
+
+# API Key（必填）
+api_key: sk-your-api-key-here
+
+# 自定义 base_url（可选，多数供应商可省略）
+# base_url: https://api.deepseek.com/v1
+
+# 默认模型（必填）
+default_model: deepseek-chat
+
+# 请求超时（秒）
+timeout: 60
+
+# 失败重试次数
+max_retries: 2
+
+# 温度参数（按字段单独覆盖）
+temperature:
+  knowledge_points: 0.3
+  content_summary: 0.5
+  homework: 0.5
+  vocabulary: 0.5
+  ability_improvement: 0.5
+  evaluation: 0.9   # 评价要高多样性，避免套话
