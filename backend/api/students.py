@@ -1,7 +1,10 @@
 """学生管理 API 路由。"""
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db import get_session
@@ -58,6 +61,31 @@ async def list_students(
         total=total,
         page=page,
         page_size=page_size,
+    )
+
+
+@router.get(
+    "/export-csv",
+    summary="导出学生列表为 CSV（支持过滤）",
+)
+async def export_students_csv(
+    class_id: int | None = Query(None, description="按班级过滤"),
+    base_level: str | None = Query(None, description="按基础水平过滤"),
+    keyword: str | None = Query(None, description="按姓名模糊搜索"),
+    session: AsyncSession = Depends(get_session),
+) -> StreamingResponse:
+    """导出当前过滤条件下的学生为 CSV 文件。"""
+    csv_text = await student_svc.export_students_csv(
+        session,
+        class_id=class_id,
+        base_level=base_level,
+        keyword=keyword,
+    )
+    filename = f"students_{datetime.now().strftime('%Y%m%d')}.csv"
+    return StreamingResponse(
+        iter([csv_text.encode("utf-8-sig")]),
+        media_type="text/csv; charset=utf-8-sig",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

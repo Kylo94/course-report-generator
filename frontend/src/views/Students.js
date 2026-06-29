@@ -11,6 +11,7 @@ const StudentsView = {
           @clear="loadStudents" @keyup.enter="loadStudents" />
         <el-button type="primary" @click="loadStudents">搜索</el-button>
         <el-button type="success" @click="showCreateDialog">+ 新建学生</el-button>
+        <el-button @click="exportCsv">📤 导出 CSV</el-button>
         <el-button @click="showImportDialog = true">📥 批量导入</el-button>
       </div>
 
@@ -288,6 +289,11 @@ const StudentsView = {
       } catch (e) {
         this.$message.error('导入失败: ' + e.message);
       }
+    },
+
+    exportCsv() {
+      const url = API.students.exportCsv({ keyword: this.searchKeyword || undefined });
+      window.open(url, '_blank');
     },
   },
 };

@@ -1,10 +1,14 @@
 """学生业务逻辑层。"""
 from __future__ import annotations
 
+import csv
+import io
 from collections.abc import Sequence
+from datetime import datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from backend.models import Class, Student
 from backend.schemas.student import StudentCreate, StudentUpdate
@@ -132,3 +136,65 @@ async def batch_create_students(
         await session.refresh(s)
     log.info("批量创建学生: %d 条", len(students))
     return students
+
+
+async def export_students_csv(
+    session: AsyncSession,
+    *,
+    class_id: int | None = None,
+    base_level: str | None = None,
+    keyword: str | None = None,
+) -> str:
+    """导出学生列表为 CSV（不分页，支持过滤）。
+
+    返回 CSV 文本（UTF-8 with BOM），列名为中文。
+    """
+    stmt = select(Student).options(joinedload(Student.klass))
+
+    if class_id is not None:
+        stmt = stmt.where(Student.class_id == class_id)
+    if base_level is not None:
+        stmt = stmt.where(Student.base_level == base_level)
+    if keyword:
+        stmt = stmt.where(Student.name.like(f"%{keyword}%"))
+
+    stmt = stmt.order_by(Student.id.asc())
+    result = await session.execute(stmt)
+    students = result.unique().scalars().all()
+
+    output = io.StringIO()
+    output.write("﻿")  # BOM for Excel compat
+    writer = csv.writer(output)
+
+    # 中文表头
+    writer.writerow([
+        "ID", "姓名", "年龄", "性别", "年级", "基础水平",
+        "班级", "性格特点", "家长联系方式", "备注", "创建时间", "更新时间",
+    ])
+
+    now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    for s in students:
+        class_name = s.klass.name if s.klass else ""
+        characteristics = "、".join(s.characteristics) if s.characteristics else ""
+        created = s.created_at.strftime("%Y-%m-%d %H:%M") if s.created_at else ""
+        updated = s.updated_at.strftime("%Y-%m-%d %H:%M") if s.updated_at else ""
+
+        writer.writerow([
+            s.id,
+            s.name,
+            s.age if s.age is not None else "",
+            s.gender or "",
+            s.grade or "",
+            s.base_level,
+            class_name,
+            characteristics,
+            s.parent_contact or "",
+            s.note or "",
+            created,
+            updated,
+        ])
+
+    csv_text = output.getvalue()
+    log.info("导出 CSV 学生: %d 条 (class_id=%s base_level=%s keyword=%s)",
+             len(students), class_id, base_level, keyword)
+    return csv_text

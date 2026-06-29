@@ -119,6 +119,14 @@ const API = {
     update(id, data) { return API.patch(`/api/students/${id}`, data); },
     delete(id) { return API.delete(`/api/students/${id}`); },
     batchCreate(data) { return API.post('/api/students/batch', data); },
+    exportCsv(params = {}) {
+      const q = new URLSearchParams();
+      if (params.keyword) q.set('keyword', params.keyword);
+      if (params.class_id) q.set('class_id', params.class_id);
+      if (params.base_level) q.set('base_level', params.base_level);
+      const qs = q.toString();
+      return API.baseURL + `/api/students/export-csv${qs ? '?' + qs : ''}`;
+    },
   },
 
   // =====================
