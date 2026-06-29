@@ -23,7 +23,7 @@ import csv
 import io
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from openpyxl import load_workbook
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -115,10 +115,13 @@ def _read_xlsx(content: bytes) -> list[dict[str, Any]]:
 @router.post(
     "/students",
     response_model=dict,
-    summary="批量导入学生（Excel/CSV）",
+    summary="批量导入学生（Excel/CSV），支持设置默认值",
 )
 async def import_students(
     file: UploadFile = File(..., description="Excel(.xlsx) 或 CSV 文件"),
+    default_class_id: int | None = Form(None, description="默认班级ID（CSV 中缺失时使用）"),
+    default_base_level: str | None = Form(None, description="默认基础水平（CSV 中缺失时使用）"),
+    default_grade: str | None = Form(None, description="默认年级（CSV 中缺失时使用）"),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """
@@ -130,6 +133,11 @@ async def import_students(
         "errors": [{"row": 行号, "error": "错误信息"}],
         "created_ids": [成功创建的学生 ID 列表]
     }
+
+    可选参数（作为 Form 字段传入）：
+    - default_class_id: 当 CSV 行中没有班级ID时，使用此值
+    - default_base_level: 当 CSV 行中没有基础水平时，使用此值
+    - default_grade: 当 CSV 行中没有年级时，使用此值
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="未提供文件名")
@@ -163,6 +171,13 @@ async def import_students(
     for idx, raw_row in enumerate(rows, start=2):  # 第 1 行是表头
         try:
             row = _coerce_row(raw_row)
+            # 应用默认值（仅当 CSV 行中未设置时）
+            if row.get("class_id") is None and default_class_id is not None:
+                row["class_id"] = default_class_id
+            if not row.get("base_level") and default_base_level is not None:
+                row["base_level"] = default_base_level
+            if not row.get("grade") and default_grade is not None:
+                row["grade"] = default_grade
             # 校验：姓名必填
             if not row.get("name"):
                 raise ValueError("姓名为必填项")

@@ -116,6 +116,22 @@ async def delete_student(session: AsyncSession, student_id: int) -> None:
     log.info("学生已删除: id=%s", student_id)
 
 
+async def batch_delete_students(
+    session: AsyncSession, student_ids: list[int]
+) -> int:
+    """批量删除学生。返回实际删除的条数。"""
+    from sqlalchemy import delete as sa_delete
+    from backend.models.student import Student
+
+    result = await session.execute(
+        sa_delete(Student).where(Student.id.in_(student_ids))
+    )
+    await session.commit()
+    deleted = result.rowcount
+    log.info("批量删除学生: ids=%s count=%d", student_ids, deleted)
+    return deleted
+
+
 async def batch_create_students(
     session: AsyncSession, data_list: list[StudentCreate]
 ) -> list[Student]:

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -127,6 +127,27 @@ async def delete_student(
         await student_svc.delete_student(session, student_id)
     except StudentNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post(
+    "/batch-delete",
+    status_code=status.HTTP_200_OK,
+    summary="批量删除学生",
+)
+async def batch_delete_students(
+    body: dict = Body(...),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """批量删除学生。POST body: {"ids": [1, 2, 3]}"""
+    ids = body.get("ids", [])
+    if not ids or not isinstance(ids, list):
+        raise HTTPException(status_code=400, detail="ids 必须是非空数组")
+    try:
+        deleted = await student_svc.batch_delete_students(session, ids)
+        return {"deleted": deleted, "total": len(ids)}
+    except Exception as e:
+        log.exception("批量删除学生失败: %s", e)
+        raise HTTPException(status_code=500, detail=f"批量删除失败: {e}")
 
 
 @router.post(

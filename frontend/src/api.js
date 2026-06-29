@@ -127,6 +127,7 @@ const API = {
       const qs = q.toString();
       return API.baseURL + `/api/students/export-csv${qs ? '?' + qs : ''}`;
     },
+    batchDelete(ids) { return API.post('/api/students/batch-delete', { ids }); },
   },
 
   // =====================

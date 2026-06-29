@@ -16,7 +16,21 @@ const StudentsView = {
       </div>
 
       <!-- 数据表格 -->
-      <el-table :data="students" v-loading="loading" stripe style="width:100%">
+      <div v-if="students.length > 0" style="margin-bottom:12px;display:flex;align-items:center;gap:12px;">
+        <el-checkbox v-model="selectAll" :indeterminate="isIndeterminate" @change="onSelectAllChange">
+          全选
+        </el-checkbox>
+        <span style="color:#909399;font-size:13px;">已选 {{ selectedIds.length }} 项</span>
+        <el-button
+          size="small" type="danger" :disabled="selectedIds.length === 0"
+          @click="confirmBatchDelete" :loading="batchDeleting"
+        >
+          批量删除
+        </el-button>
+      </div>
+      <el-table ref="tableRef" :data="students" v-loading="loading" stripe style="width:100%"
+        @selection-change="onSelectionChange">
+        <el-table-column type="selection" width="40" />
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="name" label="姓名" width="100" />
         <el-table-column label="班级" width="120">
@@ -115,7 +129,27 @@ const StudentsView = {
       </el-dialog>
 
       <!-- 批量导入弹窗 -->
-      <el-dialog v-model="showImportDialog" title="批量导入学生" width="400px">
+      <el-dialog v-model="showImportDialog" title="批量导入学生" width="500px">
+        <el-card style="margin-bottom:16px;">
+          <template #header>📋 默认值（CSV 中缺失的字段将使用此值）</template>
+          <el-form size="small" label-width="90px">
+            <el-form-item label="所属班级">
+              <el-select v-model="importDefaults.class_id" placeholder="不分配" style="width:200px" clearable>
+                <el-option v-for="c in classList" :key="c.id" :label="c.name" :value="c.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="基础水平">
+              <el-select v-model="importDefaults.base_level" placeholder="入门" style="width:140px">
+                <el-option label="入门" value="入门" />
+                <el-option label="初级" value="初级" />
+                <el-option label="中级" value="中级" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="年级">
+              <el-input v-model="importDefaults.grade" placeholder="留空使用 CSV 中的值" style="width:200px" />
+            </el-form-item>
+          </el-form>
+        </el-card>
         <el-upload
           :http-request="handleBatchImport"
           accept=".xlsx,.xls,.csv"
@@ -151,6 +185,15 @@ const StudentsView = {
       form: this.getEmptyForm(),
 
       showImportDialog: false,
+
+      // 批量删除
+      selectedIds: [],
+      selectAll: false,
+      isIndeterminate: false,
+      batchDeleting: false,
+
+      // 导入默认值
+      importDefaults: { class_id: null, base_level: '入门', grade: '' },
     };
   },
 
@@ -280,10 +323,70 @@ const StudentsView = {
       }).catch(() => {});
     },
 
+    onSelectionChange(selection) {
+      this.selectedIds = selection.map(r => r.id);
+      this.selectAll = selection.length === this.students.length && this.students.length > 0;
+      this.isIndeterminate = selection.length > 0 && selection.length < this.students.length;
+    },
+
+    onSelectAllChange(val) {
+      if (this.$refs.tableRef) {
+        this.$refs.tableRef.clearSelection();
+        if (val) {
+          this.$nextTick(() => {
+            this.students.forEach(r => this.$refs.tableRef.toggleRowSelection(r, true));
+          });
+        }
+      }
+    },
+
+    confirmBatchDelete() {
+      const count = this.selectedIds.length;
+      this.$confirm(`确定删除选中的 ${count} 名学生？此操作不可撤销。`, '批量删除', {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+      }).then(async () => {
+        this.batchDeleting = true;
+        try {
+          const result = await API.students.batchDelete(this.selectedIds);
+          this.$message.success(`成功删除 ${result.deleted} 名学生`);
+          this.selectedIds = [];
+          this.selectAll = false;
+          this.isIndeterminate = false;
+          await this.loadStudents();
+        } catch (e) {
+          this.$message.error('批量删除失败: ' + e.message);
+        } finally {
+          this.batchDeleting = false;
+        }
+      }).catch(() => {});
+    },
+
     async handleBatchImport(options) {
       try {
-        await API.importStudents(options.file);
-        this.$message.success('批量导入成功');
+        // 手动构造 FormData，附带默认值
+        const formData = new FormData();
+        formData.append('file', options.file);
+        if (this.importDefaults.class_id) {
+          formData.append('default_class_id', String(this.importDefaults.class_id));
+        }
+        if (this.importDefaults.base_level) {
+          formData.append('default_base_level', this.importDefaults.base_level);
+        }
+        if (this.importDefaults.grade) {
+          formData.append('default_grade', this.importDefaults.grade);
+        }
+        const resp = await fetch(API.baseURL + '/api/import/students', {
+          method: 'POST',
+          body: formData,
+        });
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.detail || `HTTP ${resp.status}`);
+        }
+        const result = await resp.json();
+        this.$message.success(`导入成功：${result.success} 条（失败 ${result.failed} 条）`);
         this.showImportDialog = false;
         await this.loadStudents();
       } catch (e) {
