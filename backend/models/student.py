@@ -55,7 +55,7 @@ class Student(Base):
     )
 
     # 关系
-    klass: Mapped["Class | None"] = relationship(
+    klass: Mapped[Class | None] = relationship(
         "Class", back_populates="students", lazy="selectin"
     )
 

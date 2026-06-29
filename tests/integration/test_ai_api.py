@@ -8,7 +8,6 @@ import pytest
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableLambda
 
-
 pytestmark = pytest.mark.asyncio
 
 
@@ -17,8 +16,8 @@ pytestmark = pytest.mark.asyncio
 # =========================
 def _make_mock_runnable_factory(scripts: dict[str, str]):
     """创建一个能根据 prompt 返回不同响应的 Provider 工厂。"""
-    from backend.llm.base import LLMProvider
     from backend.config import LLMConfig
+    from backend.llm.base import LLMProvider
 
     class _MockProvider(LLMProvider):
         def __init__(self):
@@ -54,9 +53,9 @@ def _make_mock_runnable_factory(scripts: dict[str, str]):
 @pytest.fixture
 def mock_ai(monkeypatch: pytest.MonkeyPatch):
     """替换 get_provider 为 mock。"""
+    from backend.api import ai as ai_api
     from backend.llm import base
     from backend.services import ai_orchestrator
-    from backend.api import ai as ai_api
 
     scripts = {
         "提取本节课涉及的": json.dumps(

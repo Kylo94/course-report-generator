@@ -23,7 +23,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db import get_session
-from backend.schemas.student import StudentCreate, StudentRead
+from backend.schemas.student import StudentCreate
 from backend.services import students as student_svc
 from backend.services.students import ClassNotFoundError
 from backend.utils.logger import get_logger

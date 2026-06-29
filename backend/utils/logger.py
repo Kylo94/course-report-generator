@@ -13,7 +13,6 @@ import logging.handlers
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 # 日志目录
 LOG_DIR = Path(__file__).resolve().parent.parent.parent / "logs"
@@ -90,6 +89,6 @@ def setup_logging(
     root.info("=" * 70)
 
 
-def get_logger(name: Optional[str] = None) -> logging.Logger:
+def get_logger(name: str | None = None) -> logging.Logger:
     """获取命名 logger。"""
     return logging.getLogger(name)

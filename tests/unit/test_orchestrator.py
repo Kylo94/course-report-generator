@@ -17,8 +17,8 @@ from backend.schemas.project import (
 )
 from backend.schemas.student import StudentRead
 from backend.services.ai_orchestrator import (
-    AIOrchestrator,
     STEP_FIELDS,
+    AIOrchestrator,
     GenerationResult,
 )
 

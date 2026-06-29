@@ -111,7 +111,7 @@ class Settings(BaseSettings):
     llm: LLMConfig = Field(default_factory=LLMConfig)
 
     @classmethod
-    def from_yaml(cls, yaml_path: Path | str) -> "Settings":
+    def from_yaml(cls, yaml_path: Path | str) -> Settings:
         """
         从 YAML 文件加载配置。
 

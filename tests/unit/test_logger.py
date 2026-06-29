@@ -4,8 +4,6 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-import pytest
-
 from backend.utils.logger import get_logger, setup_logging
 
 

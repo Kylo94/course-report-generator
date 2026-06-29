@@ -74,19 +74,19 @@ class TestReadCSV:
             "姓名,年龄,性别,基础水平\n"
             "张三,10,男,入门\n"
             "李四,11,女,初级\n"
-        ).encode("utf-8")
+        ).encode()
         rows = _read_csv(csv_content)
         assert len(rows) == 2
         assert rows[0]["姓名"] == "张三"
         assert rows[1]["基础水平"] == "初级"
 
     def test_read_with_bom(self) -> None:
-        csv_content = "﻿姓名,年龄\n张三,10\n".encode("utf-8")
+        csv_content = "﻿姓名,年龄\n张三,10\n".encode()
         rows = _read_csv(csv_content)
         assert rows[0]["姓名"] == "张三"
 
     def test_read_empty(self) -> None:
-        rows = _read_csv("姓名,年龄\n".encode("utf-8"))
+        rows = _read_csv("姓名,年龄\n".encode())
         assert rows == []
 
 

@@ -37,7 +37,7 @@ class Class(Base):
     )
 
     # 关系：一个班级多个学生
-    students: Mapped[list["Student"]] = relationship(
+    students: Mapped[list[Student]] = relationship(
         "Student", back_populates="klass", lazy="selectin"
     )
 

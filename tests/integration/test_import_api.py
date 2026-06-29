@@ -6,7 +6,6 @@ import io
 import pytest
 from openpyxl import Workbook
 
-
 pytestmark = pytest.mark.asyncio
 
 

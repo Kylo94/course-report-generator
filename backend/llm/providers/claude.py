@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from langchain_anthropic import ChatAnthropic
 
-from backend.config import LLMConfig
 from backend.llm.base import LLMProvider
 
 

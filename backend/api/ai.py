@@ -1,7 +1,6 @@
 """AI 生成 API 路由。"""
 from __future__ import annotations
 
-import asyncio
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
@@ -10,9 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.db import get_session
 from backend.llm.base import get_provider
 from backend.schemas.ai_generation import (
+    AIGeneratedContent,
     AIGenerateRequest,
     AIGenerateResponse,
-    AIGeneratedContent,
     AIRegenerateRequest,
     ContentItemSchema,
     HomeworkSchema,
@@ -21,7 +20,7 @@ from backend.schemas.ai_generation import (
 from backend.schemas.project import ProjectMetaSchema
 from backend.schemas.student import StudentRead
 from backend.services import students as student_svc
-from backend.services.ai_orchestrator import AIOrchestrator, STEP_FIELDS
+from backend.services.ai_orchestrator import STEP_FIELDS, AIOrchestrator
 from backend.utils.logger import get_logger
 
 log = get_logger(__name__)

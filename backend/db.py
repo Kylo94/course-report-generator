@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from pathlib import Path
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -101,7 +100,7 @@ async def init_db(echo: bool = False) -> None:
     注意：生产环境应使用 Alembic 迁移，而非 create_all。
     """
     # 确保所有 model 已导入（register tables）
-    from backend.models import student, klass  # noqa: F401
+    from backend.models import course_record, klass, student  # noqa: F401
 
     engine = get_engine()
     async with engine.begin() as conn:
@@ -111,7 +110,7 @@ async def init_db(echo: bool = False) -> None:
 
 async def reset_db() -> None:
     """删除所有表（仅用于测试）。"""
-    from backend.models import student, klass  # noqa: F401
+    from backend.models import klass, student  # noqa: F401
 
     engine = get_engine()
     async with engine.begin() as conn:
