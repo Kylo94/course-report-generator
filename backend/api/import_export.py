@@ -27,8 +27,10 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from openpyxl import load_workbook
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from backend.db import get_session
+from backend.models import Class as ClassModel
 from backend.schemas.student import StudentCreate
 from backend.services import students as student_svc
 from backend.services.docx_importer import DocxImportError, import_docx
@@ -52,6 +54,7 @@ COLUMN_MAP: dict[str, str] = {
     "备注": "note",
     "班级ID": "class_id",
     "班级ID(class_id)": "class_id",
+    "班级": "class_name",
 }
 
 
@@ -163,6 +166,18 @@ async def import_students(
 
     log.info("开始导入学生: %s 共 %d 行", filename, len(rows))
 
+    # 预加载班级名称 → ID 映射（含 "班级" 列的 CSV 导出来回）
+    class_name_map: dict[str, int] = {}
+    class_names = {
+        str(row.get("班级", "")).strip()
+        for row in rows
+        if row.get("班级")
+    }
+    if class_names:
+        stmt = select(ClassModel.id, ClassModel.name).where(ClassModel.name.in_(class_names))
+        for row in (await session.execute(stmt)).mappings().all():
+            class_name_map[row["name"]] = row["id"]
+
     success = 0
     failed = 0
     errors: list[dict] = []
@@ -171,6 +186,13 @@ async def import_students(
     for idx, raw_row in enumerate(rows, start=2):  # 第 1 行是表头
         try:
             row = _coerce_row(raw_row)
+            # 班级名称 → ID（支持 CSV 导出来回）
+            if row.get("class_id") is None and row.get("class_name"):
+                cid = class_name_map.get(row["class_name"].strip())
+                if cid is not None:
+                    row["class_id"] = cid
+                # 班级名称不在数据库中时，保留 class_id=None
+            row.pop("class_name", None)  # StudentCreate 没有此字段
             # 应用默认值（仅当 CSV 行中未设置时）
             if row.get("class_id") is None and default_class_id is not None:
                 row["class_id"] = default_class_id
