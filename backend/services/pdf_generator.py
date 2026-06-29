@@ -46,7 +46,13 @@ class PDFGenerator:
             from playwright.async_api import async_playwright
 
             async with async_playwright() as pw:
-                browser = await pw.chromium.launch()
+                from backend.paths import get_chromium_path
+
+                chromium_path = get_chromium_path()
+                launch_kwargs = {}
+                if chromium_path:
+                    launch_kwargs["executable_path"] = chromium_path
+                browser = await pw.chromium.launch(**launch_kwargs)
                 try:
                     page = await browser.new_page()
                     await page.set_content(html, wait_until="networkidle")

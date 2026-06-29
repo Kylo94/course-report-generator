@@ -222,6 +222,84 @@ uv run pytest --cov --cov-report=html
 uv run ruff check .
 ```
 
+## 打包 & 分发
+
+本工具支持通过 PyInstaller 打包为独立可执行程序，无需用户安装 Python 环境。
+
+### 前置条件
+
+```bash
+# 1. 安装 PyInstaller
+uv add pyinstaller --dev
+
+# 2. 安装 Playwright + Chromium
+python -m playwright install chromium
+```
+
+### 构建
+
+```bash
+# 标准构建（含 Chromium，约 400MB）
+python build.py
+
+# 不含 Chromium 的轻量构建（约 60MB，需接收方自行安装 Chromium）
+python build.py --no-chrome
+
+# 清理旧构建后重新打包
+python build.py --clean
+```
+
+构建产物在 `dist/课程报告生成工具/` 目录下。
+
+### 分发给其他人
+
+#### 含浏览器版本（推荐）
+
+`build.py` 会自动把 Playwright 的 Chromium 打包进去，接收方只需：
+
+1. 将 `dist/课程报告生成工具/` 整个目录拷贝到目标机器
+2. 双击 `课程报告生成工具.exe`（Windows）或运行 `课程报告生成工具`（macOS/Linux）
+3. 浏览器打开 [http://127.0.0.1:8765](http://127.0.0.1:8765)
+
+#### 不含浏览器版本
+
+接收方需先安装 Playwright Chromium：
+
+```bash
+python -m playwright install chromium
+```
+
+### 跨平台打包
+
+在对应的平台上分别执行 `python build.py`：
+
+| 平台 | 构建命令 | 产物 |
+|------|---------|------|
+| Windows | `python build.py` | `dist/课程报告生成工具/课程报告生成工具.exe` |
+| macOS | `python build.py` | `dist/课程报告生成工具.app` |
+| Linux | `python build.py` | `dist/课程报告生成工具/课程报告生成工具` |
+
+> **注意：** PyInstaller 不支持交叉编译。Windows 包必须在 Windows 上构建，macOS 包同理。
+
+### 打包文件结构
+
+```
+dist/课程报告生成工具/
+├── 课程报告生成工具.exe    # 主程序（Windows）
+├── _internal/              # Python 运行时 + 依赖库
+├── frontend/               # Vue 3 前端静态文件
+├── templates/              # 报告模板（classic/cartoon/academic/python）
+├── config/
+│   ├── app.yaml            # 应用配置
+│   └── llm.yaml.example    # LLM 配置模板
+├── browser/               #（可选）Chromium 浏览器引擎
+└── data/                   # 首次运行时创建
+    ├── app.db              # SQLite 数据库
+    ├── reports/            # 导出 PDF
+    ├── screenshots/        # 上传截图
+    └── assets/             # Logo 等资产
+```
+
 ## 版本历史
 
 ```

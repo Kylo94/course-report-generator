@@ -9,7 +9,9 @@
 """
 from __future__ import annotations
 
+import os
 import sys
+from pathlib import Path
 
 import uvicorn
 
@@ -17,8 +19,17 @@ from backend.config import get_settings
 from backend.utils.logger import get_logger, setup_logging
 
 
+def _ensure_data_dir() -> None:
+    """打包模式下切换到 exe 同级目录，确保 ./data/ 路径正确。"""
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        os.chdir(str(exe_dir))
+
+
 def main() -> int:
     """应用主入口。"""
+    _ensure_data_dir()
+
     # 1. 初始化日志
     setup_logging()
     log = get_logger("main")

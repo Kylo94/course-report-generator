@@ -101,7 +101,6 @@ config/app.yaml.local
 # Build & Distribution
 # =========================
 build_artifacts/
-*.spec
 installer/
 
 # ============================

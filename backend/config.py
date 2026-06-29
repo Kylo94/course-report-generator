@@ -21,8 +21,10 @@ import yaml
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# 项目根目录
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# 项目根目录（兼容 PyInstaller 打包模式）
+from backend.paths import get_app_root
+
+PROJECT_ROOT = get_app_root()
 
 # 环境变量前缀
 ENV_PREFIX = "CRG_"
