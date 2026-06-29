@@ -9,6 +9,12 @@ from backend.schemas.klass import (
     ClassRead,
     ClassUpdate,
 )
+from backend.schemas.project import (
+    FileInfoSchema,
+    ProjectMetaSchema,
+    ProjectScanRequest,
+    PyStructureSchema,
+)
 from backend.schemas.student import (
     StudentCreate,
     StudentList,
@@ -21,6 +27,10 @@ __all__ = [
     "ClassList",
     "ClassRead",
     "ClassUpdate",
+    "FileInfoSchema",
+    "ProjectMetaSchema",
+    "ProjectScanRequest",
+    "PyStructureSchema",
     "StudentCreate",
     "StudentList",
     "StudentRead",
