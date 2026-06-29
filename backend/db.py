@@ -121,6 +121,13 @@ async def _migrate_schema() -> None:
                 sa.text("ALTER TABLE course_records ADD COLUMN layout_config TEXT")
             )
 
+        # 检查 classes 是否已有 sort_order 列
+        if not await conn.run_sync(_has_column, "classes", "sort_order"):
+            _log.info("迁移数据库: 添加 classes.sort_order 列")
+            await conn.execute(
+                sa.text("ALTER TABLE classes ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
+            )
+
 
 async def init_db(echo: bool = False) -> None:
     """

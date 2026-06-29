@@ -29,9 +29,21 @@ class ClassRead(ClassBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    sort_order: int = Field(default=0, description="排序值，越小越靠前")
     student_count: int = Field(default=0, description="学生人数")
     created_at: datetime
     updated_at: datetime
+
+
+class ClassReorderItem(BaseModel):
+    """排序项。"""
+    id: int
+    sort_order: int
+
+
+class ClassReorderRequest(BaseModel):
+    """批量重排请求。"""
+    orders: list[ClassReorderItem]
 
 
 class ClassList(BaseModel):

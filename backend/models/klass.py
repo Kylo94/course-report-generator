@@ -36,6 +36,8 @@ class Class(Base):
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     # 关系：一个班级多个学生
     students: Mapped[list[Student]] = relationship(
         "Student", back_populates="klass", lazy="selectin"

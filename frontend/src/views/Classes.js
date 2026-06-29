@@ -21,6 +21,12 @@ const ClassesView = {
           <template #default="{ row }">{{ row.schedule_time || '-' }}</template>
         </el-table-column>
         <el-table-column prop="student_count" label="学生数" width="80" />
+        <el-table-column label="排序" width="90">
+          <template #default="{ row, $index }">
+            <el-button size="small" :disabled="$index === 0" @click="moveUp(row, $index)">▲</el-button>
+            <el-button size="small" :disabled="$index === classes.length - 1" @click="moveDown(row, $index)">▼</el-button>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="viewStudents(row)">学生</el-button>
@@ -140,6 +146,36 @@ const ClassesView = {
         this.$message.error('操作失败: ' + e.message);
       } finally {
         this.saving = false;
+      }
+    },
+
+    async moveUp(row, index) {
+      if (index === 0) return;
+      const prev = this.classes[index - 1];
+      const orders = [
+        { id: row.id, sort_order: prev.sort_order },
+        { id: prev.id, sort_order: row.sort_order },
+      ];
+      try {
+        await API.classes.reorder(orders);
+        await this.loadClasses();
+      } catch (e) {
+        this.$message.error('上移失败: ' + e.message);
+      }
+    },
+
+    async moveDown(row, index) {
+      if (index === this.classes.length - 1) return;
+      const next = this.classes[index + 1];
+      const orders = [
+        { id: row.id, sort_order: next.sort_order },
+        { id: next.id, sort_order: row.sort_order },
+      ];
+      try {
+        await API.classes.reorder(orders);
+        await this.loadClasses();
+      } catch (e) {
+        this.$message.error('下移失败: ' + e.message);
       }
     },
 

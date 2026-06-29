@@ -40,8 +40,8 @@ async def get_class(session: AsyncSession, class_id: int) -> Class:
 
 
 async def list_classes(session: AsyncSession) -> tuple[Sequence[Class], int]:
-    """获取班级列表。"""
-    stmt = select(Class).order_by(Class.id.desc())
+    """获取班级列表（按 sort_order ASC, id ASC 排序）。"""
+    stmt = select(Class).order_by(Class.sort_order.asc(), Class.id.asc())
     count_stmt = select(func.count()).select_from(Class)
     items = (await session.execute(stmt)).scalars().all()
     total = (await session.execute(count_stmt)).scalar_one()
@@ -68,3 +68,13 @@ async def delete_class(session: AsyncSession, class_id: int) -> None:
     await session.delete(klass)
     await session.commit()
     log.info("班级已删除: id=%s", class_id)
+
+
+async def reorder_classes(session: AsyncSession, orders: list[dict]) -> None:
+    """批量更新班级排序。orders: [{"id": 1, "sort_order": 0}, ...]"""
+    for item in orders:
+        klass = await session.get(Class, item["id"])
+        if klass:
+            klass.sort_order = item["sort_order"]
+    await session.commit()
+    log.info("班级排序已更新: %d 条", len(orders))

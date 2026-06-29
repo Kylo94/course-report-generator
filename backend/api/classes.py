@@ -11,6 +11,7 @@ from backend.schemas.klass import (
     ClassCreate,
     ClassList,
     ClassRead,
+    ClassReorderRequest,
     ClassUpdate,
 )
 from backend.services import classes as class_svc
@@ -52,6 +53,20 @@ async def get_class(
     return await _to_read(session, klass)
 
 
+@router.patch(
+    "/reorder",
+    status_code=status.HTTP_200_OK,
+    summary="批量重排班级顺序",
+)
+async def reorder_classes(
+    data: ClassReorderRequest,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """更新班级排序。请求体: {"orders": [{"id": 1, "sort_order": 0}, ...]}"""
+    await class_svc.reorder_classes(session, [item.model_dump() for item in data.orders])
+    return {"success": True, "updated": len(data.orders)}
+
+
 @router.patch("/{class_id}", response_model=ClassRead, summary="更新班级")
 async def update_class(
     class_id: int,
@@ -88,6 +103,7 @@ async def _to_read(session: AsyncSession, klass: Class) -> ClassRead:
     return ClassRead(
         id=klass.id,
         name=klass.name,
+        sort_order=klass.sort_order,
         schedule_day=klass.schedule_day,
         schedule_time=klass.schedule_time,
         student_count=student_count,

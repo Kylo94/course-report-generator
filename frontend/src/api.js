@@ -139,6 +139,7 @@ const API = {
     create(data) { return API.post('/api/classes', data); },
     update(id, data) { return API.patch(`/api/classes/${id}`, data); },
     delete(id) { return API.delete(`/api/classes/${id}`); },
+    reorder(orders) { return API.patch('/api/classes/reorder', { orders }); },
   },
 
   // =====================
