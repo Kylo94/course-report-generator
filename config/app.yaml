@@ -2,7 +2,7 @@
 
 app:
   name: 课程报告生成工具
-  version: 0.1.0
+  version: 1.0.0
   debug: true
   log_level: INFO
 
