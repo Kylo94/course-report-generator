@@ -70,6 +70,7 @@ const API = {
     delete(id) { return API.delete(`/api/reports/${id}`); },
     updateStatus(id, status) { return API.patch(`/api/reports/${id}/status`, { status }); },
     export(id, templateId = 'classic') { return API.post(`/api/reports/${id}/export`, { template_id: templateId }); },
+    exportWord(id, templateId = 'classic') { return API.post(`/api/reports/${id}/export-word`, { template_id: templateId }); },
   },
 
   // =====================
@@ -86,6 +87,20 @@ const API = {
     },
     get(id) { return API.get(`/api/students/${id}`); },
     create(data) { return API.post('/api/students', data); },
+    update(id, data) { return API.patch(`/api/students/${id}`, data); },
+    delete(id) { return API.delete(`/api/students/${id}`); },
+    batchCreate(data) { return API.post('/api/students/batch', data); },
+  },
+
+  // =====================
+  // 班级 API
+  // =====================
+  classes: {
+    list() { return API.get('/api/classes'); },
+    get(id) { return API.get(`/api/classes/${id}`); },
+    create(data) { return API.post('/api/classes', data); },
+    update(id, data) { return API.patch(`/api/classes/${id}`, data); },
+    delete(id) { return API.delete(`/api/classes/${id}`); },
   },
 
   // =====================
@@ -98,6 +113,13 @@ const API = {
   },
 
   // =====================
+  // 项目分析 API
+  // =====================
+  projects: {
+    scan(data) { return API.post('/api/projects/scan', data); },
+  },
+
+  // =====================
   // 资产管理
   // =====================
   assets: {
@@ -107,9 +129,16 @@ const API = {
   },
 
   // =====================
+  // 导入 API
+  // =====================
+  importStudents(file) { return API.upload('/api/import/students', file); },
+  importWord(file) { return API.upload('/api/import/word', file); },
+
+  // =====================
   // 模板管理
   // =====================
   templates: {
     list() { return API.get('/api/templates'); },
   },
+
 };

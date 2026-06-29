@@ -47,7 +47,16 @@ const ReportEditorView = {
                   placeholder="≤10 字" @input="markDirty" />
               </el-form-item>
               <el-form-item label="项目文件夹">
-                <el-input v-model="form.project_folder" disabled style="width:400px" />
+                <div style="display:flex;gap:8px;width:100%;">
+                  <el-input v-model="form.project_folder" placeholder="输入项目文件夹绝对路径" style="flex:1" />
+                  <el-button type="primary" @click="scanProject" :loading="scanning">🔍 扫描项目</el-button>
+                </div>
+              </el-form-item>
+              <el-form-item label="教师观察">
+                <el-input v-model="teacherObservation" type="textarea" :rows="2"
+                  maxlength="300" show-word-limit
+                  placeholder="输入教师对学生的课堂观察（如专注度、互动表现等），AI 评价将参考此信息"
+                  @input="markDirty" style="width:400px" />
               </el-form-item>
             </el-form>
           </el-card>
@@ -57,7 +66,7 @@ const ReportEditorView = {
             <template #header>
               <span>🎯 知识点概括（≤5条，每条≤15字）</span>
               <el-button size="small" type="warning" link style="float:right"
-                @click="regenerateField('knowledge_points')">
+                :disabled="aiGenerating" @click="regenerateField('knowledge_points')">
                 重新生成
               </el-button>
             </template>
@@ -98,7 +107,7 @@ const ReportEditorView = {
             <template #header>
               <span>💪 能力提升</span>
               <el-button size="small" type="warning" link style="float:right"
-                @click="regenerateField('ability_improvement')">
+                :disabled="aiGenerating" @click="regenerateField('ability_improvement')">
                 重新生成
               </el-button>
             </template>
@@ -111,7 +120,7 @@ const ReportEditorView = {
             <template #header>
               <span>📝 内容概述</span>
               <el-button size="small" type="warning" link style="float:right"
-                @click="regenerateField('content_summary')">
+                :disabled="aiGenerating" @click="regenerateField('content_summary')">
                 重新生成
               </el-button>
             </template>
@@ -133,7 +142,7 @@ const ReportEditorView = {
             <template #header>
               <span>📖 单词学习</span>
               <el-button size="small" type="warning" link style="float:right"
-                @click="regenerateField('homework_vocab')">
+                :disabled="aiGenerating" @click="regenerateField('homework_vocab')">
                 重新生成
               </el-button>
             </template>
@@ -159,7 +168,7 @@ const ReportEditorView = {
             <template #header>
               <span>📚 课后作业</span>
               <el-button size="small" type="warning" link style="float:right"
-                @click="regenerateField('homework_vocab')">
+                :disabled="aiGenerating" @click="regenerateField('homework_vocab')">
                 重新生成
               </el-button>
             </template>
@@ -200,7 +209,7 @@ const ReportEditorView = {
             <template #header>
               <span>⭐ 学生评价（建议 180-220 字）</span>
               <el-button size="small" type="warning" link style="float:right"
-                @click="regenerateField('evaluation')">
+                :disabled="aiGenerating" @click="regenerateField('evaluation')">
                 重新生成
               </el-button>
             </template>
@@ -229,10 +238,14 @@ const ReportEditorView = {
           <el-card class="section-card">
             <template #header>⚙️ 操作</template>
             <div style="display:flex;flex-direction:column;gap:8px;">
+              <el-button type="primary" @click="generateAll" :loading="aiGenerating"
+                style="background:linear-gradient(135deg,#409eff,#337ecc);border:none;font-size:14px;" size="large">
+                🤖 一键生成报告
+              </el-button>
               <el-button type="primary" @click="saveDraft" :loading="saving">
                 💾 保存草稿
               </el-button>
-              <el-button type="success" @click="exportPdf" :loading="exporting">
+              <el-button type="success" @click="exportPdf" :loading="exporting" :disabled="aiGenerating">
                 📄 导出 PDF
               </el-button>
               <div v-if="pdfDownloadUrl" style="margin-top:4px;">
@@ -243,6 +256,12 @@ const ReportEditorView = {
                   </template>
                 </el-alert>
               </div>
+              <el-button type="warning" @click="exportWord" :loading="wordExporting">
+                📝 导出 Word
+              </el-button>
+              <el-button type="info" @click="showImportDialog = true">
+                📂 导入 Word
+              </el-button>
               <el-button type="danger" plain @click="confirmDeleteRecord">
                 🗑️ 删除
               </el-button>
@@ -324,6 +343,44 @@ const ReportEditorView = {
           </el-card>
         </div>
       </div>
+      <!-- Word 导入预览弹窗 -->
+      <el-dialog v-model="showImportDialog" title="Word 文档导入预览" width="600px">
+        <div v-if="importPreview">
+          <el-alert
+            :title="'解析置信度: ' + (importPreview.confidence * 100).toFixed(0) + '%'"
+            :type="importPreview.confidence > 0.8 ? 'success' : 'warning'"
+            show-icon style="margin-bottom:16px"
+          />
+          <div v-if="importPreview.unrecognized_sections && importPreview.unrecognized_sections.length > 0">
+            <p style="color:#e6a23c;">以下内容未能自动识别：</p>
+            <p v-for="(s, i) in importPreview.unrecognized_sections" :key="i">{{ s }}</p>
+          </div>
+          <p>导入后将填充以下字段：</p>
+          <div>
+            <el-tag v-for="(v, k) in importPreview.fields" :key="k" style="margin:4px" type="info">
+              {{ fieldLabel(k) }}
+            </el-tag>
+          </div>
+        </div>
+        <div v-else>
+          <el-upload
+            :http-request="handleWordImport"
+            accept=".docx"
+            :show-file-list="false"
+          >
+            <el-button type="primary">选择 Word 文件</el-button>
+          </el-upload>
+          <div style="margin-top:12px;color:#909399;font-size:13px;">
+            支持的格式：.docx（由本工具导出的 Word 文档）
+          </div>
+        </div>
+        <template #footer>
+          <el-button @click="showImportDialog = false; importPreview = null">取消</el-button>
+          <el-button type="primary" @click="applyImport" :disabled="!importPreview">
+            应用到编辑器
+          </el-button>
+        </template>
+      </el-dialog>
     </div>
   `,
 
@@ -348,6 +405,8 @@ const ReportEditorView = {
       // 保存相关
       saving: false,
       exporting: false,
+      wordExporting: false,
+      scanning: false,
       saveState: 'idle', // idle / saving / saved
       dirty: false,
       autoSaveTimer: null,
@@ -355,9 +414,16 @@ const ReportEditorView = {
       // Logo 信息
       logoInfo: { exists: false, path: null },
 
+      // 教师观察 (transient, 不持久化)
+      teacherObservation: '',
+
       // AI 生成状态
       aiGenerating: false,
       aiErrors: {},
+
+      // Word 导入
+      showImportDialog: false,
+      importPreview: null,
 
       // PDF 导出
       pdfDownloadUrl: '',
@@ -580,6 +646,30 @@ const ReportEditorView = {
     },
 
     // =====================
+    // 项目扫描
+    // =====================
+    async scanProject() {
+      if (!this.form.project_folder) {
+        this.$message.warning('请先输入项目文件夹路径');
+        return;
+      }
+      this.scanning = true;
+      try {
+        const meta = await API.projects.scan({ folder: this.form.project_folder });
+        this.form.project_meta = meta;
+        this.$message.success('项目扫描成功: ' + (meta.course_title || '未识别课程主题'));
+        if (!this.form.course_topic && meta.course_title) {
+          this.form.course_topic = meta.course_title;
+        }
+        this.markDirty();
+      } catch (e) {
+        this.$message.error('项目扫描失败: ' + e.message);
+      } finally {
+        this.scanning = false;
+      }
+    },
+
+    // =====================
     // AI 重新生成
     // =====================
     async regenerateField(field) {
@@ -603,7 +693,7 @@ const ReportEditorView = {
           student_id: this.form.student_id,
           field: aiField,
           knowledge_points: this.form.knowledge_points,
-          teacher_observation: '',
+          teacher_observation: this.teacherObservation || '',
         });
 
         if (field === 'knowledge_points') {
@@ -626,6 +716,104 @@ const ReportEditorView = {
       } catch (e) {
         this.$message.error('重新生成失败: ' + e.message);
       }
+    },
+
+    // =====================
+    // 一键生成
+    // =====================
+    async generateAll() {
+      if (!this.form.student_id) {
+        this.$message.warning('请先选择学生');
+        return;
+      }
+      if (!this.form.project_meta) {
+        this.$message.warning('请先扫描项目文件夹');
+        return;
+      }
+      this.aiGenerating = true;
+      try {
+        const result = await API.ai.generate({
+          project: this.form.project_meta,
+          student_id: this.form.student_id,
+          teacher_observation: this.teacherObservation || '',
+        });
+        const content = result.content;
+        if (content.knowledge_points) this.form.knowledge_points = content.knowledge_points;
+        if (content.ability_improvement) this.form.ability_improvement = content.ability_improvement;
+        if (content.content_items) this.form.content_items = content.content_items;
+        if (content.homework) this.form.homework = content.homework;
+        if (content.vocabulary) this.form.vocabulary = content.vocabulary;
+        if (content.evaluation) this.form.evaluation = content.evaluation;
+        if (!this.form.course_topic && this.form.project_meta?.course_title) {
+          this.form.course_topic = this.form.project_meta.course_title;
+        }
+        if (result.errors && Object.keys(result.errors).length > 0) {
+          this.$message.warning('部分内容生成失败: ' + Object.values(result.errors).join('; '));
+        } else {
+          this.$message.success('🎉 报告已全部生成');
+        }
+        this.markDirty();
+      } catch (e) {
+        this.$message.error('生成失败: ' + e.message);
+      } finally {
+        this.aiGenerating = false;
+      }
+    },
+
+    // =====================
+    // Word 导出
+    // =====================
+    async exportWord() {
+      if (!this.recordId) {
+        this.$message.warning('请先保存草稿');
+        return;
+      }
+      this.wordExporting = true;
+      try {
+        const result = await API.reports.exportWord(this.recordId, this.selectedTemplate);
+        window.open(result.docx_path, '_blank');
+        this.$message.success('Word 导出成功');
+      } catch (e) {
+        this.$message.error('Word 导出失败: ' + e.message);
+      } finally {
+        this.wordExporting = false;
+      }
+    },
+
+    // =====================
+    // Word 导入
+    // =====================
+    async handleWordImport(options) {
+      try {
+        const result = await API.importWord(options.file);
+        this.importPreview = result;
+      } catch (e) {
+        this.$message.error('导入解析失败: ' + e.message);
+      }
+    },
+
+    applyImport() {
+      if (!this.importPreview) return;
+      const fields = this.importPreview.fields;
+      for (const [key, value] of Object.entries(fields)) {
+        if (value !== null && value !== undefined) {
+          this.form[key] = value;
+        }
+      }
+      this.showImportDialog = false;
+      this.importPreview = null;
+      this.markDirty();
+      this.$message.success('已应用导入内容');
+    },
+
+    fieldLabel(key) {
+      const labels = {
+        course_topic: '课程名称', course_date: '上课时间',
+        knowledge_points: '知识点', ability_improvement: '能力提升',
+        content_items: '内容概述', vocabulary: '单词学习',
+        homework: '课后作业', evaluation: '学生评价',
+      };
+      return labels[key] || key;
     },
 
     // =====================

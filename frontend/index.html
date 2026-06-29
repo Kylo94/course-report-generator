@@ -39,6 +39,14 @@
             <el-icon><Edit /></el-icon>
             <span>报告编辑</span>
           </el-menu-item>
+          <el-menu-item index="students">
+            <el-icon><User /></el-icon>
+            <span>学生管理</span>
+          </el-menu-item>
+          <el-menu-item index="classes">
+            <el-icon><School /></el-icon>
+            <span>班级管理</span>
+          </el-menu-item>
         </el-menu>
       </el-aside>
 
@@ -52,7 +60,7 @@
             <el-tag v-if="currentRoute === 'editor' && editingRecordId" type="warning" size="small">
               编辑中: #{{ editingRecordId }}
             </el-tag>
-            <span class="header-version">v0.5.0</span>
+            <span class="header-version">v0.7.0</span>
           </div>
         </el-header>
         <el-main class="app-main">
@@ -70,6 +78,8 @@
   <script src="/src/views/Dashboard.js"></script>
   <script src="/src/views/DraftList.js"></script>
   <script src="/src/views/ReportEditor.js"></script>
+  <script src="/src/views/Students.js"></script>
+  <script src="/src/views/Classes.js"></script>
   <!-- 启动应用 -->
   <script src="/src/app.js"></script>
 </body>

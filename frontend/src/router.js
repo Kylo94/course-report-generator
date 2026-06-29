@@ -48,6 +48,8 @@ const Router = {
       drafts: '草稿管理',
       'editor?new': '新建报告',
       editor: '报告编辑',
+      students: '学生管理',
+      classes: '班级管理',
     };
     return titles[route] || '课程报告生成工具';
   },

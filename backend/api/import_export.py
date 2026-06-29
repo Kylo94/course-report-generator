@@ -1,5 +1,7 @@
 """
-学生批量导入 API
+学生批量导入 + Word 导入 API
+
+## 学生批量导入
 
 支持 Excel (.xlsx) 与 CSV 文件格式。
 
@@ -10,6 +12,10 @@
 - 性格特点：使用 | 或 、 分隔多个标签
 - 基础水平：入门 / 初级 / 中级（默认入门）
 - 必填：姓名
+
+## Word 导入
+
+- POST /api/import/word — 导入 .docx 文件并解析为结构化字段
 """
 from __future__ import annotations
 
@@ -25,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.db import get_session
 from backend.schemas.student import StudentCreate
 from backend.services import students as student_svc
+from backend.services.docx_importer import DocxImportError, import_docx
 from backend.services.students import ClassNotFoundError
 from backend.utils.logger import get_logger
 
@@ -199,3 +206,29 @@ def _format_validation_error(e: ValidationError) -> str:
         field = ".".join(str(x) for x in err["loc"])
         msgs.append(f"{field}: {err['msg']}")
     return "; ".join(msgs)
+
+
+@router.post(
+    "/word",
+    summary="导入 Word 文档并解析为结构化字段",
+    response_model=dict,
+)
+async def import_word(
+    file: UploadFile = File(..., description="Word(.docx) 文件"),
+) -> dict:
+    """导入 .docx 文件并解析为课程报告结构化字段。"""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="未提供文件名")
+
+    if not file.filename.lower().endswith(".docx"):
+        raise HTTPException(status_code=400, detail="仅支持 .docx 文件")
+
+    try:
+        content = await file.read()
+        result = import_docx(content)
+        return result
+    except DocxImportError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        log.exception("Word 导入解析失败: %s", file.filename)
+        raise HTTPException(status_code=500, detail=f"解析失败: {e}")

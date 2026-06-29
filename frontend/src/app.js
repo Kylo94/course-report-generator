@@ -7,6 +7,8 @@
 Router.register('dashboard', DashboardView);
 Router.register('drafts', DraftListView);
 Router.register('editor', ReportEditorView);
+Router.register('students', StudentsView);
+Router.register('classes', ClassesView);
 
 // 创建 Vue 应用
 const App = {
@@ -30,6 +32,8 @@ const App = {
     DashboardView.data().Router = Router;
     DraftListView.data().Router = Router;
     ReportEditorView.data().Router = Router;
+    StudentsView.data().Router = Router;
+    ClassesView.data().Router = Router;
 
     // 启动路由
     Router.start(this);

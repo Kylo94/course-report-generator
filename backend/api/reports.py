@@ -5,7 +5,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import PROJECT_ROOT, get_settings
@@ -25,6 +26,7 @@ from backend.services.pdf_generator import PDFGenerationError, PDFGenerator
 from backend.services.report_renderer import (
     ReportRenderer,
     TemplateNotFoundError,
+    get_template_config,
     list_templates,
 )
 from backend.utils.logger import get_logger
@@ -271,6 +273,107 @@ async def export_report(
         "template_id": template_id,
         "page_size": renderer.config.get("page_size", "A4"),
     }
+
+
+# =========================
+# Word 导出
+# =========================
+
+@router.post(
+    "/api/reports/{record_id}/export-word",
+    response_model=dict,
+    summary="导出课程报告为 Word 格式",
+)
+async def export_report_word(
+    record_id: int,
+    body: dict = Body(default={"template_id": "classic"}),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """导出指定课程报告为 .docx 文件。"""
+    try:
+        record = await record_svc.get_record(session, record_id)
+    except RecordNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # 获取学生姓名
+    student_name = ""
+    if record.student_id:
+        from backend.models import Student as StudentModel
+        student = await session.get(StudentModel, record.student_id)
+        if student:
+            student_name = student.name
+
+    # 获取模板配置
+    template_id = body.get("template_id", "classic")
+    template_config = None
+    try:
+        template_config = get_template_config(template_id)
+    except (TemplateNotFoundError, FileNotFoundError):
+        pass
+
+    from backend.services.docx_generator import DocxGenerationError, generate as generate_docx
+
+    try:
+        docx_bytes = generate_docx(record, student_name, template_config)
+    except DocxGenerationError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"report_{record_id}_{timestamp}.docx"
+    output_path = Path(settings.report.output_dir) / filename
+    output_path.write_bytes(docx_bytes)
+
+    log.info("Word 导出成功: record_id=%s template=%s", record_id, template_id)
+    return {
+        "docx_path": f"/api/reports/pdf/{filename}",
+        "filename": filename,
+    }
+
+
+@router.post(
+    "/api/reports/{record_id}/export-word-stream",
+    summary="导出课程报告为 Word 格式（流式下载）",
+)
+async def export_report_word_stream(
+    record_id: int,
+    body: dict = Body(default={"template_id": "classic"}),
+    session: AsyncSession = Depends(get_session),
+) -> StreamingResponse:
+    """导出指定课程报告为 .docx 文件（流式下载）。"""
+    from io import BytesIO
+
+    try:
+        record = await record_svc.get_record(session, record_id)
+    except RecordNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    student_name = ""
+    if record.student_id:
+        from backend.models import Student as StudentModel
+        student = await session.get(StudentModel, record.student_id)
+        if student:
+            student_name = student.name
+
+    template_id = body.get("template_id", "classic")
+    template_config = None
+    try:
+        template_config = get_template_config(template_id)
+    except (TemplateNotFoundError, FileNotFoundError):
+        pass
+
+    from backend.services.docx_generator import DocxGenerationError, generate as generate_docx
+
+    try:
+        docx_bytes = generate_docx(record, student_name, template_config)
+    except DocxGenerationError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    filename = f"report_{record_id}_{record.course_date or 'unknown'}.docx"
+    return StreamingResponse(
+        BytesIO(docx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # =========================
