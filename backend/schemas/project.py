@@ -22,6 +22,7 @@ class PyStructureSchema(BaseModel):
     decorators: list[str] = Field(default_factory=list)
     top_comment: str | None = None
     course_title: str | None = None
+    homework_guidance: str | None = None
     line_count: int = 0
 
 

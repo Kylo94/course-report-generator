@@ -1,21 +1,29 @@
 {
   "id": "cartoon",
   "name": "少儿卡通",
-  "version": "1.0",
+  "version": "1.1",
   "is_builtin": true,
   "thumbnail": "",
-  "description": "暖色背景、圆角卡片、大字号，适合低龄学生",
+  "description": "暖色系卡通风格，圆润卡片 + 彩色混搭，适合低龄学生",
   "theme": {
-    "primary_color": "#FF8C42",
-    "secondary_color": "#FFF3E0",
+    "primary_color": "#FF6B6B",
+    "secondary_color": "#FFF5F5",
     "font_title": "Heiti SC",
     "font_body": "STSong",
-    "font_size_title": 28,
+    "font_size_title": 30,
     "font_size_body": 12,
-    "page_margin_top": 18,
-    "page_margin_right": 16,
+    "page_margin_top": 37,
+    "page_margin_right": 27,
     "page_margin_bottom": 16,
-    "page_margin_left": 16
+    "page_margin_left": 27,
+    "background_image": "/api/assets/bg3.png"
   },
-  "page_size": "A4"
+  "page_size": "A4",
+  "logo_config": {
+    "enabled": true,
+    "position": "top-right",
+    "size": 30,
+    "show_on_all_pages": true,
+    "margin": 6
+  }
 }

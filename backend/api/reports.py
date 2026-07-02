@@ -20,6 +20,7 @@ from backend.schemas.course_record import (
     CourseRecordListItem,
     CourseRecordRead,
     CourseRecordUpdate,
+    LogoConfigSchema,
     StatusUpdate,
 )
 from backend.schemas.template import TemplateListItem
@@ -35,6 +36,7 @@ from backend.services.report_renderer import (
     merge_layout_with_theme,
     wrap_preview_html,
 )
+from backend.services.pdf_to_image import pdf_to_long_image
 from backend.utils.logger import get_logger
 
 log = get_logger(__name__)
@@ -72,51 +74,107 @@ def _sanitize_filename(name: str) -> str:
     return re.sub(r'[<>:"/\\|?*]', '_', name).strip(' .') or '未命名'
 
 
-def _build_output_path(
+def _sanitize_date_dir(course_date: str) -> str:
+    """将上课日期格式化为安全的目录名（YYYY-MM-DD）。"""
+    # 尝试解析常见格式
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y年%m月%d日", "%Y.%m.%d"):
+        try:
+            return datetime.strptime(course_date.strip(), fmt).strftime("%Y-%m-%d")
+        except (ValueError, AttributeError):
+            continue
+    # 回退：只保留数字和横线
+    safe = re.sub(r"[^\d-]", "", course_date.strip())
+    return safe[:10] if safe else "未设置日期"
+
+
+PDF_SUBDIR = "PDF(用于打印)"
+IMG_SUBDIR = "IMG(用于发送)"
+
+
+def _build_output_dir(
     record,
-    student_name: str,
-    extension: str,
     output_dir_override: str | None = None,
+    project_folder: str | None = None,
 ) -> Path:
-    """构建带日期子目录和语义文件名的输出路径。
+    """构建语义输出基础目录（不含子文件夹）。
 
-    优先级：
-    1. output_dir_override（请求参数）
-    2. settings.report.custom_output_dir（全局配置）
-    3. settings.report.output_dir（默认 data/reports/）
-
-    目录结构：{base_dir}/{YYYY年MM月}/{学生名}_{课程名}.{ext}
-    文件名冲突时追加时间戳。
+    行为：
+    1. 指定了 output_dir → {output_dir}/{项目名}
+    2. 未指定 output_dir 但有项目目录 → {项目目录}
+    3. 两者都无 → {默认目录}/{YYYY年MM月}
     """
-    # 1. 确定基础目录
-    base_str = output_dir_override or settings.report.custom_output_dir or settings.report.output_dir
+    if output_dir_override:
+        base_str = output_dir_override
+        if project_folder:
+            sub_dir = _sanitize_filename(Path(project_folder).resolve().name) or "项目"
+        else:
+            sub_dir = _date_subdir_name(getattr(record, "course_date", None))
+    elif project_folder:
+        base_str = project_folder
+        sub_dir = ""
+    else:
+        base_str = settings.report.custom_output_dir or settings.report.output_dir
+        sub_dir = _date_subdir_name(getattr(record, "course_date", None))
+
     base_dir = Path(base_str)
     if not base_dir.is_absolute():
         base_dir = PROJECT_ROOT / base_dir
 
-    # 2. 日期子目录
+    return base_dir / sub_dir if sub_dir else base_dir
+
+
+def _export_paths(
+    record,
+    student_name: str,
+    output_dir_override: str | None = None,
+    project_folder: str | None = None,
+) -> tuple[Path, Path]:
+    """构建 PDF 和 IMG 输出路径（含子目录和文件名）。
+
+    PDF 按上课日期归入 PDF(用于打印)/{YYYY-MM-DD}/ 子目录；
+    IMG 放在 IMG(用于发送)/ 根目录下。
+
+    Returns:
+        (pdf_path, img_path)
+    """
+    base_dir = _build_output_dir(record, output_dir_override, project_folder)
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    # PDF 按日期归档
     course_date = getattr(record, "course_date", None) or ""
-    try:
-        dt = datetime.strptime(course_date, "%Y-%m-%d")
-        sub_dir = dt.strftime("%Y年%m月")
-    except (ValueError, TypeError):
-        sub_dir = datetime.now().strftime("%Y年%m月")
+    date_subdir = _sanitize_date_dir(course_date) if course_date else ""
+    pdf_dir = base_dir / PDF_SUBDIR / date_subdir if date_subdir else base_dir / PDF_SUBDIR
 
-    target_dir = base_dir / sub_dir
-    target_dir.mkdir(parents=True, exist_ok=True)
+    img_dir = base_dir / IMG_SUBDIR
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    img_dir.mkdir(parents=True, exist_ok=True)
 
-    # 3. 文件名
     safe_name = _sanitize_filename(student_name or "学生")
     safe_topic = _sanitize_filename(getattr(record, "course_topic", None) or "课程")
-    filename = f"{safe_name}_{safe_topic}.{extension.lstrip('.')}"
+    basename = f"{safe_name}_{safe_topic}"
 
-    output_path = target_dir / filename
-    if output_path.exists():
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        stem = output_path.stem
-        output_path = target_dir / f"{stem}_{timestamp}.{extension.lstrip('.')}"
+    pdf_path = pdf_dir / f"{basename}.pdf"
+    img_path = img_dir / f"{basename}.jpg"
 
-    return output_path
+    # 文件名冲突时追加时间戳
+    now_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if pdf_path.exists():
+        pdf_path = pdf_dir / f"{basename}_{now_ts}.pdf"
+    if img_path.exists():
+        img_path = img_dir / f"{basename}_{now_ts}.jpg"
+
+    return pdf_path, img_path
+
+
+def _date_subdir_name(course_date: str | None) -> str:
+    """从课程日期生成 YYYY年MM月 子目录名。"""
+    if not course_date:
+        return datetime.now().strftime("%Y年%m月")
+    try:
+        dt = datetime.strptime(course_date, "%Y-%m-%d")
+        return dt.strftime("%Y年%m月")
+    except (ValueError, TypeError):
+        return datetime.now().strftime("%Y年%m月")
 
 
 # =========================
@@ -376,17 +434,43 @@ async def export_report(
         log.exception("PDF 生成失败: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-    # 5. 若有自定义输出路径，额外保存一份到指定目录
+    # 5. 若有自定义输出路径，额外保存一份到指定目录，同时生成 JPG 长图
     custom_path = None
-    if output_dir or settings.report.custom_output_dir:
+    jpg_path = None
+    has_custom_dir = bool(output_dir or settings.report.custom_output_dir)
+    if has_custom_dir:
         try:
-            custom_path = _build_output_path(record, student_name, "pdf", output_dir)
-            await pdf_gen.generate(html, str(custom_path), margin=pdf_margin)
-            log.info("PDF 已同步到自定义路径: %s", custom_path)
-        except Exception as e:
-            log.warning("自定义输出路径保存失败: %s", e)
+            pdf_out, img_out = _export_paths(record, student_name, output_dir, getattr(record, "project_folder", None))
+            await pdf_gen.generate(html, str(pdf_out), margin=pdf_margin)
+            custom_path = pdf_out
+            log.info("PDF 已同步到自定义路径: %s", pdf_out)
 
-    # 6. 更新状态为 finalized
+            # 从自定义 PDF 生成 JPG 到 IMG 子目录
+            if settings.image.enabled:
+                img_out_dir = img_out.parent
+                img_out_dir.mkdir(parents=True, exist_ok=True)
+                jpg_path = pdf_to_long_image(
+                    str(pdf_out),
+                    output_path=str(img_out),
+                    dpi=settings.image.dpi,
+                    quality=settings.image.quality,
+                )
+                log.info("JPG 已生成到: %s", jpg_path or img_out)
+        except Exception as e:
+            log.warning("自定义路径导出失败: %s", e)
+
+    # 6. 将默认 PDF 也转为 JPG（当没有自定义路径时）
+    if not jpg_path and settings.image.enabled:
+        try:
+            jpg_path = pdf_to_long_image(
+                str(output_path),
+                dpi=settings.image.dpi,
+                quality=settings.image.quality,
+            )
+        except Exception as e:
+            log.warning("默认 PDF 转长图失败: %s", e)
+
+    # 7. 更新状态为 finalized
     if record.status == "draft":
         await record_svc.update_record_status(session, record_id, "finalized")
 
@@ -399,6 +483,8 @@ async def export_report(
     }
     if custom_path:
         resp["custom_path"] = str(custom_path)
+    if jpg_path:
+        resp["jpg_path"] = jpg_path
     return resp
 
 
@@ -466,10 +552,12 @@ async def export_report_word(
     custom_path = None
     if output_dir or settings.report.custom_output_dir:
         try:
-            custom_path = _build_output_path(record, student_name, "docx", output_dir)
-            custom_path.parent.mkdir(parents=True, exist_ok=True)
-            custom_path.write_bytes(docx_bytes)
-            log.info("Word 已同步到自定义路径: %s", custom_path)
+            pdf_out, _ = _export_paths(record, student_name, output_dir, getattr(record, "project_folder", None))
+            docx_path = pdf_out.with_suffix(".docx")
+            docx_path.parent.mkdir(parents=True, exist_ok=True)
+            docx_path.write_bytes(docx_bytes)
+            custom_path = docx_path
+            log.info("Word 已同步到自定义路径: %s", docx_path)
         except Exception as e:
             log.warning("自定义输出路径保存失败: %s", e)
 
@@ -703,6 +791,7 @@ async def batch_generate_reports(
             "status": "draft",
             "template_id": body.template_id,
             "screenshot_paths": json.dumps(body.screenshot_paths, ensure_ascii=False),
+            "logo_config": json.dumps(LogoConfigSchema().model_dump(), ensure_ascii=False),
             "ai_meta": json.dumps(shared.get("code_analysis"), ensure_ascii=False) if shared.get("code_analysis") else None,
         })
 
@@ -742,14 +831,35 @@ async def batch_generate_reports(
                 renderer = ReportRenderer(template_id)
                 html = renderer.render(rec, student_name=student_name)
 
-                if body.output_dir or settings.report.custom_output_dir:
-                    output_path = _build_output_path(rec, student_name, "pdf", body.output_dir)
+                has_custom_dir = bool(body.output_dir or settings.report.custom_output_dir or body.project_folder)
+                if has_custom_dir:
+                    pdf_out, img_out = _export_paths(rec, student_name, body.output_dir, body.project_folder)
+                    output_path = pdf_out
                 else:
                     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
                     output_path = Path(settings.report.output_dir) / f"report_{rec.id}_{timestamp}.pdf"
 
                 await pdf_gen.generate(html, str(output_path), margin=batch_margin)
-                log.info("批量导出 PDF 成功: record_id=%s", rec.id)
+                log.info("批量导出 PDF 成功: record_id=%s path=%s", rec.id, output_path)
+
+                # 自动将 PDF 转为 JPG 长图
+                if has_custom_dir and settings.image.enabled:
+                    try:
+                        img_out.parent.mkdir(parents=True, exist_ok=True)
+                        pdf_to_long_image(
+                            str(output_path),
+                            output_path=str(img_out),
+                            dpi=settings.image.dpi,
+                            quality=settings.image.quality,
+                        )
+                        log.info("批量 JPG 已生成: %s", img_out)
+                    except Exception as e:
+                        log.warning("批量 PDF 转长图失败 record_id=%s: %s", rec.id, e)
+                elif output_path.exists() and settings.image.enabled:
+                    try:
+                        pdf_to_long_image(str(output_path))
+                    except Exception as e:
+                        log.warning("批量 PDF 转长图失败 record_id=%s: %s", rec.id, e)
             except Exception as e:
                 log.warning("批量导出 PDF 失败 record_id=%s: %s", rec.id, e)
 

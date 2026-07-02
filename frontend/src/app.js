@@ -40,6 +40,7 @@ app.component('view-students', StudentsView);
 app.component('view-classes', ClassesView);
 app.component('view-templates', TemplateManagerView);
 app.component('view-batch', BatchReportView);
+app.component('view-settings', SettingsView);
 
 // 路由注册（使用组件名而非对象）
 Router.register('dashboard', 'view-dashboard');
@@ -49,6 +50,7 @@ Router.register('students', 'view-students');
 Router.register('classes', 'view-classes');
 Router.register('templates', 'view-templates');
 Router.register('batch', 'view-batch');
+Router.register('settings', 'view-settings');
 
 // 暴露全局对象给所有组件
 app.config.globalProperties.Router = Router;

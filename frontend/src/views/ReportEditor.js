@@ -250,8 +250,8 @@ const ReportEditorView = {
               <div v-if="pdfDownloadUrl" style="margin-top:4px;">
                 <el-alert type="success" :closable="false" show-icon>
                   <template #title>
-                    PDF 已生成
-                    <a :href="pdfDownloadUrl" target="_blank" style="margin-left:8px;font-weight:bold;">下载</a>
+                    ✅ PDF 已保存到输出目录
+                    <a :href="pdfDownloadUrl" target="_blank" style="margin-left:8px;">预览</a>
                   </template>
                 </el-alert>
               </div>
@@ -326,15 +326,15 @@ const ReportEditorView = {
                 </el-select>
               </el-form-item>
               <el-form-item label="尺寸">
-                <el-select v-model="form.logo_config.size" @change="markDirty">
-                  <el-option label="小 (20mm)" value="small" />
-                  <el-option label="中 (30mm)" value="medium" />
-                  <el-option label="大 (45mm)" value="large" />
-                </el-select>
+                <div style="display:flex;gap:18px;align-items:center;">
+                  <el-slider v-model="form.logo_config.size" :min="10" :max="80" :show-tooltip="false" style="width:100px;"
+                    @change="markDirty" />
+                  <span style="width:40px;text-align:right;">{{ form.logo_config.size }}mm</span>
+                </div>
               </el-form-item>
               <el-form-item label="Logo 边距">
-                <div style="display:flex;gap:8px;align-items:center;">
-                  <el-slider v-model="form.logo_config.margin" :min="0" :max="20" style="width:100px;"
+                <div style="display:flex;gap:18px;align-items:center;">
+                  <el-slider v-model="form.logo_config.margin" :min="0" :max="20" :show-tooltip="false" style="width:100px;"
                     @change="markDirty" />
                   <span style="width:40px;text-align:right;">{{ form.logo_config.margin }}mm</span>
                 </div>
@@ -413,15 +413,15 @@ const ReportEditorView = {
                     </el-select>
                   </el-form-item>
                   <el-form-item label="标题字号">
-                    <div style="display:flex;gap:8px;align-items:center;">
-                      <el-slider v-model="layoutColors.font_size_title" :min="12" :max="48" style="width:120px;"
+                    <div style="display:flex;gap:18px;align-items:center;">
+                      <el-slider v-model="layoutColors.font_size_title" :min="12" :max="48" :show-tooltip="false" style="width:120px;"
                         @change="onLayoutChange" />
                       <span style="width:40px;text-align:right;">{{ layoutColors.font_size_title }}pt</span>
                     </div>
                   </el-form-item>
                   <el-form-item label="正文字号">
-                    <div style="display:flex;gap:8px;align-items:center;">
-                      <el-slider v-model="layoutColors.font_size_body" :min="8" :max="20" style="width:120px;"
+                    <div style="display:flex;gap:18px;align-items:center;">
+                      <el-slider v-model="layoutColors.font_size_body" :min="8" :max="20" :show-tooltip="false" style="width:120px;"
                         @change="onLayoutChange" />
                       <span style="width:40px;text-align:right;">{{ layoutColors.font_size_body }}pt</span>
                     </div>
@@ -678,6 +678,9 @@ const ReportEditorView = {
     } else if (window.location.hash.includes('?new')) {
       this.mode = 'select';
       await this.loadStudents();
+      // 新建报告：从系统设置预填默认项目目录和输出目录
+      await this._loadDefaultProjectDir();
+      await this._loadDefaultOutputDir();
     }
 
     // 加载 Logo 信息
@@ -713,7 +716,7 @@ const ReportEditorView = {
         vocabulary: { word: '', phonetic: '', meaning: '', example: '' },
         evaluation: '',
         screenshot_paths: [],
-        logo_config: { enabled: true, position: 'top-right', size: 'medium', show_on_all_pages: true, margin: 0 },
+        logo_config: { enabled: true, position: 'top-right', size: 30, show_on_all_pages: true, margin: 0 },
         layout_config: null,  // 布局设置，存储为 {primary_color, font_title, ...}
         status: 'draft',
         template_id: 'classic',
@@ -770,6 +773,9 @@ const ReportEditorView = {
         this.form.evaluation = record.evaluation || '';
         this.form.screenshot_paths = record.screenshot_paths || [];
         this.form.logo_config = { ...this.form.logo_config, ...(record.logo_config || {}) };
+        if (typeof this.form.logo_config.size === 'string') {
+          this.form.logo_config.size = {small: 20, medium: 30, large: 45}[this.form.logo_config.size] || 30;
+        }
         const lc = record.layout_config || {};
         this.form.layout_config = Object.keys(lc).length > 0 ? { ...lc } : null;
         // 同步到 UI layoutColors
@@ -922,11 +928,39 @@ const ReportEditorView = {
           this.form.course_topic = meta.course_title;
         }
         this.markDirty();
+        // 扫描后自动检测 save/ 截图
+        this._autoUploadSaveScreenshots(this.form.project_folder);
       } catch (e) {
         this.$message.error('项目扫描失败: ' + e.message);
       } finally {
         this.scanning = false;
       }
+    },
+
+    // =====================
+    // 从系统设置加载默认项目目录
+    // =====================
+    async _loadDefaultProjectDir() {
+      if (this.form.project_folder) return;
+      try {
+        const s = await API.settings.get();
+        if (s.default_project_dir) {
+          this.form.project_folder = s.default_project_dir;
+        }
+      } catch (_) { /* 静默 */ }
+    },
+
+    // =====================
+    // 从系统设置加载默认输出目录
+    // =====================
+    async _loadDefaultOutputDir() {
+      if (this.outputDir) return;
+      try {
+        const s = await API.settings.get();
+        if (s.custom_output_dir) {
+          this.outputDir = s.custom_output_dir;
+        }
+      } catch (_) { /* 静默 */ }
     },
 
     // =====================
@@ -938,8 +972,11 @@ const ReportEditorView = {
       this.dirBrowserPath = '';
       this.dirBrowserItems = [];
       this.dirBrowserError = null;
-      const lastPath = localStorage.getItem('lastDirBrowserPath');
-      await this.browseToDir(lastPath || '');
+      // 优先使用输入框当前值，其次 localStorage
+      const startPath = this.form.project_folder
+        || localStorage.getItem('lastDirBrowserPath')
+        || '';
+      await this.browseToDir(startPath);
     },
 
     async browseToDir(path) {
@@ -972,8 +1009,42 @@ const ReportEditorView = {
       } else {
         this.form.project_folder = this.dirBrowserPath;
         this.$message.success('已选择文件夹: ' + this.dirBrowserPath);
+        // 自动识别项目名称：取路径最后一级作为课程名
+        this._autoFillCourseName(this.dirBrowserPath);
+        // 自动检测 save/ 文件夹中的截图并上传
+        this._autoUploadSaveScreenshots(this.dirBrowserPath);
       }
       this.showDirBrowser = false;
+    },
+
+    _autoFillCourseName(folderPath) {
+      if (!folderPath || this.form.course_topic) return;
+      // 取路径最后一级
+      let name = folderPath.replace(/\/+$/, '').split(/[/\\]/).pop() || '';
+      // 去掉前导序号，如 "1."、"21-24."、"33-36."
+      name = name.replace(/^\d+(-?\d+)?[.、]\s*/, '');
+      if (name && name.length <= 10) {
+        this.form.course_topic = name;
+      }
+    },
+
+    async _autoUploadSaveScreenshots(folderPath) {
+      if (!folderPath) return;
+      try {
+        const result = await API.projects.scanScreenshots({ folder: folderPath });
+        const shots = result.screenshots || [];
+        if (shots.length === 0) return;
+        for (const s of shots) {
+          if (!this.form.screenshot_paths.includes(s.url)) {
+            this.form.screenshot_paths.push(s.url);
+          }
+        }
+        this.markDirty();
+        this.$message.success(`已自动上传 ${shots.length} 张项目截图`);
+      } catch (e) {
+        // 静默失败 — save 目录不存在时不打扰用户
+        console.debug('自动上传截图扫描（可忽略）:', e.message);
+      }
     },
 
     browseOutputDir() {
@@ -982,8 +1053,10 @@ const ReportEditorView = {
       this.dirBrowserItems = [];
       this.dirBrowserError = null;
       this._dirBrowserMode = 'output';
-      const lastPath = localStorage.getItem('lastOutputDirBrowserPath');
-      this.browseToDir(lastPath || '');
+      const startPath = this.outputDir
+        || localStorage.getItem('lastOutputDirBrowserPath')
+        || '';
+      this.browseToDir(startPath);
     },
 
     // =====================
@@ -1229,10 +1302,15 @@ const ReportEditorView = {
         const result = await API.reports.export(this.recordId, this.selectedTemplate, layoutConfig, this.outputDir, ss);
         this.form.status = 'finalized';
         this.pdfDownloadUrl = result.pdf_path;
+
+        // 文件已自动保存到输出目录，只需提示保存位置
         if (result.custom_path) {
-          this.$message.success('PDF 已保存到: ' + result.custom_path);
+          this.$message.success('✅ PDF 已保存到: ' + result.custom_path);
+        } else if (result.jpg_path) {
+          this.$message.success('✅ PDF 已生成');
+        } else {
+          this.$message.success('✅ PDF 导出成功');
         }
-        this.$message.success('PDF 导出成功！');
       } catch (e) {
         this.$message.error('导出失败: ' + e.message);
       } finally {
@@ -1291,6 +1369,9 @@ const ReportEditorView = {
               this.form.logo_config = {};
             }
             Object.assign(this.form.logo_config, config.logo_config);
+            if (typeof this.form.logo_config.size === 'string') {
+              this.form.logo_config.size = {small: 20, medium: 30, large: 45}[this.form.logo_config.size] || 30;
+            }
           }
         }
       } catch (_) { /* 不阻塞 */ }

@@ -142,7 +142,7 @@ class TestRenderer:
             logo_config=json.dumps({
                 "enabled": True,
                 "position": "top-right",
-                "size": "medium",
+                "size": 30,
                 "show_on_all_pages": True,
             }),
         )

@@ -1,21 +1,29 @@
 {
   "id": "academic",
   "name": "学术风",
-  "version": "1.0",
+  "version": "1.1",
   "is_builtin": true,
   "thumbnail": "",
-  "description": "深色主题色、衬线字体、加边框，适合正式汇报",
+  "description": "雅致学院风格，深蓝色系 + 金色点缀，适合正式汇报",
   "theme": {
-    "primary_color": "#1A365D",
-    "secondary_color": "#F7FAFC",
+    "primary_color": "#1E3A5F",
+    "secondary_color": "#F8F6F3",
     "font_title": "Heiti SC",
     "font_body": "STSong",
-    "font_size_title": 22,
+    "font_size_title": 24,
     "font_size_body": 11,
-    "page_margin_top": 22,
-    "page_margin_right": 20,
+    "page_margin_top": 27,
+    "page_margin_right": 25,
     "page_margin_bottom": 20,
-    "page_margin_left": 20
+    "page_margin_left": 25,
+    "background_image": "/api/assets/bg2.png"
   },
-  "page_size": "A4"
+  "page_size": "A4",
+  "logo_config": {
+    "enabled": true,
+    "position": "top-right",
+    "size": 30,
+    "show_on_all_pages": true,
+    "margin": 1
+  }
 }

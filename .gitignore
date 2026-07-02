@@ -81,6 +81,10 @@ data/assets/*
 !data/assets/.gitkeep
 data/backups/*
 !data/backups/.gitkeep
+data/custom_templates/*
+
+# 旧 python 自定义模板（已迁移到 data/custom_templates/）
+/templates/python/
 
 # =========================
 # Logs

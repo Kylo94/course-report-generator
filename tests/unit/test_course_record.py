@@ -315,7 +315,7 @@ class TestCourseRecordCRUD:
             evaluation="好",
             status="draft",
             screenshot_paths=["/img/a.jpg"],
-            logo_config={"enabled": True, "position": "top-left", "size": "medium", "show_on_all_pages": True},
+            logo_config={"enabled": True, "position": "top-left", "size": 30, "show_on_all_pages": True},
         )
 
         db_data = _serialize_for_db(data)

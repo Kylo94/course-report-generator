@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import json
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -62,12 +63,20 @@ class ServerConfig(BaseModel):
     reload: bool = True
 
 
+class ImageConvertConfig(BaseModel):
+    """PDF→图片转换参数"""
+    dpi: int = 150
+    quality: int = 95
+    enabled: bool = True
+
+
 class ReportConfig(BaseModel):
     default_template: str = "classic_default"
     output_dir: str = "./data/reports"
     screenshot_dir: str = "./data/screenshots"
     asset_dir: str = "./data/assets"
     custom_output_dir: str = ""
+    default_project_dir: str = ""
 
 
 class DraftConfig(BaseModel):
@@ -117,6 +126,7 @@ class Settings(BaseSettings):
     report: ReportConfig = Field(default_factory=ReportConfig)
     draft: DraftConfig = Field(default_factory=DraftConfig)
     logo: LogoConfig = Field(default_factory=LogoConfig)
+    image: ImageConvertConfig = Field(default_factory=ImageConvertConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
 
     @classmethod
@@ -339,9 +349,82 @@ def get_settings() -> Settings:
             llm_data = yaml.safe_load(f) or {}
         settings.llm = LLMConfig(**llm_data)
 
+    # 加载用户持久化设置（覆盖 YAML 中的值）
+    user_data = _load_user_settings()
+    if user_data:
+        apply_user_settings(settings, user_data)
+        log.info("已加载用户设置: %s", user_data)
+
     return settings
 
 
 def reset_settings_cache() -> None:
     """重置配置缓存（用于测试）。"""
     get_settings.cache_clear()
+
+
+# =========================
+# 用户可设置配置（持久化到 JSON）
+# =========================
+
+def _get_user_settings_path() -> Path:
+    """获取用户设置持久化文件路径。"""
+    return PROJECT_ROOT / "data" / "user_settings.json"
+
+
+def _load_user_settings() -> dict[str, Any]:
+    """从 user_settings.json 加载用户设置。"""
+    path = _get_user_settings_path()
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            log.warning("用户设置文件损坏，将使用默认值")
+    return {}
+
+
+def _save_user_settings(data: dict[str, Any]) -> None:
+    """保存用户设置到 user_settings.json。"""
+    path = _get_user_settings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def apply_user_settings(settings: Settings, user_data: dict[str, Any]) -> None:
+    """将 user_settings.json 中的值应用到 Settings 对象。"""
+    if "custom_output_dir" in user_data:
+        settings.report.custom_output_dir = user_data["custom_output_dir"]
+    if "default_project_dir" in user_data:
+        settings.report.default_project_dir = user_data["default_project_dir"]
+    if "image_dpi" in user_data:
+        settings.image.dpi = user_data["image_dpi"]
+    if "image_quality" in user_data:
+        settings.image.quality = user_data["image_quality"]
+    if "image_enabled" in user_data:
+        settings.image.enabled = user_data["image_enabled"]
+    if "auto_save_interval_seconds" in user_data:
+        settings.draft.auto_save_interval_seconds = user_data["auto_save_interval_seconds"]
+
+
+def get_user_settings_dict(settings: Settings) -> dict[str, Any]:
+    """从 Settings 对象提取可用户设置的字段。"""
+    return {
+        "custom_output_dir": settings.report.custom_output_dir or "",
+        "default_project_dir": settings.report.default_project_dir or "",
+        "image_dpi": settings.image.dpi,
+        "image_quality": settings.image.quality,
+        "image_enabled": settings.image.enabled,
+        "auto_save_interval_seconds": settings.draft.auto_save_interval_seconds,
+    }
+
+
+def update_and_save_user_settings(overrides: dict[str, Any]) -> dict[str, Any]:
+    """更新运行时设置并持久化到 user_settings.json。"""
+    settings = get_settings()
+    apply_user_settings(settings, overrides)
+    current = get_user_settings_dict(settings)
+    _save_user_settings(current)
+    return current

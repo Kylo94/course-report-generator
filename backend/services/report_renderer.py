@@ -17,6 +17,7 @@ from backend.utils.logger import get_logger
 log = get_logger(__name__)
 
 TEMPLATES_DIR = PROJECT_ROOT / "templates"
+CUSTOM_TEMPLATES_DIR = PROJECT_ROOT / "data" / "custom_templates"
 
 
 class TemplateNotFoundError(Exception):
@@ -45,7 +46,8 @@ def _url_to_fs_path(url_path: str) -> str | None:
         full = Path(settings.report.screenshot_dir) / filename
         if full.exists():
             return str(full.resolve())
-    elif url_path.startswith("/api/assets/logo"):
+    elif url_path.startswith("/api/assets/"):
+        # 通用 assets 路径：/api/assets/bg2.png → data/assets/bg2.png
         filename = url_path[len("/api/assets/"):]
         full = Path(settings.report.asset_dir) / filename
         if full.exists():
@@ -75,40 +77,77 @@ def _image_to_data_uri(image_path: str) -> str | None:
 
 
 def list_templates() -> list[dict[str, Any]]:
-    """扫描 templates/ 目录，返回内置模板列表。"""
-    if not TEMPLATES_DIR.exists():
-        return []
+    """扫描 templates/ 和 data/custom_templates/ 目录，返回所有模板列表。"""
     templates: list[dict[str, Any]] = []
-    for entry in sorted(TEMPLATES_DIR.iterdir()):
-        if not entry.is_dir() or entry.name.startswith("."):
-            continue
-        config_path = entry / "config.json"
-        if not config_path.exists():
-            continue
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-            templates.append({
-                "id": config.get("id", entry.name),
-                "name": config.get("name", entry.name),
-                "version": config.get("version", "1.0"),
-                "is_builtin": config.get("is_builtin", True),
-                "parent_template": config.get("parent_template"),
-                "thumbnail": config.get("thumbnail", ""),
-                "description": config.get("description", ""),
-                "page_size": config.get("page_size", "A4"),
-            })
-        except Exception as e:
-            log.warning("模板配置加载失败 %s: %s", entry.name, e)
+
+    # 扫描内置模板目录
+    if TEMPLATES_DIR.exists():
+        for entry in sorted(TEMPLATES_DIR.iterdir()):
+            if not entry.is_dir() or entry.name.startswith("."):
+                continue
+            config_path = entry / "config.json"
+            if not config_path.exists():
+                continue
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                templates.append({
+                    "id": config.get("id", entry.name),
+                    "name": config.get("name", entry.name),
+                    "version": config.get("version", "1.0"),
+                    "is_builtin": config.get("is_builtin", True),
+                    "parent_template": config.get("parent_template"),
+                    "thumbnail": config.get("thumbnail", ""),
+                    "description": config.get("description", ""),
+                    "page_size": config.get("page_size", "A4"),
+                })
+            except Exception as e:
+                log.warning("模板配置加载失败 %s: %s", entry.name, e)
+
+    # 扫描自定义模板目录
+    if CUSTOM_TEMPLATES_DIR.exists():
+        for entry in sorted(CUSTOM_TEMPLATES_DIR.iterdir()):
+            if not entry.is_dir() or entry.name.startswith("."):
+                continue
+            config_path = entry / "config.json"
+            if not config_path.exists():
+                continue
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                # 自定义模板的 id 可能冲突，加 is_builtin=false
+                config.setdefault("is_builtin", False)
+                templates.append({
+                    "id": config.get("id", entry.name),
+                    "name": config.get("name", entry.name),
+                    "version": config.get("version", "1.0"),
+                    "is_builtin": config.get("is_builtin", False),
+                    "parent_template": config.get("parent_template"),
+                    "thumbnail": config.get("thumbnail", ""),
+                    "description": config.get("description", ""),
+                    "page_size": config.get("page_size", "A4"),
+                })
+            except Exception as e:
+                log.warning("自定义模板加载失败 %s: %s", entry.name, e)
+
     return templates
+
+
+def _find_template_dir(template_id: str) -> Path | None:
+    """在 TEMPLATES_DIR 和 CUSTOM_TEMPLATES_DIR 中查找模板目录。"""
+    for base_dir in (TEMPLATES_DIR, CUSTOM_TEMPLATES_DIR):
+        d = base_dir / template_id
+        if d.exists() and (d / "config.json").exists():
+            return d
+    return None
 
 
 def get_template_config(template_id: str) -> dict[str, Any]:
     """加载单个模板配置。"""
-    template_dir = TEMPLATES_DIR / template_id
-    config_path = template_dir / "config.json"
-    if not config_path.exists():
+    template_dir = _find_template_dir(template_id)
+    if template_dir is None:
         raise TemplateNotFoundError(template_id)
+    config_path = template_dir / "config.json"
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -125,10 +164,10 @@ class ReportRenderer:
 
     def __init__(self, template_id: str = "classic"):
         self.template_id = template_id
-        self.template_dir = TEMPLATES_DIR / template_id
-
-        if not self.template_dir.exists():
+        tpl_dir = _find_template_dir(template_id)
+        if tpl_dir is None:
             raise TemplateNotFoundError(template_id)
+        self.template_dir = tpl_dir
 
         # 加载模板文件
         self.html_template = self._load_file("template.html")
@@ -154,6 +193,15 @@ class ReportRenderer:
 
         # 合并布局覆盖与主题
         merged = merge_layout_with_theme(self.config, layout_config)
+
+        # 解析背景图 URL → data URI（保证 PDF 和预览都能正常显示）
+        bg = merged.get("background_image")
+        if bg and bg.startswith("/api/assets/"):
+            fs_path = _url_to_fs_path(bg)
+            if fs_path:
+                data_uri = _image_to_data_uri(fs_path)
+                if data_uri:
+                    merged["background_image"] = data_uri
 
         # 提前读取 Logo 配置（在 custom_style 中需要 margin 值生成 CSS 变量）
         logo_cfg = _load_json(record.logo_config, {})
@@ -182,11 +230,14 @@ class ReportRenderer:
                         logo_data_uri = _image_to_data_uri(str(logo_path))
                         break
             if logo_data_uri:
-                size_map = {"small": 20, "medium": 30, "large": 45}
+                _size_val = logo_cfg.get("size", 30)
+                if isinstance(_size_val, str):
+                    _size_map = {"small": 20, "medium": 30, "large": 45}
+                    _size_val = _size_map.get(_size_val, 30)
                 logo_data = {
                     "data_uri": logo_data_uri,
                     "position": logo_cfg.get("position", "top-right"),
-                    "width_mm": size_map.get(logo_cfg.get("size", "medium"), 30),
+                    "width_mm": _size_val,
                     "show_on_all_pages": logo_cfg.get("show_on_all_pages", True),
                 }
 

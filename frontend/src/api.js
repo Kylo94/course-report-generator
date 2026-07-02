@@ -157,6 +157,7 @@ const API = {
   projects: {
     scan(data) { return API.post('/api/projects/scan', data); },
     listDir(data) { return API.post('/api/projects/list-dir', data); },
+    scanScreenshots(data) { return API.post('/api/projects/scan-screenshots', data); },
   },
 
   // =====================
@@ -173,6 +174,14 @@ const API = {
   // =====================
   importStudents(file) { return API.upload('/api/import/students', file); },
   importWord(file) { return API.upload('/api/import/word', file); },
+
+  // =====================
+  // 系统设置 API
+  // =====================
+  settings: {
+    get() { return API.get('/api/settings'); },
+    save(data) { return API.put('/api/settings', data); },
+  },
 
   // =====================
   // 模板管理

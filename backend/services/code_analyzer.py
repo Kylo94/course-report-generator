@@ -40,6 +40,13 @@ COURSE_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"^\s*#?\s*主题\s*[:：]\s*(.+?)\s*$"),
 ]
 
+# 作业引导识别模式（已去除 # 前缀，因为 _extract_top_comment 已剥掉）
+HOMEWORK_GUIDANCE_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"^\s*作业引导\s*[:：]\s*$"),
+    re.compile(r"^\s*作业指导\s*[:：]\s*$"),
+    re.compile(r"^\s*HomeworkGuidance\s*[:：]\s*$", re.IGNORECASE),
+]
+
 # 项目类型识别
 PROJECT_TYPE_RULES: list[tuple[str, str]] = [
     # (import 关键字, 项目类型)
@@ -86,6 +93,7 @@ class PyStructure:
     decorators: list[str] = field(default_factory=list)
     top_comment: str | None = None  # 文件顶部注释
     course_title: str | None = None  # 解析出的课程主题
+    homework_guidance: str | None = None  # 解析出的作业引导
     line_count: int = 0
 
 
@@ -290,6 +298,8 @@ def _parse_py_file(path: Path) -> PyStructure:
 
     # 解析顶部注释中的课程主题
     course_title = _parse_course_title(top_comment)
+    # 解析顶部注释中的作业引导
+    homework_guidance = _parse_homework_guidance(top_comment)
 
     return PyStructure(
         path=path.name,
@@ -300,6 +310,7 @@ def _parse_py_file(path: Path) -> PyStructure:
         decorators=sorted(set(d for d in decorators if d)),
         top_comment=top_comment,
         course_title=course_title,
+        homework_guidance=homework_guidance,
         line_count=line_count,
     )
 
@@ -341,6 +352,35 @@ def _parse_course_title(comment: str | None) -> str | None:
             if match:
                 return match.group(1).strip()
     return None
+
+
+def _parse_homework_guidance(comment: str | None) -> str | None:
+    """从注释中解析作业引导。
+
+    在入口注释中查找作业引导标记（如 作业引导: / HomeworkGuidance:），
+    将其后的内容（到注释末尾）提取为作业引导文本。
+    """
+    if not comment:
+        return None
+    lines = comment.splitlines()
+    capture = False
+    guidance: list[str] = []
+    for line in lines:
+        if not capture:
+            # 检查是否是引导标记行
+            for pattern in HOMEWORK_GUIDANCE_PATTERNS:
+                if pattern.match(line):
+                    capture = True
+                    break
+        else:
+            # 收集标记后的内容行
+            stripped = line.strip()
+            if stripped:
+                guidance.append(line)
+            else:
+                # 空行表示引导结束
+                break
+    return "\n".join(guidance).strip() or None
 
 
 # =========================

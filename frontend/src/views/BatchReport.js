@@ -405,6 +405,8 @@ const BatchReportView = {
     this.Router = Router;
     await this.loadClasses();
     await this.loadTemplates();
+    // 加载系统设置，预填项目目录
+    await this._loadDefaultProjectDir();
   },
 
   methods: {
@@ -509,6 +511,17 @@ const BatchReportView = {
       this.sharedContent.homework.criteria.splice(i, 1);
     },
 
+    // ===== 从系统设置加载默认项目目录 =====
+    async _loadDefaultProjectDir() {
+      if (this.config.project_folder) return; // 已有值不覆盖
+      try {
+        const s = await API.settings.get();
+        if (s.default_project_dir) {
+          this.config.project_folder = s.default_project_dir;
+        }
+      } catch (_) { /* 静默失败，不影响主流程 */ }
+    },
+
     // ===== 目录浏览器 =====
     async openDirBrowser() {
       this._dirBrowserMode = 'project';
@@ -516,8 +529,11 @@ const BatchReportView = {
       this.dirBrowserItems = [];
       this.dirBrowserError = null;
       this.showDirBrowser = true;
-      const lastPath = localStorage.getItem('lastDirBrowserPath');
-      await this.browseToDir(lastPath || '');
+      // 优先使用输入框当前值，其次 localStorage
+      const startPath = this.config.project_folder
+        || localStorage.getItem('lastDirBrowserPath')
+        || '';
+      await this.browseToDir(startPath);
     },
 
     browseOutputDir() {
@@ -526,8 +542,10 @@ const BatchReportView = {
       this.dirBrowserItems = [];
       this.dirBrowserError = null;
       this.showDirBrowser = true;
-      const lastPath = localStorage.getItem('lastOutputDirBrowserPath');
-      this.browseToDir(lastPath || '');
+      const startPath = this.config.output_dir
+        || localStorage.getItem('lastOutputDirBrowserPath')
+        || '';
+      this.browseToDir(startPath);
     },
 
     async browseToDir(path) {
@@ -558,8 +576,39 @@ const BatchReportView = {
         this.config.output_dir = this.dirBrowserPath;
       } else {
         this.config.project_folder = this.dirBrowserPath;
+        // 自动识别项目名称：取路径最后一级作为课程名
+        this._autoFillCourseName(this.dirBrowserPath);
+        // 自动检测 save/ 文件夹中的截图并上传
+        this._autoUploadSaveScreenshots(this.dirBrowserPath);
       }
       this.showDirBrowser = false;
+    },
+
+    _autoFillCourseName(folderPath) {
+      if (!folderPath || this.config.course_topic) return;
+      let name = folderPath.replace(/\/+$/, '').split(/[/\\]/).pop() || '';
+      // 去掉前导序号，如 "1."、"21-24."、"33-36."
+      name = name.replace(/^\d+(-?\d+)?[.、]\s*/, '');
+      if (name && name.length <= 10) {
+        this.config.course_topic = name;
+      }
+    },
+
+    async _autoUploadSaveScreenshots(folderPath) {
+      if (!folderPath) return;
+      try {
+        const result = await API.projects.scanScreenshots({ folder: folderPath });
+        const shots = result.screenshots || [];
+        if (shots.length === 0) return;
+        for (const s of shots) {
+          if (!this.config.screenshot_paths.includes(s.url)) {
+            this.config.screenshot_paths.push(s.url);
+          }
+        }
+        this.$message.success(`已自动上传 ${shots.length} 张项目截图`);
+      } catch (e) {
+        console.debug('自动上传截图扫描（可忽略）:', e.message);
+      }
     },
 
     // ===== 截图上传 =====

@@ -271,15 +271,20 @@ class AIConversation:
         student_level: str,
         entry_comment: str,
         project_type: str,
+        homework_guidance: str = "",
     ) -> tuple[dict, dict]:
         """基于记忆生成作业和英文单词。"""
         kp_str = "、".join(knowledge_points)
+        guidance_section = (
+            f"\n【作业引导——如果上方有作业引导，请严格按此出题】\n{homework_guidance}\n"
+            if homework_guidance
+            else ""
+        )
         prompt = f"""根据你阅读的代码和知识点（{kp_str}），生成课后作业和英文单词。
 
 学生水平：{student_level}
 项目类型：{project_type}
-入口注释：{entry_comment}
-
+入口注释：{entry_comment}{guidance_section}
 【作业——只基于代码中实际函数出题】
 - 根据课程内容决定题型：
   · 概念/逻辑类 → 问答题（"请描述 XX() 的执行流程"）

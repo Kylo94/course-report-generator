@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from backend.services.report_renderer import TEMPLATES_DIR, list_templates
+from backend.services.report_renderer import CUSTOM_TEMPLATES_DIR, TEMPLATES_DIR, list_templates
 from backend.services.template_manager import (
     TemplateNotDeletableError,
     TemplateNotFoundError,
@@ -26,9 +26,12 @@ from backend.services.template_manager import (
 # =========================
 
 
-def _read_config(template_id: str) -> dict:
+def _read_config(template_id: str, custom: bool = True) -> dict:
     """读取模板的 config.json。"""
-    config_path = TEMPLATES_DIR / template_id / "config.json"
+    if custom:
+        config_path = CUSTOM_TEMPLATES_DIR / template_id / "config.json"
+    else:
+        config_path = TEMPLATES_DIR / template_id / "config.json"
     with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -92,6 +95,7 @@ class TestGenerateUniqueId:
 class TestCreateTemplate:
     def test_create_from_classic(self) -> None:
         """从经典模板创建自定义模板。"""
+        result = None
         try:
             result = create_template(
                 name="测试模板A",
@@ -106,15 +110,15 @@ class TestCreateTemplate:
             assert result["page_size"] == "A4"
             assert result["id"] != "classic"
 
-            # 验证目录和文件存在
-            template_dir = TEMPLATES_DIR / result["id"]
+            # 验证目录和文件存在（在 CUSTOM_TEMPLATES_DIR 中）
+            template_dir = CUSTOM_TEMPLATES_DIR / result["id"]
             assert template_dir.exists()
             assert (template_dir / "template.html").exists()
             assert (template_dir / "style.css").exists()
             assert (template_dir / "config.json").exists()
 
             # 验证 config.json 内容
-            config = _read_config(result["id"])
+            config = _read_config(result["id"], custom=True)
             assert config["name"] == "测试模板A"
             assert config["is_builtin"] is False
             assert config["parent_template"] == "classic"
@@ -123,13 +127,13 @@ class TestCreateTemplate:
             assert config["theme"]["font_title"] == "Heiti SC"
             assert config["theme"]["font_size_body"] == 11
         finally:
-            # 清理
-            for t in list_templates():
-                if not t["is_builtin"]:
-                    delete_template(t["id"])
+            if result:
+                try: delete_template(result["id"])
+                except Exception: pass
 
     def test_create_from_academic(self) -> None:
         """从学术模板创建。"""
+        result = None
         try:
             result = create_template(
                 name="学术自定义",
@@ -150,12 +154,13 @@ class TestCreateTemplate:
             assert config["theme"]["font_body"] == "STSong"
             assert config["theme"]["font_size_body"] == 11
         finally:
-            for t in list_templates():
-                if not t["is_builtin"]:
-                    delete_template(t["id"])
+            if result:
+                try: delete_template(result["id"])
+                except Exception: pass
 
     def test_create_without_overrides(self) -> None:
         """不传 theme_overrides 时完全继承基础模板。"""
+        result = None
         try:
             result = create_template(
                 name="无覆盖模板",
@@ -164,12 +169,12 @@ class TestCreateTemplate:
                 theme_overrides=None,
             )
             config = _read_config(result["id"])
-            assert config["theme"]["primary_color"] == "#2B5FC3"  # classic 的默认主色
+            assert config["theme"]["primary_color"] == "#2563EB"  # classic 的默认主色
             assert config["theme"]["font_size_body"] == 11
         finally:
-            for t in list_templates():
-                if not t["is_builtin"]:
-                    delete_template(t["id"])
+            if result:
+                try: delete_template(result["id"])
+                except Exception: pass
 
     def test_create_base_not_found(self) -> None:
         """不存在的 base_template_id 应报错。"""
@@ -197,10 +202,10 @@ class TestUpdateTemplateConfig:
         )
         self.template_id = self.result["id"]
         yield
-        # 清理所有自定义模板
-        for t in list_templates():
-            if not t["is_builtin"]:
-                delete_template(t["id"])
+        # 清理
+        if self.template_id:
+            try: delete_template(self.template_id)
+            except Exception: pass
 
     def test_update_name_and_description(self) -> None:
         """更新名称和描述。"""
@@ -223,7 +228,7 @@ class TestUpdateTemplateConfig:
         assert config["theme"]["font_body"] == "KaiTi"
         assert config["theme"]["font_size_body"] == 14
         # 未更新的字段保留
-        assert config["theme"]["secondary_color"] == "#F0F4FA"
+        assert config["theme"]["secondary_color"] == "#EFF6FF"
         assert config["theme"]["font_title"] == "Heiti SC"
 
     def test_update_none_values_ignored(self) -> None:
@@ -269,7 +274,7 @@ class TestDeleteTemplate:
             base_template_id="classic",
         )
         template_id = result["id"]
-        template_dir = TEMPLATES_DIR / template_id
+        template_dir = CUSTOM_TEMPLATES_DIR / template_id
         assert template_dir.exists()
 
         delete_template(template_id)
@@ -295,7 +300,7 @@ class TestDeleteTemplate:
             base_template_id="classic",
         )
         template_id = result["id"]
-        config_path = TEMPLATES_DIR / template_id / "config.json"
+        config_path = CUSTOM_TEMPLATES_DIR / template_id / "config.json"
         with open(config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
         config["is_builtin"] = True
@@ -329,8 +334,9 @@ class TestListCustomTemplates:
 
     def test_after_create_contains_new(self) -> None:
         """创建后出现在自定义列表。"""
+        _tmp = None
         try:
-            create_template(
+            _tmp = create_template(
                 name="列表测试模板",
                 description="",
                 base_template_id="classic",
@@ -339,9 +345,9 @@ class TestListCustomTemplates:
             names = [t["name"] for t in custom]
             assert "列表测试模板" in names
         finally:
-            for t in list_templates():
-                if not t["is_builtin"]:
-                    delete_template(t["id"])
+            if _tmp:
+                try: delete_template(_tmp["id"])
+                except Exception: pass
 
 
 # =========================
@@ -397,17 +403,22 @@ class TestListTemplatesIntegration:
 
     def test_custom_templates_have_parent(self) -> None:
         """自定义模板有 parent_template。"""
+        created = None
         try:
-            create_template(
+            created = create_template(
                 name="集成测试模板",
                 description="",
                 base_template_id="academic",
             )
+            assert created.get("parent_template") == "academic"
+            # 验证数据库中也一致
             all_templates = list_templates()
-            custom = [t for t in all_templates if not t["is_builtin"]]
-            for t in custom:
-                assert t.get("parent_template") == "academic"
+            match = next((t for t in all_templates if t["id"] == created["id"]), None)
+            assert match is not None
+            assert match.get("parent_template") == "academic"
         finally:
-            for t in list_templates():
-                if not t["is_builtin"]:
-                    delete_template(t["id"])
+            if created:
+                try:
+                    delete_template(created["id"])
+                except Exception:
+                    pass

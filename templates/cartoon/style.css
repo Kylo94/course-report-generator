@@ -1,4 +1,4 @@
-/* ===== 少儿卡通模板 ===== */
+/* ===== 少儿卡通模板 v1.1 ===== */
 @page {
   size: A4;
   margin: 0;
@@ -9,7 +9,7 @@
 body {
   font-family: var(--font-body, "STSong", "SimSun", serif);
   font-size: var(--fs-body, 12pt);
-  line-height: 1.7;
+  line-height: 1.8;
   color: #4A3728;
   background: var(--bg-color, #FFF8F0);
 }
@@ -18,43 +18,46 @@ body {
   page-break-after: always;
   padding: 5mm 0;
   position: relative;
-  background: linear-gradient(180deg, var(--bg-color, #FFF8F0) 0%, #FFF0E0 100%);
-  border-radius: 8mm;
+  background: linear-gradient(170deg, var(--bg-color, #FFF8F0) 0%, #FFF0E0 50%, #FFE8E0 100%);
+  border-radius: 10mm;
   min-height: 277mm;
 }
 
 /* ===== Logo ===== */
-.logo { position: absolute; }
-.logo-top-left    { top: var(--logo-offset-top, 5mm); left: var(--logo-offset-left, 5mm); }
-.logo-top-right   { top: var(--logo-offset-top, 5mm); right: var(--logo-offset-right, 5mm); }
-.logo-top-center  { top: var(--logo-offset-top, 5mm); left: 50%; transform: translateX(-50%); }
-.logo-bottom-left     { bottom: var(--logo-offset-bottom, 5mm); left: var(--logo-offset-left, 5mm); }
-.logo-bottom-right    { bottom: var(--logo-offset-bottom, 5mm); right: var(--logo-offset-right, 5mm); }
-.logo-bottom-center   { bottom: var(--logo-offset-bottom, 5mm); left: 50%; transform: translateX(-50%); }
+.logo { position: absolute; z-index: 2; }
+.logo-top-left    { top: var(--logo-offset-top, 6mm); left: var(--logo-offset-left, 6mm); }
+.logo-top-right   { top: var(--logo-offset-top, 6mm); right: var(--logo-offset-right, 6mm); }
+.logo-top-center  { top: var(--logo-offset-top, 6mm); left: 50%; transform: translateX(-50%); }
+.logo-bottom-left     { bottom: var(--logo-offset-bottom, 6mm); left: var(--logo-offset-left, 6mm); }
+.logo-bottom-right    { bottom: var(--logo-offset-bottom, 6mm); right: var(--logo-offset-right, 6mm); }
+.logo-bottom-center   { bottom: var(--logo-offset-bottom, 6mm); left: 50%; transform: translateX(-50%); }
 
 /* ===== 封面 ===== */
 .title {
   font-family: var(--font-title, "Heiti SC", "PingFang SC", sans-serif);
-  font-size: var(--fs-title, 28pt);
-  color: var(--primary, #FF8C42);
+  font-size: var(--fs-title, 30pt);
+  color: var(--primary, #FF6B6B);
   text-align: center;
-  margin: 12mm 0 5mm;
-  letter-spacing: 3pt;
-  text-shadow: 1px 1px 0 #FFD0A0;
+  margin: 14mm 0 5mm;
+  letter-spacing: 4pt;
+  text-shadow: 2px 2px 0 #FFD0C0;
+  font-weight: 800;
 }
 
 .student-info {
   text-align: center;
-  font-size: 14pt;
-  color: #A07658;
+  font-size: 15pt;
+  color: #7A5A4A;
   margin-bottom: 8mm;
-  background: #FFE8D0;
+  background: linear-gradient(135deg, #FFE8E0, #FFF0E0);
   display: block;
   width: fit-content;
   margin-left: auto;
   margin-right: auto;
-  padding: 2mm 10mm;
-  border-radius: 20px;
+  padding: 3mm 12mm;
+  border-radius: 30px;
+  border: 2px solid #FFD0C0;
+  box-shadow: 0 3px 8px rgba(255,107,107,0.1);
 }
 
 .screenshot-gallery {
@@ -67,34 +70,36 @@ body {
 .screenshot-item img {
   max-width: 80mm;
   max-height: 50mm;
-  border-radius: 8mm;
-  box-shadow: 0 4px 12px rgba(255,140,66,0.2);
-  border: 3px solid #FFD0A0;
+  border-radius: 12mm;
+  box-shadow: 0 6px 16px rgba(255,107,107,0.2);
+  border: 3px solid #FFD0C0;
 }
 
 /* ===== 通用标题 ===== */
 .section-title {
   font-family: var(--font-title, "Heiti SC", "PingFang SC", sans-serif);
-  font-size: 16pt;
-  color: var(--primary, #FF8C42);
-  font-weight: bold;
-  margin: 6mm 0 3mm;
-  padding: 2mm 4mm;
-  background: #FFE8D0;
-  border-radius: 20px 8px 20px 8px;
+  font-size: 17pt;
+  color: var(--primary, #FF6B6B);
+  font-weight: 700;
+  margin: 7mm 0 4mm;
+  padding: 2.5mm 6mm;
+  background: linear-gradient(135deg, #FFF0E0, #FFE8E8);
+  border-radius: 25px 10px 25px 10px;
   display: block;
+  box-shadow: 0 2px 6px rgba(255,107,107,0.08);
 }
 
 .page-header {
   font-family: var(--font-title, "Heiti SC", "PingFang SC", sans-serif);
-  font-size: 18pt;
-  color: var(--primary, #FF8C42);
-  font-weight: bold;
+  font-size: 19pt;
+  color: var(--primary, #FF6B6B);
+  font-weight: 700;
   text-align: center;
   margin-bottom: 8mm;
-  padding: 3mm;
-  background: #FFE8D0;
-  border-radius: 8mm;
+  padding: 3mm 6mm;
+  background: linear-gradient(135deg, #FFF0E0, #FFE8E8);
+  border-radius: 12mm;
+  box-shadow: 0 3px 8px rgba(255,107,107,0.08);
 }
 
 /* ===== 知识点 ===== */
@@ -105,13 +110,14 @@ body {
   margin: 4mm 0;
 }
 .kp-card {
-  background: var(--secondary, #FFF0E0);
-  border: 2px solid #FFD0A0;
-  padding: 3mm 6mm;
-  border-radius: 15px;
+  background: linear-gradient(135deg, #FFF5F5, #FFF0E0);
+  border: 2px solid #FFD0C0;
+  padding: 3mm 8mm;
+  border-radius: 20px;
   font-size: var(--fs-body, 13pt);
   color: #4A3728;
-  font-weight: bold;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(255,107,107,0.06);
 }
 .kp-card::before {
   content: "⭐ ";
@@ -119,27 +125,32 @@ body {
 
 .ability {
   font-size: var(--fs-body, 12pt);
-  line-height: 1.8;
+  line-height: 1.9;
   color: #5A4738;
   margin: 3mm 0;
-  padding: 3mm 5mm;
-  background: #FFF5EA;
-  border-radius: 6mm;
+  padding: 4mm 6mm;
+  background: linear-gradient(135deg, #FFF8F3, #FFF0E8);
+  border-radius: 10mm;
+  border: 1px solid #FFE0D0;
 }
 
 /* ===== 内容块 ===== */
 .content-block {
   margin-bottom: 5mm;
-  padding: 4mm 5mm;
-  background: #FFF5EA;
-  border-radius: 6mm;
-  border: 2px solid #FFE0C0;
+  padding: 4mm 6mm;
+  background: linear-gradient(135deg, #FFF8F3, #FFF0E8);
+  border-radius: 10mm;
+  border: 2px solid #FFE0D0;
+  box-shadow: 0 3px 8px rgba(255,107,107,0.04);
+}
+.content-block:first-of-type {
+  background: linear-gradient(135deg, #FFF5F5, #FFE8E8, #FFF0E0);
 }
 .content-block-title {
   font-family: var(--font-title, "Heiti SC", "PingFang SC", sans-serif);
-  font-size: 14pt;
-  font-weight: bold;
-  color: var(--primary, #FF8C42);
+  font-size: 15pt;
+  font-weight: 700;
+  color: var(--primary, #FF6B6B);
   margin-bottom: 2mm;
 }
 .content-block-title::before {
@@ -147,36 +158,39 @@ body {
 }
 .content-block-text {
   font-size: var(--fs-body, 12pt);
-  line-height: 1.7;
+  line-height: 1.8;
   color: #5A4738;
 }
 
 /* ===== 词汇 ===== */
 .vocabulary-card {
-  background: var(--secondary, #FFE8D0);
-  border: 3px solid #FFD0A0;
-  border-radius: 8mm;
-  padding: 5mm 7mm;
+  background: linear-gradient(135deg, #FFF5F5, #FFE8E8);
+  border: 3px solid #FFD0C0;
+  border-radius: 12mm;
+  padding: 5mm 8mm;
   margin: 4mm 0;
+  box-shadow: 0 3px 10px rgba(255,107,107,0.06);
 }
 .vocab-row {
   margin-bottom: 3mm;
 }
 .vocab-word {
   font-family: var(--font-title, "Heiti SC", "PingFang SC", sans-serif);
-  font-size: 16pt;
-  font-weight: bold;
-  color: var(--primary, #FF8C42);
+  font-size: 17pt;
+  font-weight: 700;
+  color: var(--primary, #FF6B6B);
   margin-right: 4mm;
 }
 .vocab-phonetic {
   font-size: var(--fs-body, 12pt);
   color: #A07658;
+  font-style: italic;
 }
 .vocab-label {
-  font-weight: bold;
+  font-weight: 700;
   color: #A07658;
   margin-right: 2mm;
+  font-size: 11pt;
 }
 .vocab-meaning, .vocab-example {
   font-size: var(--fs-body, 12pt);
@@ -189,22 +203,22 @@ body {
 }
 .homework-goal {
   font-size: 13pt;
-  line-height: 1.6;
+  line-height: 1.7;
   color: #5A4738;
   margin-bottom: 4mm;
-  padding: 4mm 5mm;
-  background: #FFF5EA;
-  border-radius: 6mm;
-  border: 2px dashed #FFD0A0;
+  padding: 4mm 6mm;
+  background: linear-gradient(135deg, #FFF8F3, #FFF0E8);
+  border-radius: 10mm;
+  border: 2px dashed #FFD0C0;
 }
 .homework-subsection {
   margin-bottom: 3mm;
 }
 .homework-subtitle {
   font-family: var(--font-title, "Heiti SC", "PingFang SC", sans-serif);
-  font-size: 13pt;
-  color: var(--primary, #FF8C42);
-  font-weight: bold;
+  font-size: 14pt;
+  color: var(--primary, #FF6B6B);
+  font-weight: 700;
   margin-bottom: 2mm;
 }
 .homework-list {
@@ -215,28 +229,30 @@ body {
   margin-bottom: 1.5mm;
   font-size: var(--fs-body, 12pt);
   color: #5A4738;
+  padding: 1mm 2mm;
 }
 .homework-list li::before {
-  content: "✅ ";
+  content: "🌟 ";
 }
 
 /* ===== 评价 ===== */
 .evaluation {
   font-size: var(--fs-body, 12pt);
-  line-height: 1.8;
+  line-height: 1.9;
   color: #5A4738;
   margin: 3mm 0;
   text-indent: 2em;
-  padding: 3mm 5mm;
-  background: #FFF5EA;
-  border-radius: 6mm;
+  padding: 4mm 6mm;
+  background: linear-gradient(135deg, #FFF8F3, #FFF0E8);
+  border-radius: 10mm;
+  border: 1px solid #FFE0D0;
 }
 
 /* ===== 页脚 ===== */
 .footer {
   margin-top: 12mm;
   padding-top: 3mm;
-  border-top: 2px dashed #FFD0A0;
+  border-top: 2px dashed #FFD0C0;
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
@@ -255,20 +271,21 @@ body {
   color: #A07658;
 }
 
-
 /* ===== 代码展示 ===== */
 .code-block {
   background: #1e1e2e;
-  border-radius: 4px;
+  border-radius: 8mm;
   padding: 4mm;
   margin: 4mm 0;
   overflow-x: auto;
+  border: 2px solid #FFD0C0;
+  box-shadow: 0 4px 12px rgba(255,107,107,0.1);
 }
 .code-block pre {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-all;
-  font-size: 8pt;
+  font-size: 9pt;
   line-height: 1.5;
 }
 .code-block code {

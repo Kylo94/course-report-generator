@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from backend.services.report_renderer import TEMPLATES_DIR, get_template_config, list_templates
+from backend.services.report_renderer import CUSTOM_TEMPLATES_DIR, TEMPLATES_DIR, get_template_config, list_templates
 
 # 内置模板 ID（不可删除/覆盖）
 BUILTIN_TEMPLATES = {"classic", "academic", "cartoon"}
@@ -43,13 +43,13 @@ def _sanitize_id(name: str) -> str:
 
 
 def _generate_unique_id(base_name: str) -> str:
-    """从名称生成唯一目录 ID，处理与现有模板的冲突。"""
+    """从名称生成唯一目录 ID，处理与已有模板的冲突。"""
     candidate = _sanitize_id(base_name)
-    if not (TEMPLATES_DIR / candidate).exists():
+    if not ((TEMPLATES_DIR / candidate).exists() or (CUSTOM_TEMPLATES_DIR / candidate).exists()):
         return candidate
     for i in range(1, 100):
         alt = f"{candidate}_{i}"
-        if not (TEMPLATES_DIR / alt).exists():
+        if not ((TEMPLATES_DIR / alt).exists() or (CUSTOM_TEMPLATES_DIR / alt).exists()):
             return alt
     import uuid
 
@@ -72,7 +72,7 @@ def create_template(
     步骤：
     1. 验证 base_template_id 存在
     2. 生成唯一 template_id
-    3. 创建目录 templates/{id}/
+    3. 创建目录 data/custom_templates/{id}/
     4. 复制 template.html 和 style.css 从基础模板
     5. 写入 config.json
     6. 返回列表项 dict
@@ -83,15 +83,25 @@ def create_template(
     except Exception as e:
         raise TemplateNotFoundError(str(e)) from e
 
+    # 找到基础模板的目录（可能在 templates/ 或 data/custom_templates/）
+    base_dir = None
+    for d in (TEMPLATES_DIR, CUSTOM_TEMPLATES_DIR):
+        cand = d / base_template_id
+        if cand.exists():
+            base_dir = cand
+            break
+    if base_dir is None:
+        raise TemplateNotFoundError(base_template_id)
+
     # 2. 生成 ID
     template_id = _generate_unique_id(name)
 
-    # 3. 创建目录
-    template_dir = TEMPLATES_DIR / template_id
+    # 3. 创建自定义模板目录（在 CUSTOM_TEMPLATES_DIR 下）
+    CUSTOM_TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
+    template_dir = CUSTOM_TEMPLATES_DIR / template_id
     template_dir.mkdir(parents=True, exist_ok=True)
 
     # 4. 复制 template.html 和 style.css
-    base_dir = TEMPLATES_DIR / base_template_id
     for filename in ("template.html", "style.css"):
         src = base_dir / filename
         if src.exists():
@@ -146,7 +156,7 @@ def create_template(
         config["logo_config"] = {
             "enabled": True,
             "position": "top-right",
-            "size": "medium",
+            "size": 30,
             "show_on_all_pages": True,
         }
 
@@ -170,6 +180,18 @@ def create_template(
     }
 
 
+def _find_custom_template_dir(template_id: str) -> Path:
+    """在 CUSTOM_TEMPLATES_DIR 中查找自定义模板目录。"""
+    d = CUSTOM_TEMPLATES_DIR / template_id
+    if d.exists() and (d / "config.json").exists():
+        return d
+    # 兼容旧路径：允许在 TEMPLATES_DIR 中寻找
+    old = TEMPLATES_DIR / template_id
+    if old.exists() and (old / "config.json").exists() and not old.name in BUILTIN_TEMPLATES:
+        return old
+    raise TemplateNotFoundError(f"模板不存在: {template_id}")
+
+
 def update_template_config(
     template_id: str,
     updates: dict[str, Any],
@@ -180,10 +202,8 @@ def update_template_config(
       - name, description, page_size
       - theme.*（主色、辅色、字体、字号）
     """
-    template_dir = TEMPLATES_DIR / template_id
+    template_dir = _find_custom_template_dir(template_id)
     config_path = template_dir / "config.json"
-    if not config_path.exists():
-        raise TemplateNotFoundError(f"模板不存在: {template_id}")
 
     with open(config_path, "r", encoding="utf-8") as f:
         config = json.load(f)
@@ -245,9 +265,7 @@ def delete_template(template_id: str) -> None:
     if template_id in BUILTIN_TEMPLATES:
         raise TemplateNotDeletableError(f"内置模板不可删除: {template_id}")
 
-    template_dir = TEMPLATES_DIR / template_id
-    if not template_dir.exists():
-        raise TemplateNotFoundError(f"模板不存在: {template_id}")
+    template_dir = _find_custom_template_dir(template_id)
 
     # 额外检查 config.json 中的 is_builtin
     config_path = template_dir / "config.json"
@@ -266,6 +284,7 @@ def render_template_preview(template_id: str, theme_overrides: dict | None = Non
     不依赖真实的报告记录，使用占位数据。
     theme_overrides: 编辑对话框未保存时的临时主题覆盖。
     """
+    from backend.config import get_settings as _get_preview_settings
     from backend.services.report_renderer import ReportRenderer, TemplateNotFoundError as RendererTemplateNotFoundError
 
     _tpl_id = template_id  # 解决类作用域闭包问题
@@ -291,12 +310,19 @@ def render_template_preview(template_id: str, theme_overrides: dict | None = Non
         if "logo_margin" in theme_overrides and theme_overrides["logo_margin"] is not None:
             logo_cfg = renderer.config.setdefault("logo_config", {})
             logo_cfg["margin"] = theme_overrides["logo_margin"]
+        # 单独处理 logo_size
+        if "logo_size" in theme_overrides and theme_overrides["logo_size"] is not None:
+            logo_cfg = renderer.config.setdefault("logo_config", {})
+            logo_cfg["size"] = theme_overrides["logo_size"]
 
     _logo_cfg = renderer.config.get("logo_config", {})
-    # 如果模板没有自己的 logo_data_uri，预览时禁用 Logo（避免使用全局 Logo 文件导致内容被盖住）
+    # 如果模板没有自己的 logo_data_uri 且没有全局 logo 文件，预览时禁用 Logo
     if not renderer.config.get("logo_data_uri"):
-        _logo_cfg = dict(_logo_cfg)
-        _logo_cfg["enabled"] = False
+        _asset_dir = Path(_get_preview_settings().report.asset_dir)
+        _has_global_logo = any((_asset_dir / f"logo{ext}").exists() for ext in (".png", ".jpg", ".jpeg", ".webp"))
+        if not _has_global_logo:
+            _logo_cfg = dict(_logo_cfg)
+            _logo_cfg["enabled"] = False
 
     class PreviewRecord:
         template_id = _tpl_id

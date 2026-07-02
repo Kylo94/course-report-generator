@@ -35,6 +35,7 @@ class LogoConfigSchema(BaseModel):
     position: str = "top-right"  # top-left / top-right / top-center / bottom-left / bottom-right / bottom-center
     size: str = "medium"  # small / medium / large
     show_on_all_pages: bool = True
+    margin: int = 0  # Logo 距页面边缘距离(mm)，控制 --logo-offset-* CSS 变量
 
 
 class AiMetaSchema(BaseModel):

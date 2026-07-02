@@ -144,9 +144,10 @@ class AIOrchestrator:
 
         # Step 3: 作业 + 单词
         try:
+            homework_guidance = self._get_homework_guidance(project)
             hw, vocab = await conv.step_homework_vocab(
                 result.knowledge_points, student.base_level,
-                entry_comment, project_type,
+                entry_comment, project_type, homework_guidance,
             )
             result.homework = hw
             result.vocabulary = vocab
@@ -207,8 +208,10 @@ class AIOrchestrator:
         log.info("共享内容概述: %d 条", len(items))
 
         # Step 3: 作业 + 单词
+        homework_guidance = self._get_homework_guidance(project)
         hw, vocab = await conv.step_homework_vocab(
             kp, default_student.base_level, entry_comment, project_type,
+            homework_guidance,
         )
         log.info("共享作业/单词完成")
 
@@ -296,8 +299,10 @@ class AIOrchestrator:
         # 作业/单词重生成
         if field_name == "homework_vocab":
             await conv.step_content_summary(kp, entry_comment, project_type)
+            homework_guidance = self._get_homework_guidance(project)
             hw, vocab = await conv.step_homework_vocab(
                 kp, student.base_level, entry_comment, project_type,
+                homework_guidance,
             )
             return {"homework": hw, "vocabulary": vocab}
 
@@ -353,6 +358,15 @@ class AIOrchestrator:
         for f in project.py_files:
             if f.path == project.entry_file:
                 return f.top_comment or ""
+        return ""
+
+    def _get_homework_guidance(self, project: ProjectMetaSchema) -> str:
+        """提取入口文件的作业引导。"""
+        if not project.entry_file:
+            return ""
+        for f in project.py_files:
+            if f.path == project.entry_file:
+                return f.homework_guidance or ""
         return ""
 
     def _build_code_content(self, project: ProjectMetaSchema) -> str:

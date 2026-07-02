@@ -129,14 +129,14 @@ const TemplateManagerView = {
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <el-form-item label="标题字号" label-width="60px">
-              <div style="display:flex;gap:6px;align-items:center;">
-                <el-slider v-model="createForm.font_size_title" :min="12" :max="48" style="width:100px;" />
+              <div style="display:flex;gap:18px;align-items:center;">
+                <el-slider v-model="createForm.font_size_title" :min="12" :max="48" :show-tooltip="false" style="width:100px;" />
                 <span style="white-space:nowrap;">{{ createForm.font_size_title }}pt</span>
               </div>
             </el-form-item>
             <el-form-item label="正文字号" label-width="60px">
-              <div style="display:flex;gap:6px;align-items:center;">
-                <el-slider v-model="createForm.font_size_body" :min="8" :max="20" style="width:100px;" />
+              <div style="display:flex;gap:18px;align-items:center;">
+                <el-slider v-model="createForm.font_size_body" :min="8" :max="20" :show-tooltip="false" style="width:100px;" />
                 <span style="white-space:nowrap;">{{ createForm.font_size_body }}pt</span>
               </div>
             </el-form-item>
@@ -223,14 +223,14 @@ const TemplateManagerView = {
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <el-form-item label="标题字号" label-width="60px">
-              <div style="display:flex;gap:6px;align-items:center;">
-                <el-slider v-model="editForm.font_size_title" :min="12" :max="48" style="width:100px;" />
+              <div style="display:flex;gap:18px;align-items:center;">
+                <el-slider v-model="editForm.font_size_title" :min="12" :max="48" :show-tooltip="false" style="width:100px;" />
                 <span style="white-space:nowrap;">{{ editForm.font_size_title }}pt</span>
               </div>
             </el-form-item>
             <el-form-item label="正文字号" label-width="60px">
-              <div style="display:flex;gap:6px;align-items:center;">
-                <el-slider v-model="editForm.font_size_body" :min="8" :max="20" style="width:100px;" />
+              <div style="display:flex;gap:18px;align-items:center;">
+                <el-slider v-model="editForm.font_size_body" :min="8" :max="20" :show-tooltip="false" style="width:100px;" />
                 <span style="white-space:nowrap;">{{ editForm.font_size_body }}pt</span>
               </div>
             </el-form-item>
@@ -266,28 +266,28 @@ const TemplateManagerView = {
           <el-divider content-position="left">页面边距 <span style="color:#909399;font-size:12px;">（防止内容覆盖背景图边框）</span></el-divider>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <el-form-item label="上边距" label-width="60px">
-              <div style="display:flex;gap:6px;align-items:center;">
-                <el-slider v-model="editForm.page_margin_top" :min="5" :max="40" style="width:100px;" />
+              <div style="display:flex;gap:18px;align-items:center;">
+                <el-slider v-model="editForm.page_margin_top" :min="5" :max="40" :show-tooltip="false" style="width:100px;" />
                 <span style="white-space:nowrap;width:40px;">{{ editForm.page_margin_top }}mm</span>
               </div>
             </el-form-item>
             <el-form-item label="下边距" label-width="60px">
-              <div style="display:flex;gap:6px;align-items:center;">
-                <el-slider v-model="editForm.page_margin_bottom" :min="5" :max="40" style="width:100px;" />
+              <div style="display:flex;gap:18px;align-items:center;">
+                <el-slider v-model="editForm.page_margin_bottom" :min="5" :max="40" :show-tooltip="false" style="width:100px;" />
                 <span style="white-space:nowrap;width:40px;">{{ editForm.page_margin_bottom }}mm</span>
               </div>
             </el-form-item>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <el-form-item label="左边距" label-width="60px">
-              <div style="display:flex;gap:6px;align-items:center;">
-                <el-slider v-model="editForm.page_margin_left" :min="5" :max="40" style="width:100px;" />
+              <div style="display:flex;gap:18px;align-items:center;">
+                <el-slider v-model="editForm.page_margin_left" :min="5" :max="40" :show-tooltip="false" style="width:100px;" />
                 <span style="white-space:nowrap;width:40px;">{{ editForm.page_margin_left }}mm</span>
               </div>
             </el-form-item>
             <el-form-item label="右边距" label-width="60px">
-              <div style="display:flex;gap:6px;align-items:center;">
-                <el-slider v-model="editForm.page_margin_right" :min="5" :max="40" style="width:100px;" />
+              <div style="display:flex;gap:18px;align-items:center;">
+                <el-slider v-model="editForm.page_margin_right" :min="5" :max="40" :show-tooltip="false" style="width:100px;" />
                 <span style="white-space:nowrap;width:40px;">{{ editForm.page_margin_right }}mm</span>
               </div>
             </el-form-item>
@@ -326,19 +326,18 @@ const TemplateManagerView = {
               </el-select>
             </el-form-item>
             <el-form-item label="尺寸" label-width="60px">
-              <el-select v-model="editForm.logo_config.size" style="width:100%;">
-                <el-option label="小" value="small" />
-                <el-option label="中" value="medium" />
-                <el-option label="大" value="large" />
-              </el-select>
+              <div style="display:flex;gap:18px;align-items:center;">
+                <el-slider v-model="editForm.logo_config.size" :min="10" :max="80" :show-tooltip="false" style="width:100px;" />
+                <span style="white-space:nowrap;width:40px;">{{ editForm.logo_config.size }}mm</span>
+              </div>
             </el-form-item>
           </div>
           <el-form-item label="每页显示" label-width="80px">
             <el-switch v-model="editForm.logo_config.show_on_all_pages" />
           </el-form-item>
           <el-form-item label="Logo 边距" label-width="80px">
-            <div style="display:flex;gap:6px;align-items:center;">
-              <el-slider v-model="editForm.logo_config.margin" :min="0" :max="20" style="width:100px;" />
+            <div style="display:flex;gap:18px;align-items:center;">
+              <el-slider v-model="editForm.logo_config.margin" :min="0" :max="20" :show-tooltip="false" style="width:100px;" />
               <span style="white-space:nowrap;width:40px;">{{ editForm.logo_config.margin }}mm</span>
             </div>
           </el-form-item>
@@ -462,7 +461,7 @@ const TemplateManagerView = {
         page_margin_bottom: 18,
         page_margin_left: 18,
         page_margin_right: 18,
-        logo_config: { enabled: true, position: 'top-right', size: 'medium', show_on_all_pages: true, margin: 0 },
+        logo_config: { enabled: true, position: 'top-right', size: 30, show_on_all_pages: true, margin: 0 },
         logo_data_uri: null,
         page_size: 'A4',
       };
@@ -500,7 +499,7 @@ const TemplateManagerView = {
         page_margin_bottom: 18,
         page_margin_left: 18,
         page_margin_right: 18,
-        logo_config: { enabled: true, position: 'top-right', size: 'medium', show_on_all_pages: true, margin: 0 },
+        logo_config: { enabled: true, position: 'top-right', size: 30, show_on_all_pages: true, margin: 0 },
         logo_data_uri: null,
         page_size: template.page_size || 'A4',
       };
@@ -525,6 +524,9 @@ const TemplateManagerView = {
           }
           if (config.logo_config) {
             Object.assign(this.editForm.logo_config, config.logo_config);
+            if (typeof this.editForm.logo_config.size === 'string') {
+              this.editForm.logo_config.size = {small: 20, medium: 30, large: 45}[this.editForm.logo_config.size] || 30;
+            }
           }
           if (config.logo_data_uri) {
             this.editForm.logo_data_uri = config.logo_data_uri;
@@ -655,6 +657,9 @@ const TemplateManagerView = {
       }
       if (form.logo_config && form.logo_config.margin !== undefined) {
         overrides.logo_margin = form.logo_config.margin;
+      }
+      if (form.logo_config && form.logo_config.size !== undefined) {
+        overrides.logo_size = form.logo_config.size;
       }
       return overrides;
     },

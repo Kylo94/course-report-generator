@@ -1,10 +1,13 @@
 """项目扫描 API 路由。"""
 from __future__ import annotations
 
+import shutil
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Body, HTTPException
 
+from backend.config import get_settings
 from backend.schemas.project import (
     FileInfoSchema,
     ProjectMetaSchema,
@@ -132,3 +135,56 @@ async def scan_project(req: ProjectScanRequest) -> ProjectMetaSchema:
         total_lines=meta.total_lines,
         warnings=meta.warnings,
     )
+
+
+@router.post(
+    "/scan-screenshots",
+    response_model=dict,
+    summary="扫描项目 save 文件夹中的截图并自动上传",
+)
+async def scan_save_screenshots(
+    body: dict = Body(default={"folder": ""}),
+) -> dict:
+    """扫描项目文件夹下的 save/ 目录，查找 .png 文件，
+    自动将其复制到截图目录，返回 URL 路径列表供前端直接使用。
+
+    返回: {"screenshots": [{"url": "...", "filename": "..."}, ...]}
+    """
+    folder = (body.get("folder") or "").strip()
+    if not folder:
+        return {"screenshots": []}
+
+    target = Path(folder).expanduser().resolve()
+    if not target.exists() or not target.is_dir():
+        return {"screenshots": []}
+
+    save_dir = target / "save"
+    if not save_dir.exists() or not save_dir.is_dir():
+        return {"screenshots": []}
+
+    settings = get_settings()
+    screenshot_store = Path(settings.report.screenshot_dir)
+    screenshot_store.mkdir(parents=True, exist_ok=True)
+
+    found: list[dict] = []
+    for png_file in sorted(save_dir.iterdir()):
+        if not png_file.is_file() or png_file.suffix.lower() not in (".png", ".jpg", ".jpeg", ".webp"):
+            continue
+
+        # 复制到截图存储目录，使用唯一文件名
+        ext = png_file.suffix.lower()
+        unique_name = f"save_{uuid.uuid4().hex}{ext}"
+        dest = screenshot_store / unique_name
+        try:
+            shutil.copy2(str(png_file), str(dest))
+            url_path = f"/api/assets/screenshots/{unique_name}"
+            log.info("自动上传截图: %s → %s", png_file.name, url_path)
+            found.append({
+                "url": url_path,
+                "filename": png_file.name,
+            })
+        except OSError as e:
+            log.warning("复制截图失败 %s: %s", png_file.name, e)
+
+    log.info("项目截图扫描完成: folder=%s found=%d", folder, len(found))
+    return {"screenshots": found}

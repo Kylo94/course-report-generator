@@ -15,6 +15,9 @@ HOMEWORK_VOCAB_PROMPT = """你是少儿 Python 编程老师。为本节课生成
 【入口文件顶部注释（说明本节课目标和主题）】
 {entry_comment}
 
+【作业引导——如果有，请按此出题；没有则自由发挥】
+{homework_guidance}
+
 【知识点】
 {knowledge_points}
 

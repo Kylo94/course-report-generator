@@ -52,6 +52,7 @@ const Router = {
       classes: '班级管理',
       templates: '模板管理',
       batch: '批量生成',
+      settings: '系统设置',
     };
     return titles[route] || '课程报告生成工具';
   },
