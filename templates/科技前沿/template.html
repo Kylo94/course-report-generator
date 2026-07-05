@@ -161,6 +161,21 @@
       <span class="hw-tag">目标</span>
       <span>{{ homework.goal }}</span>
     </div>
+
+    {% if homework_screenshots and homework_screenshots|length > 0 %}
+    <div class="section-header" style="margin-top:3mm;">
+      <span class="section-icon">◆</span>
+      <span>作业截图</span>
+    </div>
+    <div class="code-screenshots-grid">
+      {% for s in homework_screenshots %}
+      <div class="code-screenshot-item">
+        <img src="{{ s }}" alt="作业截图 {{ loop.index }}">
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     {% if homework.hints %}
     <div class="hw-sub">
       <div class="hw-sub-title">💡 提示</div>

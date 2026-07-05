@@ -317,19 +317,54 @@ const BatchReportView = {
           <!-- 截图上传 -->
           <el-card class="section-card">
             <template #header>📷 截图上传</template>
+
+            <!-- 分类切换 -->
+            <el-radio-group v-model="screenshotCategory" size="small" style="margin-bottom:8px;width:100%;display:flex;">
+              <el-radio-button value="code" style="flex:1;">💻 代码</el-radio-button>
+              <el-radio-button value="homework" style="flex:1;">📝 作业</el-radio-button>
+              <el-radio-button value="general" style="flex:1;">🖼️ 其他</el-radio-button>
+            </el-radio-group>
+
             <el-upload :http-request="handleScreenshotUpload" list-type="picture-card"
               :show-file-list="false" accept="image/jpeg,image/png,image/webp"
               :disabled="screenshotUploading">
               <el-icon><Plus /></el-icon>
             </el-upload>
-            <div class="screenshot-grid">
-              <div v-for="(s, i) in config.screenshot_paths" :key="i" class="screenshot-item">
-                <img :src="s" alt="截图">
+
+            <!-- 代码截图 -->
+            <div v-if="screenshotCategory === 'code'" class="screenshot-grid">
+              <div v-for="(s, i) in config.code_screenshots" :key="'code-'+i" class="screenshot-item">
+                <img :src="s" alt="代码截图">
                 <el-button class="delete-btn" size="small" circle type="danger"
-                  @click="removeScreenshot(i)">
+                  @click="removeScreenshot('code', i)">
                   <el-icon><Close /></el-icon>
                 </el-button>
               </div>
+              <div v-if="config.code_screenshots.length === 0" class="empty-category">暂无代码截图</div>
+            </div>
+
+            <!-- 作业截图 -->
+            <div v-if="screenshotCategory === 'homework'" class="screenshot-grid">
+              <div v-for="(s, i) in config.homework_screenshots" :key="'hw-'+i" class="screenshot-item">
+                <img :src="s" alt="作业截图">
+                <el-button class="delete-btn" size="small" circle type="danger"
+                  @click="removeScreenshot('homework', i)">
+                  <el-icon><Close /></el-icon>
+                </el-button>
+              </div>
+              <div v-if="config.homework_screenshots.length === 0" class="empty-category">暂无作业截图</div>
+            </div>
+
+            <!-- 其他截图 -->
+            <div v-if="screenshotCategory === 'general'" class="screenshot-grid">
+              <div v-for="(s, i) in config.screenshot_paths" :key="'gen-'+i" class="screenshot-item">
+                <img :src="s" alt="截图">
+                <el-button class="delete-btn" size="small" circle type="danger"
+                  @click="removeScreenshot('general', i)">
+                  <el-icon><Close /></el-icon>
+                </el-button>
+              </div>
+              <div v-if="config.screenshot_paths.length === 0" class="empty-category">暂无其他截图</div>
             </div>
           </el-card>
 
@@ -421,10 +456,12 @@ const BatchReportView = {
         output_dir: '',
         screenshot_paths: [],
         code_screenshots: [],
+        homework_screenshots: [],
       },
       classList: [],
       templateList: [],
       screenshotUploading: false,
+      screenshotCategory: 'code',
       batchRunning: false,
       batchProgress: 0,
       batchProgressText: '',
@@ -721,22 +758,15 @@ const BatchReportView = {
       try {
         const result = await API.projects.scanScreenshots({ folder: folderPath });
         // 从 截图/ 目录扫描：{ code_screenshots, homework_screenshots, other_screenshots }
-        const allShots = [
-          ...(result.code_screenshots || []),
-          ...(result.homework_screenshots || []),
-          ...(result.other_screenshots || []),
-        ];
-        // 旧格式兼容：{ screenshots: [...] }
-        const shots = allShots.length > 0 ? allShots : (result.screenshots || []);
-        if (shots.length === 0) return;
-        // 保留代码截图单独存储，用于模板中优先展示
+        // 分别存储到数组中（不再合并成一个列表）
         this.config.code_screenshots = (result.code_screenshots || []).map(s => s.url);
-        for (const s of shots) {
-          if (!this.config.screenshot_paths.includes(s.url)) {
-            this.config.screenshot_paths.push(s.url);
-          }
+        this.config.homework_screenshots = (result.homework_screenshots || []).map(s => s.url);
+        this.config.screenshot_paths = (result.other_screenshots || []).map(s => s.url);
+
+        const totalShots = this.config.code_screenshots.length + this.config.homework_screenshots.length + this.config.screenshot_paths.length;
+        if (totalShots > 0) {
+          this.$message.success(`已扫描到 ${totalShots} 张截图（代码 ${this.config.code_screenshots.length} / 作业 ${this.config.homework_screenshots.length} / 其他 ${this.config.screenshot_paths.length}）`);
         }
-        this.$message.success(`已自动上传 ${shots.length} 张项目截图`);
       } catch (e) {
         console.debug('自动上传截图扫描（可忽略）:', e.message);
       }
@@ -747,7 +777,14 @@ const BatchReportView = {
       this.screenshotUploading = true;
       try {
         const result = await API.assets.uploadScreenshot(options.file);
-        this.config.screenshot_paths.push(result.path);
+        const cat = this.screenshotCategory;
+        if (cat === 'code') {
+          this.config.code_screenshots.push(result.path);
+        } else if (cat === 'homework') {
+          this.config.homework_screenshots.push(result.path);
+        } else {
+          this.config.screenshot_paths.push(result.path);
+        }
         this.$message.success('截图已上传');
       } catch (e) {
         this.$message.error('截图上传失败: ' + e.message);
@@ -756,8 +793,14 @@ const BatchReportView = {
       }
     },
 
-    removeScreenshot(i) {
-      this.config.screenshot_paths.splice(i, 1);
+    removeScreenshot(cat, i) {
+      if (cat === 'code') {
+        this.config.code_screenshots.splice(i, 1);
+      } else if (cat === 'homework') {
+        this.config.homework_screenshots.splice(i, 1);
+      } else {
+        this.config.screenshot_paths.splice(i, 1);
+      }
     },
 
     // ===== AI 重新生成单个字段 =====
@@ -837,6 +880,7 @@ const BatchReportView = {
           auto_export: false,
           screenshot_paths: this.config.screenshot_paths,
           code_screenshots: this.config.code_screenshots,
+          homework_screenshots: this.config.homework_screenshots,
         });
 
         clearInterval(progressTimer);
@@ -903,7 +947,7 @@ const BatchReportView = {
     async exportSinglePdf(row) {
       if (!row.record_id) return;
       try {
-        await API.reports.export(row.record_id, this.config.template_id, null, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots);
+        await API.reports.export(row.record_id, this.config.template_id, null, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots);
         this.$message.success(row.student_name + ' PDF 已导出');
       } catch (e) {
         this.$message.error('导出失败: ' + e.message);
@@ -919,7 +963,7 @@ const BatchReportView = {
       this.previewError = '';
       this.previewLoading = true;
       try {
-        const html = await API.reports.preview(row.record_id, this.config.template_id, null, this.config.screenshot_paths, this.config.code_screenshots);
+        const html = await API.reports.preview(row.record_id, this.config.template_id, null, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots);
         this.previewHtml = html;
       } catch (e) {
         this.previewError = '预览生成失败: ' + e.message;
@@ -939,7 +983,7 @@ const BatchReportView = {
       let count = 0;
       for (const r of records) {
         try {
-          await API.reports.export(r.record_id, this.config.template_id, null, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots);
+          await API.reports.export(r.record_id, this.config.template_id, null, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots);
           count++;
         } catch (e) {
           console.error('导出失败:', r.student_name, e);
@@ -958,10 +1002,9 @@ const BatchReportView = {
       this.wordExporting = true;
       this.$message.info('开始导出 Word（共 ' + records.length + ' 份）...');
       let count = 0;
-      const ss = this.config.screenshot_paths;
       for (const r of records) {
         try {
-          await API.reports.exportWord(r.record_id, this.config.template_id, null, this.config.output_dir, ss);
+          await API.reports.exportWord(r.record_id, this.config.template_id, null, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots);
           count++;
         } catch (e) {
           console.error('导出失败:', r.student_name, e);

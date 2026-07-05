@@ -342,22 +342,54 @@ const ReportEditorView = {
           <!-- 截图上传 -->
           <el-card class="section-card">
             <template #header>📷 截图上传</template>
-            <el-upload
-              :http-request="handleScreenshotUpload"
-              list-type="picture-card"
-              :show-file-list="false"
-              accept="image/jpeg,image/png,image/webp"
-            >
+
+            <!-- 分类切换 -->
+            <el-radio-group v-model="screenshotCategory" size="small" style="margin-bottom:8px;width:100%;display:flex;">
+              <el-radio-button value="code" style="flex:1;">💻 代码</el-radio-button>
+              <el-radio-button value="homework" style="flex:1;">📝 作业</el-radio-button>
+              <el-radio-button value="general" style="flex:1;">🖼️ 其他</el-radio-button>
+            </el-radio-group>
+
+            <el-upload :http-request="handleScreenshotUpload" list-type="picture-card"
+              :show-file-list="false" accept="image/jpeg,image/png,image/webp"
+              :disabled="screenshotUploading">
               <el-icon><Plus /></el-icon>
             </el-upload>
-            <div class="screenshot-grid">
-              <div v-for="(s, i) in form.screenshot_paths" :key="i" class="screenshot-item">
-                <img :src="s" alt="截图">
+
+            <!-- 代码截图 -->
+            <div v-if="screenshotCategory === 'code'" class="screenshot-grid">
+              <div v-for="(s, i) in form.code_screenshots" :key="'code-'+i" class="screenshot-item">
+                <img :src="s" alt="代码截图">
                 <el-button class="delete-btn" size="small" circle type="danger"
-                  @click="removeScreenshot(i)">
+                  @click="removeScreenshot('code', i)">
                   <el-icon><Close /></el-icon>
                 </el-button>
               </div>
+              <div v-if="form.code_screenshots.length === 0" class="empty-category">暂无代码截图</div>
+            </div>
+
+            <!-- 作业截图 -->
+            <div v-if="screenshotCategory === 'homework'" class="screenshot-grid">
+              <div v-for="(s, i) in form.homework_screenshots" :key="'hw-'+i" class="screenshot-item">
+                <img :src="s" alt="作业截图">
+                <el-button class="delete-btn" size="small" circle type="danger"
+                  @click="removeScreenshot('homework', i)">
+                  <el-icon><Close /></el-icon>
+                </el-button>
+              </div>
+              <div v-if="form.homework_screenshots.length === 0" class="empty-category">暂无作业截图</div>
+            </div>
+
+            <!-- 其他截图 -->
+            <div v-if="screenshotCategory === 'general'" class="screenshot-grid">
+              <div v-for="(s, i) in form.screenshot_paths" :key="'gen-'+i" class="screenshot-item">
+                <img :src="s" alt="截图">
+                <el-button class="delete-btn" size="small" circle type="danger"
+                  @click="removeScreenshot('general', i)">
+                  <el-icon><Close /></el-icon>
+                </el-button>
+              </div>
+              <div v-if="form.screenshot_paths.length === 0" class="empty-category">暂无其他截图</div>
             </div>
           </el-card>
 
@@ -510,6 +542,10 @@ const ReportEditorView = {
       dirBrowserError: null,
       _dirBrowserMode: 'project',
 
+      // 截图分类
+      screenshotCategory: 'code',
+      screenshotUploading: false,
+
       // PDF 导出
       pdfDownloadUrl: '',
 
@@ -593,6 +629,7 @@ const ReportEditorView = {
         evaluation: '',
         screenshot_paths: [],
         code_screenshots: [],
+        homework_screenshots: [],
         logo_config: { enabled: true, position: 'top-right', size: 30, show_on_all_pages: true, margin: 0 },
         layout_config: null,  // 布局设置，存储为 {primary_color, font_title, ...}
         status: 'draft',
@@ -639,6 +676,14 @@ const ReportEditorView = {
         this.form.vocabulary = record.vocabulary || { word: '', phonetic: '', meaning: '', example: '' };
         this.form.evaluation = record.evaluation || '';
         this.form.screenshot_paths = record.screenshot_paths || [];
+        // 从 project_meta 中恢复分类截图信息（如果有）
+        this.form.code_screenshots = [];
+        this.form.homework_screenshots = [];
+        if (record.project_meta && record.project_meta._extra_screenshots) {
+          const extra = record.project_meta._extra_screenshots;
+          if (extra.code) this.form.code_screenshots = extra.code;
+          if (extra.homework) this.form.homework_screenshots = extra.homework;
+        }
         this.form.logo_config = { ...this.form.logo_config, ...(record.logo_config || {}) };
         if (typeof this.form.logo_config.size === 'string') {
           this.form.logo_config.size = {small: 20, medium: 30, large: 45}[this.form.logo_config.size] || 30;
@@ -756,18 +801,34 @@ const ReportEditorView = {
     // 截图操作
     // =====================
     async handleScreenshotUpload(options) {
+      this.screenshotUploading = true;
       try {
         const result = await API.assets.uploadScreenshot(options.file);
-        this.form.screenshot_paths.push(result.path);
+        const cat = this.screenshotCategory;
+        if (cat === 'code') {
+          this.form.code_screenshots.push(result.path);
+        } else if (cat === 'homework') {
+          this.form.homework_screenshots.push(result.path);
+        } else {
+          this.form.screenshot_paths.push(result.path);
+        }
         this.markDirty();
         this.$message.success('截图已上传');
       } catch (e) {
         this.$message.error('上传失败: ' + e.message);
+      } finally {
+        this.screenshotUploading = false;
       }
     },
 
-    removeScreenshot(i) {
-      this.form.screenshot_paths.splice(i, 1);
+    removeScreenshot(cat, i) {
+      if (cat === 'code') {
+        this.form.code_screenshots.splice(i, 1);
+      } else if (cat === 'homework') {
+        this.form.homework_screenshots.splice(i, 1);
+      } else {
+        this.form.screenshot_paths.splice(i, 1);
+      }
       this.markDirty();
     },
 
@@ -896,23 +957,16 @@ const ReportEditorView = {
       try {
         const result = await API.projects.scanScreenshots({ folder: folderPath });
         // 从 截图/ 目录扫描：{ code_screenshots, homework_screenshots, other_screenshots }
-        const allShots = [
-          ...(result.code_screenshots || []),
-          ...(result.homework_screenshots || []),
-          ...(result.other_screenshots || []),
-        ];
-        // 旧格式兼容：{ screenshots: [...] }
-        const shots = allShots.length > 0 ? allShots : (result.screenshots || []);
-        if (shots.length === 0) return;
-        // 保留代码截图单独存储，用于模板中优先展示
+        // 分别存储到数组中（不再合并成一个列表）
         this.form.code_screenshots = (result.code_screenshots || []).map(s => s.url);
-        for (const s of shots) {
-          if (!this.form.screenshot_paths.includes(s.url)) {
-            this.form.screenshot_paths.push(s.url);
-          }
+        this.form.homework_screenshots = (result.homework_screenshots || []).map(s => s.url);
+        this.form.screenshot_paths = (result.other_screenshots || []).map(s => s.url);
+
+        const totalShots = this.form.code_screenshots.length + this.form.homework_screenshots.length + this.form.screenshot_paths.length;
+        if (totalShots > 0) {
+          this.markDirty();
+          this.$message.success(`已扫描到 ${totalShots} 张截图（代码 ${this.form.code_screenshots.length} / 作业 ${this.form.homework_screenshots.length} / 其他 ${this.form.screenshot_paths.length}）`);
         }
-        this.markDirty();
-        this.$message.success(`已自动上传 ${shots.length} 张项目截图`);
       } catch (e) {
         // 静默失败 — 截图/ 目录不存在时不打扰用户
         console.debug('自动上传截图扫描（可忽略）:', e.message);
@@ -1070,7 +1124,8 @@ const ReportEditorView = {
       try {
         const ss = this.form && this.form.screenshot_paths;
         const css = this.form && this.form.code_screenshots;
-        const result = await API.reports.exportWord(this.recordId, this.selectedTemplate, null, this.outputDir, ss, css);
+        const hss = this.form && this.form.homework_screenshots;
+        const result = await API.reports.exportWord(this.recordId, this.selectedTemplate, null, this.outputDir, ss, css, hss);
         window.open(result.docx_path, '_blank');
         if (result.custom_path) {
           this.$message.success('Word 已保存到: ' + result.custom_path);
@@ -1168,7 +1223,8 @@ const ReportEditorView = {
         }
         const ss = this.form && this.form.screenshot_paths;
         const css = this.form && this.form.code_screenshots;
-        const result = await API.reports.export(this.recordId, this.selectedTemplate, null, this.outputDir, ss, css);
+        const hss = this.form && this.form.homework_screenshots;
+        const result = await API.reports.export(this.recordId, this.selectedTemplate, null, this.outputDir, ss, css, hss);
         this.form.status = 'finalized';
         this.pdfDownloadUrl = result.pdf_path;
 
@@ -1270,7 +1326,8 @@ const ReportEditorView = {
       try {
         const ss = this.form && this.form.screenshot_paths;
         const css = this.form && this.form.code_screenshots;
-        const html = await API.reports.preview(this.recordId, this.selectedTemplate, null, ss, css);
+        const hss = this.form && this.form.homework_screenshots;
+        const html = await API.reports.preview(this.recordId, this.selectedTemplate, null, ss, css, hss);
         this.previewHtml = html;
       } catch (e) {
         this.previewError = '预览生成失败: ' + e.message;

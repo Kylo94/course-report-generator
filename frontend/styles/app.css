@@ -386,6 +386,16 @@ body {
   right: 4px;
 }
 
+.empty-category {
+  padding: 20px;
+  text-align: center;
+  color: #c0c4cc;
+  font-size: 13px;
+  border: 1px dashed #dcdfe6;
+  border-radius: 6px;
+  margin-top: 8px;
+}
+
 /* ==================== 知识点标签 ==================== */
 .kp-tags {
   display: flex;

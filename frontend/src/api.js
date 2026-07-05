@@ -70,30 +70,33 @@ const API = {
     delete(id) { return API.delete(`/api/reports/${id}`); },
     batchDelete(ids) { return API.post('/api/reports/batch-delete', { ids }); },
     updateStatus(id, status) { return API.patch(`/api/reports/${id}/status`, { status }); },
-    export(id, templateId = 'classic', layoutConfig = null, outputDir = null, screenshotPaths = null, codeScreenshots = null) {
+    export(id, templateId = 'classic', layoutConfig = null, outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null) {
       const body = { template_id: templateId };
       if (layoutConfig) body.layout_config = layoutConfig;
       if (outputDir) body.output_dir = outputDir;
       if (screenshotPaths && screenshotPaths.length > 0) body.screenshot_paths = screenshotPaths;
       if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
+      if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
       return API.post(`/api/reports/${id}/export`, body);
     },
-    exportWord(id, templateId = 'classic', layoutConfig = null, outputDir = null, screenshotPaths = null, codeScreenshots = null) {
+    exportWord(id, templateId = 'classic', layoutConfig = null, outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null) {
       const body = { template_id: templateId };
       if (layoutConfig) body.layout_config = layoutConfig;
       if (outputDir) body.output_dir = outputDir;
       if (screenshotPaths && screenshotPaths.length > 0) body.screenshot_paths = screenshotPaths;
       if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
+      if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
       return API.post(`/api/reports/${id}/export-word`, body);
     },
     batchGenerate(data) { return API.post('/api/reports/batch', data); },
 
-    preview(id, templateId = 'classic', layoutConfig = null, screenshotPaths = null, codeScreenshots = null) {
+    preview(id, templateId = 'classic', layoutConfig = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null) {
       // 预览接口返回 HTML（非 JSON），需要用 fetch 直接获取文本
       const body = { template_id: templateId };
       if (layoutConfig) body.layout_config = layoutConfig;
       if (screenshotPaths && screenshotPaths.length > 0) body.screenshot_paths = screenshotPaths;
       if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
+      if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
       return fetch(API.baseURL + `/api/reports/${id}/preview`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

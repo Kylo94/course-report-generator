@@ -189,10 +189,12 @@ class ReportRenderer:
         student_name: str = "",
         layout_config: dict | None = None,
         code_screenshots: list[str] | None = None,
+        homework_screenshots: list[str] | None = None,
     ) -> str:
         """渲染完整报告 HTML。
 
         code_screenshots: 代码截图 URL 列表，模板中优先显示图片而非 code_excerpt 文本。
+        homework_screenshots: 作业截图 URL 列表，模板中在作业区域展示图片。
         """
 
         # 合并布局覆盖与主题
@@ -376,6 +378,19 @@ class ReportRenderer:
                 else:
                     resolved_code_screenshots.append(s)
 
+        # 处理作业截图：URL → data URI
+        resolved_homework_screenshots: list[str] = []
+        if homework_screenshots:
+            for s in homework_screenshots:
+                if not isinstance(s, str):
+                    continue
+                fs_path = _url_to_fs_path(s)
+                if fs_path:
+                    data_uri = _image_to_data_uri(fs_path)
+                    resolved_homework_screenshots.append(data_uri or fs_path)
+                else:
+                    resolved_homework_screenshots.append(s)
+
         # 模板上下文
         ctx = {
             "css_content": self.css_content,
@@ -393,6 +408,7 @@ class ReportRenderer:
             "logo": logo_data,
             "code_excerpt": code_excerpt,
             "code_screenshots": resolved_code_screenshots,
+            "homework_screenshots": resolved_homework_screenshots,
         }
 
         # 使用 Jinja2 渲染

@@ -435,6 +435,16 @@ async def export_report(
 
     # 提取代码截图（单独传递给模板，用于图片展示）
     body_code_screenshots = body.get("code_screenshots")
+    body_homework_screenshots = body.get("homework_screenshots")
+
+    # 如果请求中没有传入分类截图，尝试从 project_meta 中恢复
+    if not body_code_screenshots and not body_homework_screenshots:
+        _pm = _load_json(getattr(record, "project_meta", None), {})
+        _extra = _pm.get("_extra_screenshots", {})
+        if not body_code_screenshots:
+            body_code_screenshots = _extra.get("code", [])
+        if not body_homework_screenshots:
+            body_homework_screenshots = _extra.get("homework", [])
 
     # 2. 获取学生名
     student_name = ""
@@ -461,6 +471,7 @@ async def export_report(
         student_name=student_name,
         layout_config=layout_config,
         code_screenshots=body_code_screenshots,
+        homework_screenshots=body_homework_screenshots,
     )
 
     # 4. 生成 PDF（先保存到默认目录用于下载链接）
@@ -840,12 +851,20 @@ async def batch_generate_reports(
         elif eval_result is None:
             error_text = "评价生成为空"
 
+        # 附加截图分类信息到 project_meta 以便后续预览/导出时区分
+        _pm_dict = project_meta.model_dump() if project_meta else {}
+        if body.code_screenshots or body.homework_screenshots:
+            _pm_dict["_extra_screenshots"] = {
+                "code": list(body.code_screenshots),
+                "homework": list(body.homework_screenshots),
+            }
+
         records_data.append({
             "student_id": student.id,
             "course_date": course_date,
             "course_topic": course_topic,
             "project_folder": body.project_folder,
-            "project_meta": json.dumps(project_meta.model_dump() if project_meta else None, ensure_ascii=False),
+            "project_meta": json.dumps(_pm_dict, ensure_ascii=False),
             "knowledge_points": serialized_kp,
             "ability_improvement": shared.get("ability_improvement", ""),
             "content_items": serialized_content,
@@ -855,7 +874,7 @@ async def batch_generate_reports(
             "status": "draft",
             "template_id": body.template_id,
             "screenshot_paths": json.dumps(
-                list(body.code_screenshots) + list(body.homework_screenshots) + list(body.screenshot_paths),
+                list(body.screenshot_paths),
                 ensure_ascii=False,
             ),
             "logo_config": json.dumps(_resolve_logo_config(body.template_id), ensure_ascii=False),
@@ -896,7 +915,7 @@ async def batch_generate_reports(
                 student_name = results[i].student_name if i < len(results) else "学生"
                 template_id = body.template_id
                 renderer = ReportRenderer(template_id)
-                html = renderer.render(rec, student_name=student_name, code_screenshots=body.code_screenshots)
+                html = renderer.render(rec, student_name=student_name, code_screenshots=body.code_screenshots, homework_screenshots=body.homework_screenshots)
 
                 has_custom_dir = bool(body.output_dir or settings.report.custom_output_dir or body.project_folder)
                 if has_custom_dir:
@@ -981,8 +1000,18 @@ async def preview_report(
     else:
         log.info("预览: 请求体中没有 screenshot_paths，使用 DB 原始值 (type=%s)", type(record.screenshot_paths).__name__)
 
-    # 提取代码截图
+    # 提取代码截图和作业截图
     body_code_screenshots = body.get("code_screenshots")
+    body_homework_screenshots = body.get("homework_screenshots")
+
+    # 如果请求中没有传入分类截图，尝试从 project_meta 中恢复
+    if not body_code_screenshots and not body_homework_screenshots:
+        _pm = _load_json(getattr(record, "project_meta", None), {})
+        _extra = _pm.get("_extra_screenshots", {})
+        if not body_code_screenshots:
+            body_code_screenshots = _extra.get("code", [])
+        if not body_homework_screenshots:
+            body_homework_screenshots = _extra.get("homework", [])
 
     student_name = ""
     if record.student_id:
@@ -999,7 +1028,7 @@ async def preview_report(
     except TemplateNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    html = renderer.render(record, student_name=student_name, layout_config=layout_config, code_screenshots=body_code_screenshots)
+    html = renderer.render(record, student_name=student_name, layout_config=layout_config, code_screenshots=body_code_screenshots, homework_screenshots=body_homework_screenshots)
     html = wrap_preview_html(html)
     return Response(content=html, media_type="text/html; charset=utf-8")
 
