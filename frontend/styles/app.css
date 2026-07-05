@@ -175,9 +175,6 @@ body {
 .btn-feature {
   background: linear-gradient(135deg, var(--primary), var(--primary-dark)) !important;
   border: none !important;
-  font-size: 15px !important;
-  padding: 12px 28px !important;
-  letter-spacing: 0.5px;
   box-shadow: 0 4px 12px rgba(64, 158, 255, 0.35);
   transition: all 0.25s ease !important;
   border-radius: 8px !important;

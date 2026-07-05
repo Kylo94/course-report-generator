@@ -1264,6 +1264,7 @@ const ReportEditorView = {
 
     async refreshPreview() {
       if (!this.recordId) return;
+      this.showPreviewDialog = true;
       this.previewLoading = true;
       this.previewError = '';
       try {
