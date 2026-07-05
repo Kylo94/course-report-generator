@@ -193,6 +193,28 @@ body {
   border-radius: 0 4px 4px 0;
 }
 
+/* ===== 代码截图网格 ===== */
+.code-screenshots-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4mm;
+  margin: 0 4mm 5mm;
+  justify-content: center;
+}
+.code-screenshot-item {
+  flex: 1 1 120mm;
+  max-width: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.code-screenshot-item img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
 /* ===== 代码块 ===== */
 .code-block {
   margin: 0 4mm 5mm;

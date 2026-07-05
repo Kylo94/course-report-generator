@@ -188,8 +188,12 @@ class ReportRenderer:
         record,
         student_name: str = "",
         layout_config: dict | None = None,
+        code_screenshots: list[str] | None = None,
     ) -> str:
-        """渲染完整报告 HTML。"""
+        """渲染完整报告 HTML。
+
+        code_screenshots: 代码截图 URL 列表，模板中优先显示图片而非 code_excerpt 文本。
+        """
 
         # 合并布局覆盖与主题
         merged = merge_layout_with_theme(self.config, layout_config)
@@ -359,6 +363,19 @@ class ReportRenderer:
             except Exception as e:
                 log.warning("提取代码片段失败: %s", e)
 
+        # 处理代码截图：URL → data URI（模板优先显示图片）
+        resolved_code_screenshots: list[str] = []
+        if code_screenshots:
+            for s in code_screenshots:
+                if not isinstance(s, str):
+                    continue
+                fs_path = _url_to_fs_path(s)
+                if fs_path:
+                    data_uri = _image_to_data_uri(fs_path)
+                    resolved_code_screenshots.append(data_uri or fs_path)
+                else:
+                    resolved_code_screenshots.append(s)
+
         # 模板上下文
         ctx = {
             "css_content": self.css_content,
@@ -375,6 +392,7 @@ class ReportRenderer:
             "screenshots": resolved_screenshots,
             "logo": logo_data,
             "code_excerpt": code_excerpt,
+            "code_screenshots": resolved_code_screenshots,
         }
 
         # 使用 Jinja2 渲染

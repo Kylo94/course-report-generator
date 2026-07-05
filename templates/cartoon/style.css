@@ -271,6 +271,28 @@ body {
   color: #A07658;
 }
 
+/* ===== 代码截图网格 ===== */
+.code-screenshots-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4mm;
+  margin: 4mm 0;
+  justify-content: center;
+}
+.code-screenshot-item {
+  flex: 1 1 120mm;
+  max-width: 100%;
+  border-radius: 8mm;
+  overflow: hidden;
+  border: 2px solid #FFD0C0;
+  box-shadow: 0 2px 8px rgba(255,107,107,0.08);
+}
+.code-screenshot-item img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
 /* ===== 代码展示 ===== */
 .code-block {
   background: #1e1e2e;

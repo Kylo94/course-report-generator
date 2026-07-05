@@ -433,6 +433,9 @@ async def export_report(
     else:
         log.info("PDF导出: 请求体中没有 screenshot_paths，使用 DB 中的原始值 (type=%s)", type(record.screenshot_paths).__name__)
 
+    # 提取代码截图（单独传递给模板，用于图片展示）
+    body_code_screenshots = body.get("code_screenshots")
+
     # 2. 获取学生名
     student_name = ""
     if record.student_id:
@@ -453,7 +456,12 @@ async def export_report(
     except TemplateNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    html = renderer.render(record, student_name=student_name, layout_config=layout_config)
+    html = renderer.render(
+        record,
+        student_name=student_name,
+        layout_config=layout_config,
+        code_screenshots=body_code_screenshots,
+    )
 
     # 4. 生成 PDF（先保存到默认目录用于下载链接）
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -888,7 +896,7 @@ async def batch_generate_reports(
                 student_name = results[i].student_name if i < len(results) else "学生"
                 template_id = body.template_id
                 renderer = ReportRenderer(template_id)
-                html = renderer.render(rec, student_name=student_name)
+                html = renderer.render(rec, student_name=student_name, code_screenshots=body.code_screenshots)
 
                 has_custom_dir = bool(body.output_dir or settings.report.custom_output_dir or body.project_folder)
                 if has_custom_dir:
@@ -973,6 +981,9 @@ async def preview_report(
     else:
         log.info("预览: 请求体中没有 screenshot_paths，使用 DB 原始值 (type=%s)", type(record.screenshot_paths).__name__)
 
+    # 提取代码截图
+    body_code_screenshots = body.get("code_screenshots")
+
     student_name = ""
     if record.student_id:
         try:
@@ -988,7 +999,7 @@ async def preview_report(
     except TemplateNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    html = renderer.render(record, student_name=student_name, layout_config=layout_config)
+    html = renderer.render(record, student_name=student_name, layout_config=layout_config, code_screenshots=body_code_screenshots)
     html = wrap_preview_html(html)
     return Response(content=html, media_type="text/html; charset=utf-8")
 

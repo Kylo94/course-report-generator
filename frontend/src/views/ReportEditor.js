@@ -587,6 +587,7 @@ const ReportEditorView = {
         vocabulary: { word: '', phonetic: '', meaning: '', example: '' },
         evaluation: '',
         screenshot_paths: [],
+        code_screenshots: [],
         logo_config: { enabled: true, position: 'top-right', size: 30, show_on_all_pages: true, margin: 0 },
         layout_config: null,  // 布局设置，存储为 {primary_color, font_title, ...}
         status: 'draft',
@@ -898,6 +899,8 @@ const ReportEditorView = {
         // 旧格式兼容：{ screenshots: [...] }
         const shots = allShots.length > 0 ? allShots : (result.screenshots || []);
         if (shots.length === 0) return;
+        // 保留代码截图单独存储，用于模板中优先展示
+        this.form.code_screenshots = (result.code_screenshots || []).map(s => s.url);
         for (const s of shots) {
           if (!this.form.screenshot_paths.includes(s.url)) {
             this.form.screenshot_paths.push(s.url);
@@ -1061,7 +1064,8 @@ const ReportEditorView = {
       this.wordExporting = true;
       try {
         const ss = this.form && this.form.screenshot_paths;
-        const result = await API.reports.exportWord(this.recordId, this.selectedTemplate, null, this.outputDir, ss);
+        const css = this.form && this.form.code_screenshots;
+        const result = await API.reports.exportWord(this.recordId, this.selectedTemplate, null, this.outputDir, ss, css);
         window.open(result.docx_path, '_blank');
         if (result.custom_path) {
           this.$message.success('Word 已保存到: ' + result.custom_path);
@@ -1158,7 +1162,8 @@ const ReportEditorView = {
           await this.saveDraft();
         }
         const ss = this.form && this.form.screenshot_paths;
-        const result = await API.reports.export(this.recordId, this.selectedTemplate, null, this.outputDir, ss);
+        const css = this.form && this.form.code_screenshots;
+        const result = await API.reports.export(this.recordId, this.selectedTemplate, null, this.outputDir, ss, css);
         this.form.status = 'finalized';
         this.pdfDownloadUrl = result.pdf_path;
 
@@ -1258,7 +1263,8 @@ const ReportEditorView = {
       this.previewError = '';
       try {
         const ss = this.form && this.form.screenshot_paths;
-        const html = await API.reports.preview(this.recordId, this.selectedTemplate, null, ss);
+        const css = this.form && this.form.code_screenshots;
+        const html = await API.reports.preview(this.recordId, this.selectedTemplate, null, ss, css);
         this.previewHtml = html;
       } catch (e) {
         this.previewError = '预览生成失败: ' + e.message;

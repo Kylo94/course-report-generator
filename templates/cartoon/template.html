@@ -57,7 +57,17 @@
   </div>
   {% endfor %}
 
-  {% if code_excerpt %}
+  <!-- 代码展示：优先显示代码截图，没有截图则显示文本 -->
+  {% if code_screenshots and code_screenshots|length > 0 %}
+  <div class="section-title">💻 本节课代码展示</div>
+  <div class="code-screenshots-grid">
+    {% for s in code_screenshots %}
+    <div class="code-screenshot-item">
+      <img src="{{ s }}" alt="代码截图 {{ loop.index }}">
+    </div>
+    {% endfor %}
+  </div>
+  {% elif code_excerpt %}
   <div class="section-title">💻 本节课代码展示</div>
   <div class="code-block">
     <pre><code>{{ code_excerpt | e }}</code></pre>

@@ -420,6 +420,7 @@ const BatchReportView = {
         template_id: 'classic',
         output_dir: '',
         screenshot_paths: [],
+        code_screenshots: [],
       },
       classList: [],
       templateList: [],
@@ -728,6 +729,8 @@ const BatchReportView = {
         // 旧格式兼容：{ screenshots: [...] }
         const shots = allShots.length > 0 ? allShots : (result.screenshots || []);
         if (shots.length === 0) return;
+        // 保留代码截图单独存储，用于模板中优先展示
+        this.config.code_screenshots = (result.code_screenshots || []).map(s => s.url);
         for (const s of shots) {
           if (!this.config.screenshot_paths.includes(s.url)) {
             this.config.screenshot_paths.push(s.url);
@@ -833,6 +836,7 @@ const BatchReportView = {
           output_dir: this.config.output_dir || null,
           auto_export: false,
           screenshot_paths: this.config.screenshot_paths,
+          code_screenshots: this.config.code_screenshots,
         });
 
         clearInterval(progressTimer);
@@ -899,7 +903,7 @@ const BatchReportView = {
     async exportSinglePdf(row) {
       if (!row.record_id) return;
       try {
-        await API.reports.export(row.record_id, this.config.template_id, null, this.config.output_dir, this.config.screenshot_paths);
+        await API.reports.export(row.record_id, this.config.template_id, null, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots);
         this.$message.success(row.student_name + ' PDF 已导出');
       } catch (e) {
         this.$message.error('导出失败: ' + e.message);
@@ -915,7 +919,7 @@ const BatchReportView = {
       this.previewError = '';
       this.previewLoading = true;
       try {
-        const html = await API.reports.preview(row.record_id, this.config.template_id, null, this.config.screenshot_paths);
+        const html = await API.reports.preview(row.record_id, this.config.template_id, null, this.config.screenshot_paths, this.config.code_screenshots);
         this.previewHtml = html;
       } catch (e) {
         this.previewError = '预览生成失败: ' + e.message;
@@ -935,7 +939,7 @@ const BatchReportView = {
       let count = 0;
       for (const r of records) {
         try {
-          await API.reports.export(r.record_id, this.config.template_id, null, this.config.output_dir, this.config.screenshot_paths);
+          await API.reports.export(r.record_id, this.config.template_id, null, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots);
           count++;
         } catch (e) {
           console.error('导出失败:', r.student_name, e);
