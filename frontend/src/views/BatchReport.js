@@ -281,7 +281,7 @@ const BatchReportView = {
               </el-form>
 
               <el-button type="primary" class="btn-feature" @click="batchGenerate" :loading="batchRunning"
-                :disabled="!config.class_id" size="large">
+                :disabled="!config.class_id">
                 🚀 批量生成{{ studentCount > 0 ? '（' + studentCount + '人）' : '' }}
               </el-button>
               <div v-if="batchRunning" style="text-align:center;color:#409eff;font-size:13px;">

@@ -277,11 +277,16 @@ const ReportEditorView = {
           <el-card class="section-card">
             <template #header>⚙️ 操作</template>
             <div style="display:flex;flex-direction:column;gap:8px;">
-              <el-button type="primary" class="btn-feature" @click="generateAll" :loading="aiGenerating" size="large">
+              <el-button type="primary" class="btn-feature" @click="generateAll" :loading="aiGenerating">
                 🤖 一键生成报告
               </el-button>
-              <el-button type="primary" @click="saveDraft" :loading="saving">
+              <el-button type="primary" plain @click="saveDraft" :loading="saving">
                 💾 保存草稿
+              </el-button>
+
+              <!-- 预览 -->
+              <el-button type="primary" plain @click="refreshPreview" :loading="previewLoading" :disabled="!recordId">
+                👁️ 预览报告
               </el-button>
 
               <!-- 输出目录设置 -->
@@ -301,7 +306,7 @@ const ReportEditorView = {
                 </el-form-item>
               </el-form>
 
-              <el-button type="success" @click="exportPdf" :loading="exporting" :disabled="aiGenerating">
+              <el-button type="success" @click="exportPdf" :loading="exporting" :disabled="!recordId || aiGenerating">
                 📄 导出 PDF
               </el-button>
               <div v-if="pdfDownloadUrl" style="margin-top:4px;">
@@ -312,13 +317,13 @@ const ReportEditorView = {
                   </template>
                 </el-alert>
               </div>
-              <el-button type="warning" @click="exportWord" :loading="wordExporting">
+              <el-button type="warning" @click="exportWord" :loading="wordExporting" :disabled="!recordId">
                 📝 导出 Word
               </el-button>
-              <el-button type="info" @click="showImportDialog = true">
+              <el-button plain @click="showImportDialog = true">
                 📂 导入 Word
               </el-button>
-              <el-button type="danger" plain @click="confirmDeleteRecord">
+              <el-button type="danger" plain @click="confirmDeleteRecord" :disabled="!recordId">
                 🗑️ 删除
               </el-button>
             </div>
