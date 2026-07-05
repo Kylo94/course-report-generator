@@ -701,8 +701,8 @@ const BatchReportView = {
         this.config.project_folder = this.dirBrowserPath;
         // 自动识别项目名称：取路径最后一级作为课程名
         this._autoFillCourseName(this.dirBrowserPath);
-        // 自动检测 save/ 文件夹中的截图并上传
-        this._autoUploadSaveScreenshots(this.dirBrowserPath);
+        // 自动检测 截图/ 文件夹中的截图并上传
+        this._autoUploadScreenshots(this.dirBrowserPath);
       }
       this.showDirBrowser = false;
     },
@@ -717,11 +717,11 @@ const BatchReportView = {
       }
     },
 
-    async _autoUploadSaveScreenshots(folderPath) {
+    async _autoUploadScreenshots(folderPath) {
       if (!folderPath) return;
       try {
         const result = await API.projects.scanScreenshots({ folder: folderPath });
-        // 新格式：{ code_screenshots, homework_screenshots, other_screenshots }
+        // 从 截图/ 目录扫描：{ code_screenshots, homework_screenshots, other_screenshots }
         const allShots = [
           ...(result.code_screenshots || []),
           ...(result.homework_screenshots || []),

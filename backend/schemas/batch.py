@@ -16,9 +16,9 @@ class BatchGenerateRequest(BaseModel):
     output_dir: str | None = None
     auto_export: bool = False
     screenshot_paths: list[str] = []
-    # === 截图分类（save/ 目录扫描后填充） ===
-    code_screenshots: list[str] = []      # 代码截图 URL（save/代码*.png）
-    homework_screenshots: list[str] = []  # 作业截图 URL（save/作业*.png）
+    # === 截图分类（截图/ 目录扫描后填充） ===
+    code_screenshots: list[str] = []      # 代码/运行截图 URL（截图/run.png, code*.png）
+    homework_screenshots: list[str] = []  # 作业截图 URL（截图/homework*.png）
     # === AI 步骤开关 ===
     create_vocabulary: bool = True  # 是否生成单词卡
     skip_code_analysis: bool = False  # 是否有代码截图 → 跳过程序解析

@@ -788,8 +788,8 @@ const ReportEditorView = {
           this.form.course_topic = meta.course_title;
         }
         this.markDirty();
-        // 扫描后自动检测 save/ 截图
-        this._autoUploadSaveScreenshots(this.form.project_folder);
+        // 扫描后自动检测 截图/ 目录
+        this._autoUploadScreenshots(this.form.project_folder);
       } catch (e) {
         this.$message.error('项目扫描失败: ' + e.message);
       } finally {
@@ -874,8 +874,8 @@ const ReportEditorView = {
         this.$message.success('已选择文件夹: ' + this.dirBrowserPath);
         // 自动识别项目名称：取路径最后一级作为课程名
         this._autoFillCourseName(this.dirBrowserPath);
-        // 自动检测 save/ 文件夹中的截图并上传
-        this._autoUploadSaveScreenshots(this.dirBrowserPath);
+        // 自动检测 截图/ 文件夹中的截图并上传
+        this._autoUploadScreenshots(this.dirBrowserPath);
       }
       this.showDirBrowser = false;
     },
@@ -891,11 +891,11 @@ const ReportEditorView = {
       }
     },
 
-    async _autoUploadSaveScreenshots(folderPath) {
+    async _autoUploadScreenshots(folderPath) {
       if (!folderPath) return;
       try {
         const result = await API.projects.scanScreenshots({ folder: folderPath });
-        // 新格式：{ code_screenshots, homework_screenshots, other_screenshots }
+        // 从 截图/ 目录扫描：{ code_screenshots, homework_screenshots, other_screenshots }
         const allShots = [
           ...(result.code_screenshots || []),
           ...(result.homework_screenshots || []),
@@ -912,7 +912,7 @@ const ReportEditorView = {
         this.markDirty();
         this.$message.success(`已自动上传 ${shots.length} 张项目截图`);
       } catch (e) {
-        // 静默失败 — save 目录不存在时不打扰用户
+        // 静默失败 — 截图/ 目录不存在时不打扰用户
         console.debug('自动上传截图扫描（可忽略）:', e.message);
       }
     },

@@ -140,18 +140,19 @@ async def scan_project(req: ProjectScanRequest) -> ProjectMetaSchema:
 @router.post(
     "/scan-screenshots",
     response_model=dict,
-    summary="扫描项目 save 文件夹中的截图并自动上传",
+    summary="扫描项目 截图/ 文件夹中的截图并自动上传",
 )
 async def scan_save_screenshots(
     body: dict = Body(default={"folder": ""}),
 ) -> dict:
-    """扫描项目文件夹下的 save/ 目录，查找 .png 文件，
+    """扫描项目文件夹下的 截图/ 目录，查找图片文件，
     自动将其复制到截图目录，返回 URL 路径列表供前端直接使用。
 
     按文件名分类：
-    - 代码*.png / code*.png → code_screenshots
-    - 作业*.png / homework*.png → homework_screenshots
-    - 其他 → other_screenshots
+    - run.png / 运行截图.*       → code_screenshots（程序运行结果截图）
+    - code*.png / 代码*.png     → code_screenshots
+    - homework*.png / 作业*.png → homework_screenshots
+    - 其他                     → other_screenshots
 
     返回: {
       "code_screenshots": [...],
@@ -167,7 +168,7 @@ async def scan_save_screenshots(
     if not target.exists() or not target.is_dir():
         return {"code_screenshots": [], "homework_screenshots": [], "other_screenshots": []}
 
-    save_dir = target / "save"
+    save_dir = target / "截图"
     if not save_dir.exists() or not save_dir.is_dir():
         return {"code_screenshots": [], "homework_screenshots": [], "other_screenshots": []}
 
@@ -184,7 +185,7 @@ async def scan_save_screenshots(
             continue
 
         ext = png_file.suffix.lower()
-        unique_name = f"save_{uuid.uuid4().hex}{ext}"
+        unique_name = f"screenshot_{uuid.uuid4().hex}{ext}"
         dest = screenshot_store / unique_name
         try:
             shutil.copy2(str(png_file), str(dest))
@@ -195,16 +196,21 @@ async def scan_save_screenshots(
         url_path = f"/api/assets/screenshots/{unique_name}"
         info = {"url": url_path, "filename": png_file.name}
         lower_name = png_file.name.lower()
-        # 中文 "代码" / "作业" 开头优先匹配，否则看英文
-        if png_file.name.startswith("代码") or lower_name.startswith("code"):
+        stem_lower = png_file.stem.lower()
+        # 运行截图 run.* → code_screenshots
+        if stem_lower == "run" or png_file.name.startswith("运行截图"):
             code_imgs.append(info)
+        # 代码截图 code* / 代码* → code_screenshots
+        elif png_file.name.startswith("代码") or lower_name.startswith("code"):
+            code_imgs.append(info)
+        # 作业截图 homework* / 作业* → homework_screenshots
         elif png_file.name.startswith("作业") or lower_name.startswith("homework"):
             homework_imgs.append(info)
         else:
             other_imgs.append(info)
 
     log.info(
-        "save/ 扫描: folder=%s code=%d homework=%d other=%d",
+        "截图/ 扫描: folder=%s code=%d homework=%d other=%d",
         folder, len(code_imgs), len(homework_imgs), len(other_imgs),
     )
     return {

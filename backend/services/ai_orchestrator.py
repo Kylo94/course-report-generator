@@ -193,8 +193,8 @@ class AIOrchestrator:
         """批量模式：所有学生共享的内容（Steps 0-3）。
 
         参数：
-        - code_screenshots: 代码截图 URL 列表（save/代码*.png 扫描得到）
-        - homework_screenshots: 作业截图 URL 列表（save/作业*.png 扫描得到）
+        - code_screenshots: 代码/运行截图 URL 列表（截图/run.png, code*.png 扫描得到）
+        - homework_screenshots: 作业截图 URL 列表（截图/homework*.png 扫描得到）
         - create_vocabulary: 是否生成单词卡（默认 True）
         - skip_code_analysis: 是否有代码截图，跳过代码 AI 解析
         - skip_homework_gen: 是否有作业截图，跳过作业 AI 生成
