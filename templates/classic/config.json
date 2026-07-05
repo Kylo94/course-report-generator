@@ -11,14 +11,21 @@
     "font_title": "Heiti SC",
     "font_body": "STSong",
     "font_size_title": 26,
-    "font_size_body": 11
+    "font_size_body": 11,
+    "page_margin_top": 20,
+    "page_margin_right": 18,
+    "page_margin_bottom": 18,
+    "page_margin_left": 18,
+    "background_color": "#FFFFFF",
+    "background_image": "/api/assets/bg4.png"
   },
   "page_size": "A4",
   "logo_config": {
     "enabled": true,
     "position": "top-right",
-    "size": 30,
+    "size": 40,
     "show_on_all_pages": true,
-    "margin": 5
-  }
+    "margin": 10
+  },
+  "logo_data_uri": "/api/assets/logo.png"
 }

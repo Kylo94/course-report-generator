@@ -1,0 +1,30 @@
+{
+  "name": "科技前沿",
+  "version": "1.0",
+  "description": "浅色科技风格，青色主题，适合编程/机器人等科技课程报告",
+  "theme": {
+    "primary_color": "#0891B2",
+    "secondary_color": "#F0F9FF",
+    "font_title": "PingFang SC",
+    "font_body": "PingFang SC",
+    "font_size_title": 26,
+    "font_size_body": 11,
+    "page_margin_top": 23,
+    "page_margin_right": 16,
+    "page_margin_bottom": 16,
+    "page_margin_left": 23,
+    "background_color": "#FFFFFF",
+    "background_image": "/api/assets/bg1.png"
+  },
+  "logo_config": {
+    "enabled": true,
+    "position": "top-right",
+    "size": 40,
+    "show_on_all_pages": true,
+    "margin": 20
+  },
+  "page_size": "A4",
+  "logo_data_uri": "/api/assets/logo.png",
+  "is_builtin": true,
+  "parent_template": null
+}

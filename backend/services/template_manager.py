@@ -12,7 +12,7 @@ from typing import Any
 from backend.services.report_renderer import CUSTOM_TEMPLATES_DIR, TEMPLATES_DIR, get_template_config, list_templates
 
 # 内置模板 ID（不可删除/覆盖）
-BUILTIN_TEMPLATES = {"classic", "academic", "cartoon"}
+BUILTIN_TEMPLATES = {"classic", "academic", "cartoon", "科技前沿"}
 
 # 上传限制
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB

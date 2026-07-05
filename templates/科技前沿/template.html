@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>{{ css_content | safe }}</style>
+<style>{{ custom_style | safe }}</style>
+</head>
+<body>
+
+<!-- ===== 第 1 页：封面 ===== -->
+<div class="page page-1">
+  <div class="grid-bg"></div>
+
+  {% if logo %}
+  <div class="logo logo-{{ logo.position if logo else 'top-right' }}">
+    {% if logo and logo.data_uri %}
+    <img src="{{ logo.data_uri }}" alt="Logo" style="width: {{ logo.width_mm }}mm;">
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="cover-badge">COURSE REPORT</div>
+  <h1 class="cover-title">{{ course_topic }}</h1>
+  <div class="cover-divider">
+    <span class="divider-dot"></span><span class="divider-line"></span><span class="divider-dot"></span>
+  </div>
+  <div class="cover-info">
+    <div class="info-row"><span class="info-label">学生</span><span class="info-value">{{ student_name }}</span></div>
+    <div class="info-row"><span class="info-label">日期</span><span class="info-value">{{ course_date }}</span></div>
+  </div>
+
+  {% if screenshots %}
+  <div class="screenshot-strip">
+    {% for s in screenshots[:3] %}
+    <div class="strip-item">
+      <img src="{{ s }}" alt="截图 {{ loop.index }}">
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- ===== 第 2 页：知识点 + 能力提升 + 代码 ===== -->
+<div class="page page-2">
+  {% if logo and logo.show_on_all_pages %}
+  <div class="logo logo-{{ logo.position if logo else 'top-right' }}">
+    {% if logo and logo.data_uri %}
+    <img src="{{ logo.data_uri }}" alt="Logo" style="width: {{ logo.width_mm }}mm;">
+    {% endif %}
+  </div>
+  {% endif %}
+  <div class="corner-deco"></div>
+  <div class="page-subtitle">▸ 课程概览</div>
+
+  <div class="section-header">
+    <span class="section-icon">◆</span>
+    <span>本节课知识点</span>
+  </div>
+  <div class="kp-grid">
+    {% for kp in knowledge_points %}
+    <div class="kp-chip">{{ kp }}</div>
+    {% endfor %}
+  </div>
+
+  <div class="section-header">
+    <span class="section-icon">◆</span>
+    <span>能力提升</span>
+  </div>
+  <div class="ability-box">{{ ability_improvement }}</div>
+
+  {% if code_excerpt %}
+  <div class="section-header">
+    <span class="section-icon">◆</span>
+    <span>代码展示</span>
+  </div>
+  <div class="code-block">
+    <div class="code-bar"><span class="code-dot" style="background:#ff5f56;"></span><span class="code-dot" style="background:#ffbd2e;"></span><span class="code-dot" style="background:#27c93f;"></span></div>
+    <pre><code>{{ code_excerpt | e }}</code></pre>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ===== 第 3 页：内容详解 + 单词 ===== -->
+<div class="page page-3">
+  {% if logo and logo.show_on_all_pages %}
+  <div class="logo logo-{{ logo.position if logo else 'top-right' }}">
+    {% if logo and logo.data_uri %}
+    <img src="{{ logo.data_uri }}" alt="Logo" style="width: {{ logo.width_mm }}mm;">
+    {% endif %}
+  </div>
+  {% endif %}
+  <div class="corner-deco"></div>
+  <div class="page-subtitle">▸ 内容详解</div>
+
+  <div class="content-timeline">
+    {% for item in content_items %}
+    <div class="timeline-item">
+      <div class="timeline-dot"></div>
+      <div class="timeline-content">
+        <div class="timeline-title">{{ item.kp }}</div>
+        <div class="timeline-text">{{ item.text }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if vocabulary and vocabulary.word %}
+  <div class="section-header" style="margin-top: 6mm;">
+    <span class="section-icon">◆</span>
+    <span>核心词汇</span>
+  </div>
+  <div class="vocab-panel">
+    <div class="vocab-main">
+      <span class="vocab-word">{{ vocabulary.word }}</span>
+      <span class="vocab-phonetic">{{ vocabulary.phonetic }}</span>
+    </div>
+    <div class="vocab-detail">
+      <div class="vocab-row"><span class="vocab-tag">释义</span>{{ vocabulary.meaning }}</div>
+      <div class="vocab-row"><span class="vocab-tag">例句</span><em>{{ vocabulary.example }}</em></div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ===== 第 4 页：作业 + 评价 ===== -->
+<div class="page page-4">
+  {% if logo and logo.show_on_all_pages %}
+  <div class="logo logo-{{ logo.position if logo else 'top-right' }}">
+    {% if logo and logo.data_uri %}
+    <img src="{{ logo.data_uri }}" alt="Logo" style="width: {{ logo.width_mm }}mm;">
+    {% endif %}
+  </div>
+  {% endif %}
+  <div class="corner-deco"></div>
+  <div class="page-subtitle">▸ 课后 & 总结</div>
+
+  {% if homework and homework.goal %}
+  <div class="section-header">
+    <span class="section-icon">◆</span>
+    <span>课后作业</span>
+  </div>
+  <div class="homework-card">
+    <div class="hw-goal">
+      <span class="hw-tag">目标</span>
+      <span>{{ homework.goal }}</span>
+    </div>
+    {% if homework.hints %}
+    <div class="hw-sub">
+      <div class="hw-sub-title">💡 提示</div>
+      <ul class="hw-list">
+        {% for h in homework.hints %}
+        <li>{{ h }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if homework.criteria %}
+    <div class="hw-sub">
+      <div class="hw-sub-title">✅ 评分标准</div>
+      <ul class="hw-list">
+        {% for c in homework.criteria %}
+        <li>{{ c }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="section-header">
+    <span class="section-icon">◆</span>
+    <span>学生评价</span>
+  </div>
+  <div class="evaluation-box">{{ evaluation }}</div>
+
+  <div class="footer-line"></div>
+  <div class="footer-text">课程报告生成工具 · 科技前沿模板</div>
+</div>
+
+</body>
+</html>

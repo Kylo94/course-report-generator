@@ -16,7 +16,8 @@
     "page_margin_right": 25,
     "page_margin_bottom": 20,
     "page_margin_left": 25,
-    "background_image": "/api/assets/bg2.png"
+    "background_image": "/api/assets/bg2.png",
+    "background_color": "#FFFFFF"
   },
   "page_size": "A4",
   "logo_config": {
@@ -25,5 +26,6 @@
     "size": 30,
     "show_on_all_pages": true,
     "margin": 1
-  }
+  },
+  "logo_data_uri": "/api/assets/logo.png"
 }

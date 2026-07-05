@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from backend.api import api_router
@@ -49,14 +50,27 @@ def _mount_static(app: FastAPI) -> None:
         name="screenshots",
     )
 
-    # 资产文件（Logo）
+    # 资产文件（Logo、背景图）：
+    #   data/assets/  → 用户上传（优先，不入 git）
+    #   static/assets/ → 内置默认（入库，Docker 镜像自带）
+    #   通过一个动态路由先查 data/assets/ 再 fallback 到 static/assets/
     asset_dir = Path(settings.report.asset_dir)
     asset_dir.mkdir(parents=True, exist_ok=True)
-    app.mount(
-        "/api/assets",
-        StaticFiles(directory=str(asset_dir)),
-        name="assets",
-    )
+    static_asset_dir = PROJECT_ROOT / "static" / "assets"
+
+    @app.api_route("/api/assets/{file_path:path}", methods=["GET"])
+    async def serve_assets(file_path: str):
+        # 优先用户上传
+        user_file = asset_dir / file_path
+        if user_file.exists() and user_file.is_file():
+            return FileResponse(str(user_file))
+
+        # 回退到内置静态文件
+        static_file = static_asset_dir / file_path
+        if static_file.exists() and static_file.is_file():
+            return FileResponse(str(static_file))
+
+        return Response(status_code=404)
 
     # 报告 PDF 文件
     report_dir = Path(settings.report.output_dir)

@@ -1,0 +1,396 @@
+/* ============================================================
+   科技前沿模板 v1.1 — 浅色科技风 · 深色文字
+   ============================================================ */
+@page { size: A4; margin: 0; }
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-body, "PingFang SC", "Heiti SC", sans-serif);
+  font-size: var(--fs-body, 11pt);
+  line-height: 1.7;
+  color: #1E293B;
+  background: var(--bg-color, #FFFFFF);
+}
+
+.page {
+  page-break-after: always;
+  padding: 6mm 4mm;
+  position: relative;
+  overflow: hidden;
+  min-height: 277mm;
+}
+
+/* ===== 背景网格（极浅，仅增加科技感） ===== */
+.grid-bg {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image:
+    linear-gradient(rgba(8,145,178,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(8,145,178,0.05) 1px, transparent 1px);
+  background-size: 12mm 12mm;
+  pointer-events: none;
+}
+
+/* ===== 角落装饰 ===== */
+.corner-deco {
+  position: absolute;
+  top: 0; right: 0;
+  width: 18mm;
+  height: 18mm;
+  border-right: 2px solid var(--primary, #0891B2);
+  border-top: 2px solid var(--primary, #0891B2);
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+/* ===== Logo ===== */
+.logo { position: absolute; z-index: 10; }
+.logo-top-left    { top: var(--logo-offset-top, 6mm); left: var(--logo-offset-left, 6mm); }
+.logo-top-right   { top: var(--logo-offset-top, 6mm); right: var(--logo-offset-right, 6mm); }
+.logo-top-center  { top: var(--logo-offset-top, 6mm); left: 50%; transform: translateX(-50%); }
+.logo-bottom-left     { bottom: var(--logo-offset-bottom, 6mm); left: var(--logo-offset-left, 6mm); }
+.logo-bottom-right    { bottom: var(--logo-offset-bottom, 6mm); right: var(--logo-offset-right, 6mm); }
+.logo-bottom-center   { bottom: var(--logo-offset-bottom, 6mm); left: 50%; transform: translateX(-50%); }
+
+/* ===== 页面副标题 ===== */
+.page-subtitle {
+  font-family: var(--font-title, "PingFang SC", "Heiti SC", sans-serif);
+  font-size: 8pt;
+  color: var(--primary, #0891B2);
+  letter-spacing: 5pt;
+  text-transform: uppercase;
+  margin-bottom: 6mm;
+  font-weight: 600;
+}
+
+/* ===== 第 1 页：封面 ===== */
+.cover-badge {
+  display: inline-block;
+  font-size: 8pt;
+  letter-spacing: 3pt;
+  color: var(--primary, #0891B2);
+  border: 1px solid var(--primary, #0891B2);
+  padding: 2mm 4mm;
+  margin-top: 14mm;
+  margin-left: 4mm;
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+.cover-title {
+  font-family: var(--font-title, "PingFang SC", "Heiti SC", sans-serif);
+  font-size: var(--fs-title, 26pt);
+  font-weight: 700;
+  color: #0F172A;
+  margin: 6mm 4mm 5mm;
+  letter-spacing: 2pt;
+  line-height: 1.3;
+}
+
+.cover-divider {
+  display: flex;
+  align-items: center;
+  gap: 2mm;
+  margin: 0 4mm 8mm;
+}
+.divider-dot {
+  width: 2mm;
+  height: 2mm;
+  border-radius: 50%;
+  background: var(--primary, #0891B2);
+}
+.divider-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--primary, #0891B2), transparent);
+}
+
+.cover-info {
+  margin: 0 4mm 8mm;
+}
+.info-row {
+  display: flex;
+  gap: 3mm;
+  margin-bottom: 2mm;
+  align-items: center;
+}
+.info-label {
+  font-size: 9pt;
+  color: #64748B;
+  letter-spacing: 2pt;
+  min-width: 14mm;
+}
+.info-value {
+  font-size: 12pt;
+  color: #0F172A;
+  font-weight: 500;
+}
+
+/* ===== 截图条 ===== */
+.screenshot-strip {
+  display: flex;
+  gap: 3mm;
+  margin: 5mm 4mm;
+  justify-content: center;
+}
+.strip-item {
+  flex: 1;
+  max-width: 60mm;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(8,145,178,0.12);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.strip-item img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ===== 节标题 ===== */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 2mm;
+  margin: 5mm 0 3mm 4mm;
+  font-family: var(--font-title, "PingFang SC", "Heiti SC", sans-serif);
+  font-size: 13pt;
+  font-weight: 700;
+  color: #0F172A;
+}
+.section-icon {
+  color: var(--primary, #0891B2);
+  font-size: 10pt;
+}
+
+/* ===== 知识点 ===== */
+.kp-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3mm;
+  margin: 0 4mm 5mm;
+}
+.kp-chip {
+  background: var(--secondary, #F0F9FF);
+  border: 1px solid rgba(8,145,178,0.15);
+  color: #0891B2;
+  padding: 2mm 6mm;
+  border-radius: 4px;
+  font-size: 10pt;
+  font-weight: 600;
+}
+
+/* ===== 能力提升 ===== */
+.ability-box {
+  margin: 0 4mm 5mm;
+  padding: 4mm 5mm;
+  background: var(--secondary, #F0F9FF);
+  border-left: 3px solid var(--primary, #0891B2);
+  color: #334155;
+  font-size: var(--fs-body, 11pt);
+  line-height: 1.9;
+  border-radius: 0 4px 4px 0;
+}
+
+/* ===== 代码块 ===== */
+.code-block {
+  margin: 0 4mm 5mm;
+  background: #F8FAFC;
+  border-radius: 6px;
+  border: 1px solid #E2E8F0;
+  overflow: hidden;
+}
+.code-bar {
+  display: flex;
+  gap: 2mm;
+  padding: 2.5mm 4mm;
+  background: #F1F5F9;
+  border-bottom: 1px solid #E2E8F0;
+}
+.code-dot {
+  width: 2.5mm;
+  height: 2.5mm;
+  border-radius: 50%;
+  background: #CBD5E1;
+}
+.code-block pre {
+  margin: 0;
+  padding: 4mm;
+  overflow-x: auto;
+}
+.code-block code {
+  font-family: "SF Mono", "Menlo", "Consolas", monospace;
+  font-size: 8pt;
+  line-height: 1.7;
+  color: #1E293B;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ===== 内容时间线 ===== */
+.content-timeline {
+  margin: 0 4mm;
+  position: relative;
+  padding-left: 6mm;
+}
+.content-timeline::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2mm;
+  bottom: 2mm;
+  width: 1px;
+  background: linear-gradient(180deg, var(--primary, #0891B2), rgba(8,145,178,0.08));
+}
+.timeline-item {
+  position: relative;
+  margin-bottom: 4mm;
+}
+.timeline-dot {
+  position: absolute;
+  left: -6mm;
+  top: 3mm;
+  width: 2mm;
+  height: 2mm;
+  border-radius: 50%;
+  background: var(--primary, #0891B2);
+  transform: translateX(-50%);
+}
+.timeline-content {
+  padding: 3mm 4mm;
+  background: #F8FAFC;
+  border-radius: 4px;
+  border: 1px solid #E2E8F0;
+}
+.timeline-title {
+  font-family: var(--font-title, "PingFang SC", "Heiti SC", sans-serif);
+  font-size: 11pt;
+  font-weight: 700;
+  color: #0891B2;
+  margin-bottom: 1.5mm;
+}
+.timeline-text {
+  font-size: var(--fs-body, 11pt);
+  color: #475569;
+  line-height: 1.8;
+}
+
+/* ===== 词汇面板 ===== */
+.vocab-panel {
+  margin: 0 4mm;
+  background: var(--secondary, #F0F9FF);
+  border: 1px solid rgba(8,145,178,0.12);
+  border-radius: 6px;
+  padding: 4mm 5mm;
+}
+.vocab-main {
+  margin-bottom: 3mm;
+}
+.vocab-word {
+  font-family: var(--font-title, "PingFang SC", "Heiti SC", sans-serif);
+  font-size: 14pt;
+  font-weight: 700;
+  color: #0F172A;
+  margin-right: 3mm;
+}
+.vocab-phonetic {
+  font-size: 10pt;
+  color: #64748B;
+  font-style: italic;
+}
+.vocab-row {
+  margin-bottom: 2mm;
+  color: #334155;
+  font-size: var(--fs-body, 11pt);
+}
+.vocab-tag {
+  display: inline-block;
+  font-size: 8pt;
+  color: var(--primary, #0891B2);
+  border: 1px solid rgba(8,145,178,0.25);
+  padding: 0.3mm 2mm;
+  border-radius: 2px;
+  margin-right: 2mm;
+  font-weight: 600;
+}
+
+/* ===== 作业 ===== */
+.homework-card {
+  margin: 0 4mm;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  padding: 4mm;
+}
+.hw-goal {
+  display: flex;
+  gap: 3mm;
+  align-items: flex-start;
+  margin-bottom: 4mm;
+  color: #334155;
+  font-size: var(--fs-body, 11pt);
+  line-height: 1.7;
+}
+.hw-tag {
+  flex-shrink: 0;
+  font-size: 8pt;
+  color: var(--primary, #0891B2);
+  border: 1px solid rgba(8,145,178,0.25);
+  padding: 0.3mm 2mm;
+  border-radius: 2px;
+  font-weight: 600;
+}
+.hw-sub {
+  margin-bottom: 3mm;
+}
+.hw-sub-title {
+  font-family: var(--font-title, "PingFang SC", "Heiti SC", sans-serif);
+  font-size: 10pt;
+  font-weight: 700;
+  color: #0F172A;
+  margin-bottom: 2mm;
+}
+.hw-list {
+  padding-left: 5mm;
+  list-style: none;
+}
+.hw-list li {
+  margin-bottom: 1.5mm;
+  color: #475569;
+  font-size: var(--fs-body, 11pt);
+  position: relative;
+  padding-left: 3mm;
+}
+.hw-list li::before {
+  content: '▸';
+  position: absolute;
+  left: -2mm;
+  color: var(--primary, #0891B2);
+}
+
+/* ===== 评价 ===== */
+.evaluation-box {
+  margin: 0 4mm;
+  padding: 4mm 5mm;
+  background: var(--secondary, #F0F9FF);
+  border: 1px solid rgba(8,145,178,0.1);
+  border-radius: 6px;
+  color: #334155;
+  font-size: var(--fs-body, 11pt);
+  line-height: 1.9;
+  text-indent: 2em;
+}
+
+/* ===== 页脚 ===== */
+.footer-line {
+  margin: 14mm 4mm 2mm;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(8,145,178,0.15), transparent);
+}
+.footer-text {
+  text-align: center;
+  font-size: 7.5pt;
+  color: #94A3B8;
+  letter-spacing: 2pt;
+}

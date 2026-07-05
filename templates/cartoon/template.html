@@ -9,7 +9,7 @@
 
 <!-- ===== 第 1 页：封面 + 概述 ===== -->
 <div class="page page-1">
-  {% if logo and logo.show_on_all_pages or logo %}
+  {% if logo %}
   <div class="logo logo-{{ logo.position if logo else 'top-right' }}">
     {% if logo and logo.data_uri %}
     <img src="{{ logo.data_uri }}" alt="Logo" style="width: {{ logo.width_mm }}mm;">
@@ -42,6 +42,13 @@
 
 <!-- ===== 第 2 页：内容详解 + 代码展示 ===== -->
 <div class="page page-2">
+  {% if logo and logo.show_on_all_pages %}
+  <div class="logo logo-{{ logo.position if logo else 'top-right' }}">
+    {% if logo and logo.data_uri %}
+    <img src="{{ logo.data_uri }}" alt="Logo" style="width: {{ logo.width_mm }}mm;">
+    {% endif %}
+  </div>
+  {% endif %}
   <div class="page-header">课程内容详解</div>
   {% for item in content_items[:2] %}
   <div class="content-block">
@@ -60,6 +67,13 @@
 
 <!-- ===== 第 3 页：剩余内容 + 单词学习 ===== -->
 <div class="page page-3">
+  {% if logo and logo.show_on_all_pages %}
+  <div class="logo logo-{{ logo.position if logo else 'top-right' }}">
+    {% if logo and logo.data_uri %}
+    <img src="{{ logo.data_uri }}" alt="Logo" style="width: {{ logo.width_mm }}mm;">
+    {% endif %}
+  </div>
+  {% endif %}
   <div class="page-header">课程内容（续）& 单词学习</div>
   {% if content_items|length > 3 %}
     {% for item in content_items[3:] %}
@@ -93,6 +107,13 @@
 
 <!-- ===== 第 4 页：作业 + 评价 + 签名 ===== -->
 <div class="page page-4">
+  {% if logo and logo.show_on_all_pages %}
+  <div class="logo logo-{{ logo.position if logo else 'top-right' }}">
+    {% if logo and logo.data_uri %}
+    <img src="{{ logo.data_uri }}" alt="Logo" style="width: {{ logo.width_mm }}mm;">
+    {% endif %}
+  </div>
+  {% endif %}
   {% if homework and homework.goal %}
   <div class="section-title">📚 课后作业</div>
   <div class="homework-section">

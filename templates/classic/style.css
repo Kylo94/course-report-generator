@@ -20,17 +20,6 @@ body {
   position: relative;
 }
 
-/* ===== 顶部装饰条 ===== */
-.page::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4mm;
-  background: linear-gradient(90deg, var(--primary, #2563EB), #60A5FA, #93C5FD);
-}
-
 /* ===== Logo ===== */
 .logo { position: absolute; }
 .logo-top-left    { top: var(--logo-offset-top, 5mm); left: var(--logo-offset-left, 5mm); }
