@@ -56,7 +56,7 @@
   <div class="ability-box">{{ ability_improvement }}</div>
 </div>
 
-<!-- ===== 第 2 页：代码展示 + 内容详解 ===== -->
+<!-- ===== 第 2 页：内容详解 ===== -->
 <div class="page page-2">
   {% if logo and logo.show_on_all_pages %}
   <div class="logo logo-{{ logo.position if logo else 'top-right' }}">
@@ -66,7 +66,36 @@
   </div>
   {% endif %}
   <div class="corner-deco"></div>
-  <div class="page-subtitle">▸ 代码 & 内容详解</div>
+  <div class="page-subtitle">▸ 内容详解</div>
+
+  <div class="section-header">
+    <span class="section-icon">◆</span>
+    <span>内容详解</span>
+  </div>
+  <div class="content-timeline">
+    {% for item in content_items %}
+    <div class="timeline-item">
+      <div class="timeline-dot"></div>
+      <div class="timeline-content">
+        <div class="timeline-title">{{ item.kp }}</div>
+        <div class="timeline-text">{{ item.text }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ===== 第 3 页：代码展示 + 词汇 ===== -->
+<div class="page page-3">
+  {% if logo and logo.show_on_all_pages %}
+  <div class="logo logo-{{ logo.position if logo else 'top-right' }}">
+    {% if logo and logo.data_uri %}
+    <img src="{{ logo.data_uri }}" alt="Logo" style="width: {{ logo.width_mm }}mm;">
+    {% endif %}
+  </div>
+  {% endif %}
+  <div class="corner-deco"></div>
+  <div class="page-subtitle">▸ 代码 & 核心词汇</div>
 
   <!-- 代码展示：优先显示代码截图，没有截图则显示文本 -->
   {% if code_screenshots and code_screenshots|length > 0 %}
@@ -92,36 +121,11 @@
   </div>
   {% endif %}
 
+  {% if vocabulary and vocabulary.word %}
   <div class="section-header" style="margin-top: 6mm;">
     <span class="section-icon">◆</span>
-    <span>内容详解</span>
+    <span>核心词汇</span>
   </div>
-  <div class="content-timeline">
-    {% for item in content_items %}
-    <div class="timeline-item">
-      <div class="timeline-dot"></div>
-      <div class="timeline-content">
-        <div class="timeline-title">{{ item.kp }}</div>
-        <div class="timeline-text">{{ item.text }}</div>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-</div>
-
-<!-- ===== 第 3 页：词汇 ===== -->
-<div class="page page-3">
-  {% if logo and logo.show_on_all_pages %}
-  <div class="logo logo-{{ logo.position if logo else 'top-right' }}">
-    {% if logo and logo.data_uri %}
-    <img src="{{ logo.data_uri }}" alt="Logo" style="width: {{ logo.width_mm }}mm;">
-    {% endif %}
-  </div>
-  {% endif %}
-  <div class="corner-deco"></div>
-  <div class="page-subtitle">▸ 核心词汇</div>
-
-  {% if vocabulary and vocabulary.word %}
   <div class="vocab-panel">
     <div class="vocab-main">
       <span class="vocab-word">{{ vocabulary.word }}</span>
