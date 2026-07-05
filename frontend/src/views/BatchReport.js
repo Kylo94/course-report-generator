@@ -252,27 +252,34 @@ const BatchReportView = {
               <div v-if="r.error" style="margin-top:4px;color:#f56c6c;font-size:12px;">{{ r.error }}</div>
             </div>
 
-            <div v-if="successCount > 0" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-              <el-button type="primary" @click="saveAllRecords" :loading="savingAll">
-                💾 保存全部{{ savingAllCount > 0 ? '（已保存' + savingAllCount + '）' : '' }}
-              </el-button>
-              <el-button type="primary" @click="exportPdf" :loading="exporting" :disabled="batchRunning">
-                📄 导出全部 PDF
-              </el-button>
-              <el-button @click="exportWord" :loading="wordExporting" :disabled="batchRunning">
-                📝 导出全部 Word
-              </el-button>
-            </div>
           </el-card>
         </div>
 
         <!-- 右侧：侧边栏 -->
         <div class="editor-sidebar">
-          <!-- 操作 -->
+          <!-- 操作 + 输出设置 -->
           <el-card class="section-card">
             <template #header>⚙️ 批量操作</template>
             <div style="display:flex;flex-direction:column;gap:8px;">
               <el-checkbox v-model="createVocabulary" style="margin-bottom:4px;">生成单词知识点</el-checkbox>
+
+              <!-- 输出目录设置 -->
+              <el-form size="small" label-position="top" style="margin-bottom:4px;">
+                <el-form-item label="输出目录">
+                  <div style="display:flex;gap:8px;">
+                    <el-input v-model="config.output_dir" placeholder="留空使用默认路径" style="flex:1" />
+                    <el-button @click="browseOutputDir">📂 浏览</el-button>
+                  </div>
+                  <div style="margin-top:6px;color:#909399;font-size:12px;">
+                    默认路径：<code style="background:#f4f4f5;padding:2px 6px;border-radius:3px;">{{ defaultOutputDir }}</code>
+                    <span style="margin-left:12px;">
+                      导出会创建：
+                      <code style="background:#f4f4f5;padding:2px 6px;border-radius:3px;">{{ outputSubdirHint }}</code>
+                    </span>
+                  </div>
+                </el-form-item>
+              </el-form>
+
               <el-button type="primary" class="btn-feature" @click="batchGenerate" :loading="batchRunning"
                 :disabled="!config.class_id" size="large">
                 🚀 批量生成{{ studentCount > 0 ? '（' + studentCount + '人）' : '' }}
@@ -280,6 +287,19 @@ const BatchReportView = {
               <div v-if="batchRunning" style="text-align:center;color:#409eff;font-size:13px;">
                 {{ batchProgressText }}
                 <el-progress :percentage="batchProgress" :stroke-width="12" style="margin-top:6px;" />
+              </div>
+
+              <!-- 生成后的导出保存按钮 -->
+              <div v-if="batchResults.length > 0" style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">
+                <el-button type="primary" @click="saveAllRecords" :loading="savingAll">
+                  💾 保存全部{{ savingAllCount > 0 ? '（已保存' + savingAllCount + '）' : '' }}
+                </el-button>
+                <el-button type="primary" @click="exportPdf" :loading="exporting" :disabled="batchRunning">
+                  📄 导出全部 PDF
+                </el-button>
+                <el-button @click="exportWord" :loading="wordExporting" :disabled="batchRunning">
+                  📝 导出全部 Word
+                </el-button>
               </div>
             </div>
           </el-card>
@@ -313,28 +333,6 @@ const BatchReportView = {
             </div>
           </el-card>
 
-          <!-- 输出设置 -->
-          <el-card class="section-card">
-            <template #header>
-              <el-icon size="16"><FolderOpened /></el-icon>
-              <span> 输出设置</span>
-            </template>
-            <el-form size="small" label-position="top">
-              <el-form-item label="输出目录">
-                <div style="display:flex;gap:8px;">
-                  <el-input v-model="config.output_dir" placeholder="留空使用默认路径" style="flex:1" />
-                  <el-button @click="browseOutputDir">📂 浏览</el-button>
-                </div>
-                <div style="margin-top:6px;color:#909399;font-size:12px;">
-                  默认路径：<code style="background:#f4f4f5;padding:2px 6px;border-radius:3px;">{{ defaultOutputDir }}</code>
-                  <span style="margin-left:12px;">
-                    导出会创建：
-                    <code style="background:#f4f4f5;padding:2px 6px;border-radius:3px;">{{ outputSubdirHint }}</code>
-                  </span>
-                </div>
-              </el-form-item>
-            </el-form>
-          </el-card>
         </div>
       </div>
 

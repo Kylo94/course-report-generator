@@ -283,6 +283,24 @@ const ReportEditorView = {
               <el-button type="primary" @click="saveDraft" :loading="saving">
                 💾 保存草稿
               </el-button>
+
+              <!-- 输出目录设置 -->
+              <el-form size="small" label-position="top" style="margin-bottom:4px;">
+                <el-form-item label="输出目录">
+                  <div style="display:flex;gap:8px;">
+                    <el-input v-model="outputDir" placeholder="留空使用默认路径" style="flex:1" />
+                    <el-button @click="browseOutputDir">📂 浏览</el-button>
+                  </div>
+                  <div style="margin-top:6px;color:#909399;font-size:12px;">
+                    默认路径：<code style="background:#f4f4f5;padding:2px 6px;border-radius:3px;">{{ defaultOutputDir }}</code>
+                    <span style="margin-left:12px;">
+                      导出会创建：
+                      <code style="background:#f4f4f5;padding:2px 6px;border-radius:3px;">{{ outputSubdirHint }}</code>
+                    </span>
+                  </div>
+                </el-form-item>
+              </el-form>
+
               <el-button type="success" @click="exportPdf" :loading="exporting" :disabled="aiGenerating">
                 📄 导出 PDF
               </el-button>
@@ -338,30 +356,6 @@ const ReportEditorView = {
             </div>
           </el-card>
 
-          <!-- 输出设置 -->
-          <el-card class="section-card">
-            <template #header>
-              <div style="display:flex;align-items:center;gap:6px;">
-                <el-icon size="16"><FolderOpened /></el-icon>
-                <span>输出设置</span>
-              </div>
-            </template>
-            <el-form size="small" label-position="top">
-              <el-form-item label="输出目录">
-                <div style="display:flex;gap:8px;">
-                  <el-input v-model="outputDir" placeholder="留空使用默认路径" style="flex:1" />
-                  <el-button @click="browseOutputDir">📂 浏览</el-button>
-                </div>
-                <div style="margin-top:6px;color:#909399;font-size:12px;">
-                  默认路径：<code style="background:#f4f4f5;padding:2px 6px;border-radius:3px;">{{ defaultOutputDir }}</code>
-                  <span style="margin-left:12px;">
-                    导出会创建：
-                    <code style="background:#f4f4f5;padding:2px 6px;border-radius:3px;">{{ outputSubdirHint }}</code>
-                  </span>
-                </div>
-              </el-form-item>
-            </el-form>
-          </el-card>
 
         </div>
       </div>
