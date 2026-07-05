@@ -27,8 +27,26 @@ from backend.utils.logger import get_logger
 log = get_logger(__name__)
 
 
+def _strip_think_blocks(text: str) -> str:
+    """去掉推理模型输出的 <think>...</think> 块，返回剩余文本。"""
+    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
+
 def _extract_json(text: str) -> Any:
-    """从 LLM 响应中提取 JSON（容错）。"""
+    """从 LLM 响应中提取 JSON（容错）。
+
+    兼容：
+    - 推理模型的 <think>...</think> 思考块（去掉后再解析）
+    - ```json ... ``` markdown 包装
+    - 前后有多余文本
+    """
+    # 1. 去掉 <think>...</think> 思考块
+    text = _strip_think_blocks(text)
+    if not text:
+        raise ValueError("LLM 响应只有思考块，没有实际内容")
+    if not text:
+        raise ValueError("LLM 响应只有思考块，没有实际内容")
+    # 2. 去掉 markdown ```json / ``` 包装
     text = re.sub(r"^```(?:json)?\s*", "", text.strip())
     text = re.sub(r"\s*```$", "", text)
     try:
@@ -280,16 +298,17 @@ class AIConversation:
             if homework_guidance
             else ""
         )
-        prompt = f"""根据你阅读的代码和知识点（{kp_str}），生成课后作业和英文单词。
+        prompt = f"""根据你阅读的代码和知识点（{kp_str}），生成课后作业（多题）和英文单词。
 
 学生水平：{student_level}
 项目类型：{project_type}
 入口注释：{entry_comment}{guidance_section}
-【作业——只基于代码中实际函数出题】
+【作业——只基于代码中实际函数出题，生成 1-3 道题】
 - 根据课程内容决定题型：
   · 概念/逻辑类 → 问答题（"请描述 XX() 的执行流程"）
   · 参数/配置类 → 修改题（"请修改 XX() 中的配置"）
   · 代码/模仿类 → 填空题或补全题
+- 每题 30-50 字
 - 难度适中
 - 题型在 goal 中明确体现
 - 提示 2-3 条，评分点 2-3 条（"能做到：... / 还需要练：..."）
@@ -300,9 +319,18 @@ class AIConversation:
 输出 JSON：
 {{
   "homework": {{
-    "goal": "作业目标（含题型动词，引用函数名）",
-    "hints": ["提示1", "提示2", "提示3"],
-    "criteria": ["能做到：...", "还需要练：..."]
+    "questions": [
+      {{
+        "goal": "题1（含题型动词，引用函数名）",
+        "hints": ["提示1", "提示2"],
+        "criteria": ["能做到：...", "还需要练：..."]
+      }},
+      {{
+        "goal": "题2...",
+        "hints": [...],
+        "criteria": [...]
+      }}
+    ]
   }},
   "vocabulary": {{
     "word": "function_name",
@@ -317,6 +345,24 @@ class AIConversation:
         result = _extract_json(result_text)
         hw = result.get("homework", {}) if isinstance(result, dict) else {}
         vocab = result.get("vocabulary", {}) if isinstance(result, dict) else {}
+        # 兼容老 LLM 响应：单题也包成 questions 列表
+        if "questions" not in hw and hw.get("goal"):
+            hw = {
+                "questions": [{
+                    "goal": hw.get("goal", ""),
+                    "hints": hw.get("hints", []),
+                    "criteria": hw.get("criteria", []),
+                }],
+                "goal": hw.get("goal", ""),
+                "hints": hw.get("hints", []),
+                "criteria": hw.get("criteria", []),
+            }
+        # 顶层 goal/hints/criteria 保留为 questions[0] 的同步，方便老渲染逻辑
+        if hw.get("questions"):
+            first = hw["questions"][0]
+            hw.setdefault("goal", first.get("goal", ""))
+            hw.setdefault("hints", first.get("hints", []))
+            hw.setdefault("criteria", first.get("criteria", []))
         self._output("homework", hw)
         self._output("vocabulary", vocab)
         return hw, vocab
@@ -362,7 +408,8 @@ class AIConversation:
         """
 
         result_text = await self._call(prompt, TEMPS["evaluation"])
-        result = result_text.strip()
+        # 推理模型会输出 <think>...</think> 块，需要剥掉再返回
+        result = _strip_think_blocks(result_text).strip()
         self._output("evaluation", result)
         return result
 

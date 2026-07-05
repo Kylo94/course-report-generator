@@ -1,9 +1,11 @@
 """模板管理服务：创建/编辑/删除用户自定义模板。"""
 from __future__ import annotations
 
+import io
 import json
 import re
 import shutil
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +13,9 @@ from backend.services.report_renderer import CUSTOM_TEMPLATES_DIR, TEMPLATES_DIR
 
 # 内置模板 ID（不可删除/覆盖）
 BUILTIN_TEMPLATES = {"classic", "academic", "cartoon"}
+
+# 上传限制
+MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB
 
 
 class TemplateError(Exception):
@@ -276,6 +281,111 @@ def delete_template(template_id: str) -> None:
             raise TemplateNotDeletableError(f"内置模板不可删除: {template_id}")
 
     shutil.rmtree(template_dir)
+
+
+def upload_template(zip_bytes: bytes) -> dict[str, Any]:
+    """上传自定义模板（zip 格式）。
+
+    校验：
+    - 大小 ≤ 5MB
+    - 合法 zip，包含 config.json, template.html, style.css
+    - 无子目录、无路径穿越
+    - config.json 有合法 JSON 且包含 name 字段
+    - template.html 非空
+
+    处理：
+    1. 从 name 生成唯一 template_id
+    2. 覆盖 config 中的 id/is_builtin/parent_template
+    3. 写入 CUSTOM_TEMPLATES_DIR/{id}/
+    4. 返回 TemplateListItem 兼容 dict
+    """
+    # 1. 大小检查
+    if len(zip_bytes) > MAX_UPLOAD_SIZE:
+        raise TemplateError(f"模板文件大小超过限制 (最大 {MAX_UPLOAD_SIZE // (1024 * 1024)}MB)")
+
+    # 2. 解析 zip
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
+    except zipfile.BadZipFile:
+        raise TemplateError("无效的 zip 文件")
+
+    with zf:
+        names = zf.namelist()
+
+        # 3. 安全检查：路径穿越、子目录
+        for name in names:
+            if name.startswith("/") or ".." in name:
+                raise TemplateError(f"非法的文件名: {name}")
+            if name.endswith("/") or "/" in name:
+                raise TemplateError(f"不支持子目录: {name}")
+
+        # 4. 文件集合检查
+        required_files = {"config.json", "template.html", "style.css"}
+        file_set = set(names)
+        if file_set != required_files:
+            missing = required_files - file_set
+            extra = file_set - required_files
+            msgs = []
+            if missing:
+                msgs.append(f"缺少文件: {', '.join(sorted(missing))}")
+            if extra:
+                msgs.append(f"不支持的文件: {', '.join(sorted(extra))}")
+            raise TemplateError("; ".join(msgs))
+
+        # 5. 读取并验证 config.json
+        try:
+            raw_config = zf.read("config.json")
+            config = json.loads(raw_config)
+        except json.JSONDecodeError as e:
+            raise TemplateError(f"config.json 格式无效: {e}")
+
+        name = (config.get("name") or "").strip()
+        if not name:
+            raise TemplateError("config.json 必须包含 name 字段")
+        if len(name) > 50:
+            raise TemplateError("模板名称不能超过 50 个字符")
+
+        # 6. 读取 template.html（非空检查）
+        raw_html = zf.read("template.html")
+        template_html = raw_html.decode("utf-8")
+        if not template_html.strip():
+            raise TemplateError("template.html 不能为空")
+
+        # 7. 读取 style.css
+        style_css = zf.read("style.css").decode("utf-8")
+
+    # 8. 生成唯一 ID
+    template_id = _generate_unique_id(name)
+
+    # 9. 覆盖 config 字段
+    config["id"] = template_id
+    config["is_builtin"] = False
+    config.pop("parent_template", None)
+    if "version" not in config:
+        config["version"] = "1.0"
+
+    # 10. 写入文件系统
+    CUSTOM_TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
+    template_dir = CUSTOM_TEMPLATES_DIR / template_id
+    template_dir.mkdir(parents=True, exist_ok=True)
+
+    config_path = template_dir / "config.json"
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+
+    (template_dir / "template.html").write_text(template_html, encoding="utf-8")
+    (template_dir / "style.css").write_text(style_css, encoding="utf-8")
+
+    return {
+        "id": template_id,
+        "name": name,
+        "version": config.get("version", "1.0"),
+        "is_builtin": False,
+        "parent_template": None,
+        "thumbnail": config.get("thumbnail", ""),
+        "description": config.get("description", ""),
+        "page_size": config.get("page_size", "A4"),
+    }
 
 
 def render_template_preview(template_id: str, theme_overrides: dict | None = None) -> str:

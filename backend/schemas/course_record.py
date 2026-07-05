@@ -14,11 +14,23 @@ class ContentItemSchema(BaseModel):
     text: str = Field(..., description="60-100字描述")
 
 
-class HomeworkSchema(BaseModel):
-    """课后作业结构。"""
+class HomeworkQuestionSchema(BaseModel):
+    """单题结构。"""
     goal: str = ""
     hints: list[str] = Field(default_factory=list)
     criteria: list[str] = Field(default_factory=list)
+
+
+class HomeworkSchema(BaseModel):
+    """课后作业结构。
+
+    多题模式：questions 列表，每题独立 goal/hints/criteria。
+    单题兼容：保留 goal/hints/criteria 顶层字段，从 questions[0] 同步。
+    """
+    goal: str = ""
+    hints: list[str] = Field(default_factory=list)
+    criteria: list[str] = Field(default_factory=list)
+    questions: list[HomeworkQuestionSchema] = Field(default_factory=list)
 
 
 class VocabularySchema(BaseModel):
@@ -33,7 +45,7 @@ class LogoConfigSchema(BaseModel):
     """Logo 配置。"""
     enabled: bool = False
     position: str = "top-right"  # top-left / top-right / top-center / bottom-left / bottom-right / bottom-center
-    size: str = "medium"  # small / medium / large
+    size: int | str = 30  # 数字（mm，10-80）或字符串枚举（小/中/大）历史数据兼容
     show_on_all_pages: bool = True
     margin: int = 0  # Logo 距页面边缘距离(mm)，控制 --logo-offset-* CSS 变量
 

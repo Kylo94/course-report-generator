@@ -1,0 +1,103 @@
+# =========================
+# Git
+# =========================
+.git
+.gitignore
+.gitattributes
+
+# =========================
+# Virtual environments
+# =========================
+.venv
+venv
+venv*/
+
+# =========================
+# Python cache & build
+# =========================
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# =========================
+# uv
+# =========================
+.uv/
+uv.lock.bak
+
+# =========================
+# Testing & coverage
+# =========================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.cache/
+.tox/
+.ruff_cache/
+
+# =========================
+# IDE & OS
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# =========================
+# Application runtime data
+# =========================
+data/app.db
+data/app.db-*
+data/reports/
+data/screenshots/
+data/assets/
+data/backups/
+data/custom_templates/
+data/user_settings.json
+data/course_reports.db
+data/course_reports.db-*
+
+# =========================
+# Logs
+# =========================
+logs/
+
+# =========================
+# Build artifacts
+# =========================
+build_artifacts/
+installer/
+
+# =========================
+# Docker files (prevent double-add)
+# =========================
+.dockerignore
+docker-compose.yml
+
+# =========================
+# Node / frontend build
+# =========================
+node_modules/

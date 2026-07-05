@@ -148,43 +148,67 @@ async def scan_save_screenshots(
     """扫描项目文件夹下的 save/ 目录，查找 .png 文件，
     自动将其复制到截图目录，返回 URL 路径列表供前端直接使用。
 
-    返回: {"screenshots": [{"url": "...", "filename": "..."}, ...]}
+    按文件名分类：
+    - 代码*.png / code*.png → code_screenshots
+    - 作业*.png / homework*.png → homework_screenshots
+    - 其他 → other_screenshots
+
+    返回: {
+      "code_screenshots": [...],
+      "homework_screenshots": [...],
+      "other_screenshots": [...],
+    }
     """
     folder = (body.get("folder") or "").strip()
     if not folder:
-        return {"screenshots": []}
+        return {"code_screenshots": [], "homework_screenshots": [], "other_screenshots": []}
 
     target = Path(folder).expanduser().resolve()
     if not target.exists() or not target.is_dir():
-        return {"screenshots": []}
+        return {"code_screenshots": [], "homework_screenshots": [], "other_screenshots": []}
 
     save_dir = target / "save"
     if not save_dir.exists() or not save_dir.is_dir():
-        return {"screenshots": []}
+        return {"code_screenshots": [], "homework_screenshots": [], "other_screenshots": []}
 
     settings = get_settings()
     screenshot_store = Path(settings.report.screenshot_dir)
     screenshot_store.mkdir(parents=True, exist_ok=True)
 
-    found: list[dict] = []
+    code_imgs: list[dict] = []
+    homework_imgs: list[dict] = []
+    other_imgs: list[dict] = []
+
     for png_file in sorted(save_dir.iterdir()):
         if not png_file.is_file() or png_file.suffix.lower() not in (".png", ".jpg", ".jpeg", ".webp"):
             continue
 
-        # 复制到截图存储目录，使用唯一文件名
         ext = png_file.suffix.lower()
         unique_name = f"save_{uuid.uuid4().hex}{ext}"
         dest = screenshot_store / unique_name
         try:
             shutil.copy2(str(png_file), str(dest))
-            url_path = f"/api/assets/screenshots/{unique_name}"
-            log.info("自动上传截图: %s → %s", png_file.name, url_path)
-            found.append({
-                "url": url_path,
-                "filename": png_file.name,
-            })
         except OSError as e:
             log.warning("复制截图失败 %s: %s", png_file.name, e)
+            continue
 
-    log.info("项目截图扫描完成: folder=%s found=%d", folder, len(found))
-    return {"screenshots": found}
+        url_path = f"/api/assets/screenshots/{unique_name}"
+        info = {"url": url_path, "filename": png_file.name}
+        lower_name = png_file.name.lower()
+        # 中文 "代码" / "作业" 开头优先匹配，否则看英文
+        if png_file.name.startswith("代码") or lower_name.startswith("code"):
+            code_imgs.append(info)
+        elif png_file.name.startswith("作业") or lower_name.startswith("homework"):
+            homework_imgs.append(info)
+        else:
+            other_imgs.append(info)
+
+    log.info(
+        "save/ 扫描: folder=%s code=%d homework=%d other=%d",
+        folder, len(code_imgs), len(homework_imgs), len(other_imgs),
+    )
+    return {
+        "code_screenshots": code_imgs,
+        "homework_screenshots": homework_imgs,
+        "other_screenshots": other_imgs,
+    }

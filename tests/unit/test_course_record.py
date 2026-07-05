@@ -159,7 +159,7 @@ class TestCourseRecordSchemas:
         cfg = LogoConfigSchema()
         assert cfg.enabled is False
         assert cfg.position == "top-right"
-        assert cfg.size == "medium"
+        assert cfg.size == 30
 
     def test_homework_defaults(self) -> None:
         hw = HomeworkSchema()

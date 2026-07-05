@@ -39,6 +39,112 @@ uv run python main.py
 
 首次启动自动创建 SQLite 数据库，无需额外配置。
 
+---
+
+## Docker 部署
+
+### 前置条件
+
+- 安装 [Docker](https://docs.docker.com/engine/install/) 和 [Docker Compose](https://docs.docker.com/compose/install/)（Compose 插件一般随 Docker Desktop 自带）
+- 一个 AI 供应商的 API Key（DeepSeek / 通义千问 / OpenAI / Claude 等）
+
+### 方式一：docker compose（推荐）
+
+```bash
+# 1. 创建 .env 文件填入 AI 配置
+echo 'CRG_LLM_API_KEY=sk-你的API密钥' >> .env
+echo 'CRG_LLM_PROVIDER=deepseek' >> .env
+echo 'CRG_LLM_DEFAULT_MODEL=deepseek-chat' >> .env
+
+# 2. 启动服务（首次自动从 GHCR 拉取镜像）
+docker compose up -d
+
+# 3. 打开浏览器
+open http://localhost:8765
+
+# 4. 查看日志
+docker compose logs -f
+
+# 5. 停止服务
+docker compose down
+```
+
+如需本地构建镜像而非从 GHCR 拉取，编辑 `docker-compose.yml`，将 `image:` 行替换为 `build: .`。
+
+### 方式二：纯 docker
+
+```bash
+# 构建镜像
+docker build -t course-report-generator .
+
+# 运行容器
+docker run -d \
+  --name course-report \
+  -p 8765:8765 \
+  -v crg_data:/app/data \
+  -e CRG_LLM__API_KEY=sk-你的API密钥 \
+  -e CRG_LLM__PROVIDER=deepseek \
+  -e CRG_LLM__DEFAULT_MODEL=deepseek-chat \
+  course-report-generator
+```
+
+### 环境变量参考
+
+所有配置均可通过 `CRG_` 前缀的环境变量覆盖。完整字段对应关系见 [backend/config.py](backend/config.py)。
+
+| 环境变量 | 对应配置 | 说明 | 默认值 |
+|---|---|---|---|
+| `CRG_LLM__API_KEY` | `llm.api_key` | **AI API Key（必填）** | — |
+| `CRG_LLM__PROVIDER` | `llm.provider` | AI 供应商 | `deepseek` |
+| `CRG_LLM__DEFAULT_MODEL` | `llm.default_model` | 默认模型 | `deepseek-chat` |
+| `CRG_LLM__BASE_URL` | `llm.base_url` | 自定义 API 地址 | （自动） |
+| `CRG_LLM__TIMEOUT` | `llm.timeout` | 请求超时（秒） | `60` |
+| `CRG_LLM__MAX_RETRIES` | `llm.max_retries` | 失败重试次数 | `2` |
+| `CRG_SERVER__HOST` | `server.host` | 监听地址 | `0.0.0.0` |
+| `CRG_SERVER__PORT` | `server.port` | 监听端口 | `8765` |
+| `CRG_APP__DEBUG` | `app.debug` | 调试模式 | `false` |
+| `CRG_APP__LOG_LEVEL` | `app.log_level` | 日志级别 | `INFO` |
+| `CRG_DATABASE__URL` | `database.url` | 数据库连接 | `sqlite+aiosqlite:///./data/app.db` |
+| `CRG_REPORT__OUTPUT_DIR` | `report.output_dir` | PDF 输出目录 | `./data/reports` |
+| `CRG_REPORT__SCREENSHOT_DIR` | `report.screenshot_dir` | 截图目录 | `./data/screenshots` |
+| `CRG_REPORT__ASSET_DIR` | `report.asset_dir` | 资产目录 | `./data/assets` |
+| `CRG_LOGO__ENABLED` | `logo.enabled` | 启用 Logo | `false` |
+
+> **嵌套字段语法**：双下划线 `__` 表示嵌套层级。例如 `CRG_LLM__API_KEY` 对应配置文件中的 `llm.api_key`。
+
+### docker-compose 环境变量速查
+
+在 `.env` 文件中也可以使用平铺名称（单下划线），`docker-compose.yml` 已做好映射：
+
+```bash
+# .env 文件（与 docker-compose.yml 同目录）
+CRG_LLM_API_KEY=sk-xxxxx
+CRG_LLM_PROVIDER=deepseek
+CRG_LLM_DEFAULT_MODEL=deepseek-chat
+CRG_LLM_BASE_URL=
+CRG_APP_DEBUG=false
+CRG_HOST_PORT=8765       # 宿主机端口映射
+```
+
+### 持久化数据
+
+容器内部的数据存储在 `/app/data` 目录，通过 Docker 命名卷 `crg_data` 持久化，包含：
+
+- SQLite 数据库（`app.db`）
+- 导出的 PDF 报告
+- 上传的截图
+- Logo 资产
+- 自定义模板
+
+如需将数据存储到宿主机特定目录，修改 `docker-compose.yml` 中的卷映射：
+
+```yaml
+volumes:
+  - ./data:/app/data     # 挂载宿主机 ./data 目录
+```
+
+---
+
 ## 功能一览
 
 | 模块 | 功能 |

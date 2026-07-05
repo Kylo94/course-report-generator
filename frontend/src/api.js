@@ -204,6 +204,7 @@ const API = {
         return r.text();
       });
     },
+    uploadTemplate(file) { return API.upload('/api/templates/upload', file); },
   },
 
 };

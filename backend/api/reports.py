@@ -87,64 +87,109 @@ def _sanitize_date_dir(course_date: str) -> str:
     return safe[:10] if safe else "未设置日期"
 
 
+def _resolve_logo_config(template_id: str) -> dict:
+    """优先从模板 config.json 读 logo_config，没有则用默认 LogoConfigSchema 兜底。
+
+    解决批量生成时 logo_config 被默认值覆盖导致 Logo 丢失的问题。
+    """
+    try:
+        tpl_cfg = get_template_config(template_id)
+        if isinstance(tpl_cfg, dict) and tpl_cfg.get("logo_config"):
+            return dict(tpl_cfg["logo_config"])
+    except Exception:
+        pass
+    return LogoConfigSchema().model_dump()
+
+
 PDF_SUBDIR = "PDF(用于打印)"
 IMG_SUBDIR = "IMG(用于发送)"
 
 
-def _build_output_dir(
+def _resolve_class_name_sync(record) -> str:
+    """同步版：从 record.student.class_id 取班级名（前提是关系已加载）。"""
+    student_id = getattr(record, "student_id", None)
+    if not student_id:
+        return "未分班"
+    try:
+        student = getattr(record, "student", None)
+        if not student:
+            return "未分班"
+        klass = getattr(student, "klass", None)
+        if not klass or not getattr(klass, "name", None):
+            return "未分班"
+        return klass.name
+    except Exception:
+        return "未分班"
+
+
+async def _aresolve_class_name(record, session) -> str:
+    """异步版：从 record.student → student.klass.name 取班级名。"""
+    student_id = getattr(record, "student_id", None)
+    if not student_id or session is None:
+        return "未分班"
+    try:
+        from backend.models import Student as _StuM, Class as _ClsM
+        student = await session.get(_StuM, student_id)
+        if not student or not student.class_id:
+            return "未分班"
+        klass = await session.get(_ClsM, student.class_id)
+        return klass.name if klass else "未分班"
+    except Exception:
+        return "未分班"
+
+
+async def _build_output_dir(
     record,
     output_dir_override: str | None = None,
     project_folder: str | None = None,
+    session=None,
 ) -> Path:
-    """构建语义输出基础目录（不含子文件夹）。
+    """构建输出父目录 = `{上课日期}_{班级名}`。
 
     行为：
-    1. 指定了 output_dir → {output_dir}/{项目名}
-    2. 未指定 output_dir 但有项目目录 → {项目目录}
-    3. 两者都无 → {默认目录}/{YYYY年MM月}
+    1. 指定了 output_dir → {output_dir}/{上课日期_班级名}
+    2. 未指定 output_dir 但有项目目录 → {项目目录}/{上课日期_班级名}
+    3. 两者都无 → {custom 或 默认 output_dir}/{上课日期_班级名}
     """
+    course_date = getattr(record, "course_date", None) or ""
+    date_part = _sanitize_date_dir(course_date) if course_date else "未设置日期"
+    class_name = await _aresolve_class_name(record, session)
+    session_part = f"{date_part}_{_sanitize_filename(class_name)}"
+
     if output_dir_override:
         base_str = output_dir_override
-        if project_folder:
-            sub_dir = _sanitize_filename(Path(project_folder).resolve().name) or "项目"
-        else:
-            sub_dir = _date_subdir_name(getattr(record, "course_date", None))
     elif project_folder:
         base_str = project_folder
-        sub_dir = ""
     else:
         base_str = settings.report.custom_output_dir or settings.report.output_dir
-        sub_dir = _date_subdir_name(getattr(record, "course_date", None))
 
     base_dir = Path(base_str)
     if not base_dir.is_absolute():
-        base_dir = PROJECT_ROOT / base_dir
+        base_dir = PROJECT_ROOT / base_str
 
-    return base_dir / sub_dir if sub_dir else base_dir
+    return base_dir / session_part
 
 
-def _export_paths(
+async def _export_paths(
     record,
     student_name: str,
     output_dir_override: str | None = None,
     project_folder: str | None = None,
+    session=None,
 ) -> tuple[Path, Path]:
-    """构建 PDF 和 IMG 输出路径（含子目录和文件名）。
+    """构建 PDF 和 IMG 输出路径。
 
-    PDF 按上课日期归入 PDF(用于打印)/{YYYY-MM-DD}/ 子目录；
-    IMG 放在 IMG(用于发送)/ 根目录下。
+    父目录 = `{上课日期}_{班级名}`，子目录：
+    - PDF(用于打印)/{name}_{topic}.pdf
+    - IMG(用于发送)/{name}_{topic}.jpg
 
     Returns:
         (pdf_path, img_path)
     """
-    base_dir = _build_output_dir(record, output_dir_override, project_folder)
+    base_dir = await _build_output_dir(record, output_dir_override, project_folder, session)
     base_dir.mkdir(parents=True, exist_ok=True)
 
-    # PDF 按日期归档
-    course_date = getattr(record, "course_date", None) or ""
-    date_subdir = _sanitize_date_dir(course_date) if course_date else ""
-    pdf_dir = base_dir / PDF_SUBDIR / date_subdir if date_subdir else base_dir / PDF_SUBDIR
-
+    pdf_dir = base_dir / PDF_SUBDIR
     img_dir = base_dir / IMG_SUBDIR
     pdf_dir.mkdir(parents=True, exist_ok=True)
     img_dir.mkdir(parents=True, exist_ok=True)
@@ -167,7 +212,7 @@ def _export_paths(
 
 
 def _date_subdir_name(course_date: str | None) -> str:
-    """从课程日期生成 YYYY年MM月 子目录名。"""
+    """（已废弃）原 YYYY年MM月 子目录名生成器，保留以免导入错误。"""
     if not course_date:
         return datetime.now().strftime("%Y年%m月")
     try:
@@ -440,7 +485,7 @@ async def export_report(
     has_custom_dir = bool(output_dir or settings.report.custom_output_dir)
     if has_custom_dir:
         try:
-            pdf_out, img_out = _export_paths(record, student_name, output_dir, getattr(record, "project_folder", None))
+            pdf_out, img_out = await _export_paths(record, student_name, output_dir, getattr(record, "project_folder", None), session)
             await pdf_gen.generate(html, str(pdf_out), margin=pdf_margin)
             custom_path = pdf_out
             log.info("PDF 已同步到自定义路径: %s", pdf_out)
@@ -552,7 +597,7 @@ async def export_report_word(
     custom_path = None
     if output_dir or settings.report.custom_output_dir:
         try:
-            pdf_out, _ = _export_paths(record, student_name, output_dir, getattr(record, "project_folder", None))
+            pdf_out, _ = await _export_paths(record, student_name, output_dir, getattr(record, "project_folder", None), session)
             docx_path = pdf_out.with_suffix(".docx")
             docx_path.parent.mkdir(parents=True, exist_ok=True)
             docx_path.write_bytes(docx_bytes)
@@ -720,7 +765,16 @@ async def batch_generate_reports(
                 created_at=students[0].created_at,
                 updated_at=students[0].updated_at,
             )
-            shared = await orchestrator.generate_shared(project_meta, default_student_read, body.teacher_observation)
+            shared = await orchestrator.generate_shared(
+                project_meta,
+                default_student_read,
+                teacher_observation=body.teacher_observation,
+                code_screenshots=body.code_screenshots,
+                homework_screenshots=body.homework_screenshots,
+                create_vocabulary=body.create_vocabulary,
+                skip_code_analysis=bool(body.code_screenshots),
+                skip_homework_gen=bool(body.homework_screenshots),
+            )
         except Exception as e:
             log.exception("共享内容生成失败: %s", e)
             shared_error = str(e)
@@ -742,7 +796,9 @@ async def batch_generate_reports(
     if project_meta and shared and not shared_error:
         try:
             evaluations = await orchestrator.generate_evaluations(
-                project_meta, student_reads, shared, body.teacher_observation,
+                project_meta, student_reads, shared,
+                teacher_observation=body.teacher_observation,
+                observations=body.observations,
             )
         except Exception as e:
             log.exception("批量评价生成失败: %s", e)
@@ -790,8 +846,11 @@ async def batch_generate_reports(
             "evaluation": evaluation_text,
             "status": "draft",
             "template_id": body.template_id,
-            "screenshot_paths": json.dumps(body.screenshot_paths, ensure_ascii=False),
-            "logo_config": json.dumps(LogoConfigSchema().model_dump(), ensure_ascii=False),
+            "screenshot_paths": json.dumps(
+                list(body.code_screenshots) + list(body.homework_screenshots) + list(body.screenshot_paths),
+                ensure_ascii=False,
+            ),
+            "logo_config": json.dumps(_resolve_logo_config(body.template_id), ensure_ascii=False),
             "ai_meta": json.dumps(shared.get("code_analysis"), ensure_ascii=False) if shared.get("code_analysis") else None,
         })
 
@@ -833,7 +892,7 @@ async def batch_generate_reports(
 
                 has_custom_dir = bool(body.output_dir or settings.report.custom_output_dir or body.project_folder)
                 if has_custom_dir:
-                    pdf_out, img_out = _export_paths(rec, student_name, body.output_dir, body.project_folder)
+                    pdf_out, img_out = await _export_paths(rec, student_name, body.output_dir, body.project_folder, session)
                     output_path = pdf_out
                 else:
                     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")

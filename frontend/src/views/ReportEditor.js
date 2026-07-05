@@ -172,7 +172,46 @@ const ReportEditorView = {
                 {{ regeneratingFields['homework_vocab'] ? '生成中...' : '重新生成' }}
               </el-button>
             </template>
-            <el-form label-width="100px" size="small">
+            <!-- 多题模式 -->
+            <div v-if="form.homework.questions && form.homework.questions.length > 0">
+              <div v-for="(q, qi) in form.homework.questions" :key="qi"
+                style="margin-bottom:16px;padding:12px;border:1px solid #e4e7ed;border-radius:6px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                  <strong>第 {{ qi+1 }} 题</strong>
+                  <el-button size="small" type="danger" link @click="removeQuestion(qi)">删除</el-button>
+                </div>
+                <el-form label-width="80px" size="small">
+                  <el-form-item label="题目">
+                    <el-input v-model="q.goal" type="textarea" :rows="2" style="width:400px" @input="markDirty" />
+                  </el-form-item>
+                  <el-form-item label="提示">
+                    <div v-for="(h, hi) in q.hints" :key="'qh'+hi" style="margin-bottom:4px">
+                      <el-input v-model="q.hints[hi]" style="width:300px" placeholder="提示内容" @input="markDirty">
+                        <template #prefix>#{{ hi+1 }}</template>
+                        <template #suffix>
+                          <el-button link type="danger" size="small" @click="removeQuestionHint(qi, hi)">×</el-button>
+                        </template>
+                      </el-input>
+                    </div>
+                    <el-button size="small" @click="addQuestionHint(qi)">+ 添加提示</el-button>
+                  </el-form-item>
+                  <el-form-item label="评分点">
+                    <div v-for="(c, ci) in q.criteria" :key="'qc'+ci" style="margin-bottom:4px">
+                      <el-input v-model="q.criteria[ci]" style="width:300px" placeholder="评分标准" @input="markDirty">
+                        <template #prefix>#{{ ci+1 }}</template>
+                        <template #suffix>
+                          <el-button link type="danger" size="small" @click="removeQuestionCriterion(qi, ci)">×</el-button>
+                        </template>
+                      </el-input>
+                    </div>
+                    <el-button size="small" @click="addQuestionCriterion(qi)">+ 添加评分点</el-button>
+                  </el-form-item>
+                </el-form>
+              </div>
+              <el-button size="small" @click="addQuestion">+ 添加题目</el-button>
+            </div>
+            <!-- 单题兼容模式（questions 为空时回退） -->
+            <el-form v-else label-width="100px" size="small">
               <el-form-item label="作业目标">
                 <el-input v-model="form.homework.goal" type="textarea" :rows="2" style="width:400px"
                   @input="markDirty" />
@@ -299,55 +338,6 @@ const ReportEditorView = {
             </div>
           </el-card>
 
-          <!-- Logo 管理 -->
-          <el-card class="section-card">
-            <template #header>🖼️ Logo 设置</template>
-            <el-form size="small" label-position="top">
-              <el-form-item label="Logo 图片">
-                <el-upload
-                  :http-request="handleLogoUpload"
-                  :show-file-list="false"
-                  accept="image/jpeg,image/png,image/webp"
-                >
-                  <el-button size="small">上传 Logo</el-button>
-                </el-upload>
-                <div v-if="logoInfo.exists" class="logo-preview">
-                  <img :src="logoInfo.path" alt="Logo">
-                </div>
-              </el-form-item>
-              <el-form-item label="显示位置">
-                <el-select v-model="form.logo_config.position" @change="markDirty">
-                  <el-option label="左上" value="top-left" />
-                  <el-option label="右上" value="top-right" />
-                  <el-option label="居中顶部" value="top-center" />
-                  <el-option label="左下" value="bottom-left" />
-                  <el-option label="右下" value="bottom-right" />
-                  <el-option label="居中底部" value="bottom-center" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="尺寸">
-                <div style="display:flex;gap:18px;align-items:center;">
-                  <el-slider v-model="form.logo_config.size" :min="10" :max="80" :show-tooltip="false" style="width:100px;"
-                    @change="markDirty" />
-                  <span style="width:40px;text-align:right;">{{ form.logo_config.size }}mm</span>
-                </div>
-              </el-form-item>
-              <el-form-item label="Logo 边距">
-                <div style="display:flex;gap:18px;align-items:center;">
-                  <el-slider v-model="form.logo_config.margin" :min="0" :max="20" :show-tooltip="false" style="width:100px;"
-                    @change="markDirty" />
-                  <span style="width:40px;text-align:right;">{{ form.logo_config.margin }}mm</span>
-                </div>
-              </el-form-item>
-              <el-form-item label="显示范围">
-                <el-select v-model="form.logo_config.show_on_all_pages" @change="markDirty">
-                  <el-option label="全部页面" :value="true" />
-                  <el-option label="仅首页" :value="false" />
-                </el-select>
-              </el-form-item>
-            </el-form>
-          </el-card>
-
           <!-- 输出设置 -->
           <el-card class="section-card">
             <template #header>
@@ -362,100 +352,17 @@ const ReportEditorView = {
                   <el-input v-model="outputDir" placeholder="留空使用默认路径" style="flex:1" />
                   <el-button @click="browseOutputDir">📂 浏览</el-button>
                 </div>
-                <div v-if="outputDir" style="margin-top:4px;color:#909399;font-size:12px;">
-                  导出文件将保存至该目录下的日期文件夹中
+                <div style="margin-top:6px;color:#909399;font-size:12px;">
+                  默认路径：<code style="background:#f4f4f5;padding:2px 6px;border-radius:3px;">{{ defaultOutputDir }}</code>
+                  <span style="margin-left:12px;">
+                    导出会创建：
+                    <code style="background:#f4f4f5;padding:2px 6px;border-radius:3px;">{{ outputSubdirHint }}</code>
+                  </span>
                 </div>
               </el-form-item>
             </el-form>
           </el-card>
 
-          <!-- 布局设置 -->
-          <el-card class="section-card">
-            <template #header>🎨 布局设置</template>
-            <el-collapse v-model="layoutActivePanels" style="--el-collapse-header-bg-color:transparent;">
-              <el-collapse-item title="颜色" name="colors">
-                <el-form size="small" label-position="top">
-                  <el-form-item label="主色">
-                    <div style="display:flex;gap:8px;align-items:center;">
-                      <el-color-picker v-model="layoutColors.primary_color" @change="onLayoutChange" />
-                      <el-input v-model="layoutColors.primary_color" size="small" style="width:100px;"
-                        placeholder="#3B7DDD" @input="onLayoutChange" />
-                    </div>
-                  </el-form-item>
-                  <el-form-item label="辅色">
-                    <div style="display:flex;gap:8px;align-items:center;">
-                      <el-color-picker v-model="layoutColors.secondary_color" @change="onLayoutChange" />
-                      <el-input v-model="layoutColors.secondary_color" size="small" style="width:100px;"
-                        placeholder="#F5F5F5" @input="onLayoutChange" />
-                    </div>
-                  </el-form-item>
-                  <el-form-item label="背景色">
-                    <div style="display:flex;gap:8px;align-items:center;">
-                      <el-color-picker v-model="layoutColors.background_color" @change="onLayoutChange" />
-                      <el-input v-model="layoutColors.background_color" size="small" style="width:100px;"
-                        placeholder="#FFFFFF" @input="onLayoutChange" />
-                    </div>
-                  </el-form-item>
-                </el-form>
-              </el-collapse-item>
-              <el-collapse-item title="字体" name="fonts">
-                <el-form size="small" label-position="top">
-                  <el-form-item label="标题字体">
-                    <el-select v-model="layoutColors.font_title" placeholder="默认" clearable
-                      @change="onLayoutChange" style="width:170px;">
-                      <el-option v-for="f in fontOptions" :key="f.value" :label="f.label" :value="f.value" />
-                    </el-select>
-                  </el-form-item>
-                  <el-form-item label="正文字体">
-                    <el-select v-model="layoutColors.font_body" placeholder="默认" clearable
-                      @change="onLayoutChange" style="width:170px;">
-                      <el-option v-for="f in fontOptions" :key="f.value" :label="f.label" :value="f.value" />
-                    </el-select>
-                  </el-form-item>
-                  <el-form-item label="标题字号">
-                    <div style="display:flex;gap:18px;align-items:center;">
-                      <el-slider v-model="layoutColors.font_size_title" :min="12" :max="48" :show-tooltip="false" style="width:120px;"
-                        @change="onLayoutChange" />
-                      <span style="width:40px;text-align:right;">{{ layoutColors.font_size_title }}pt</span>
-                    </div>
-                  </el-form-item>
-                  <el-form-item label="正文字号">
-                    <div style="display:flex;gap:18px;align-items:center;">
-                      <el-slider v-model="layoutColors.font_size_body" :min="8" :max="20" :show-tooltip="false" style="width:120px;"
-                        @change="onLayoutChange" />
-                      <span style="width:40px;text-align:right;">{{ layoutColors.font_size_body }}pt</span>
-                    </div>
-                  </el-form-item>
-                </el-form>
-              </el-collapse-item>
-              <el-collapse-item title="背景" name="bg">
-                <el-form size="small" label-position="top">
-                  <el-form-item label="背景图片">
-                    <el-upload
-                      :http-request="handleBgImageUpload"
-                      :show-file-list="false"
-                      accept="image/jpeg,image/png,image/webp"
-                    >
-                      <el-button size="small">📷 上传背景图</el-button>
-                    </el-upload>
-                    <div v-if="layoutColors.background_image" class="bg-preview" style="margin-top:8px;position:relative;">
-                      <img :src="layoutColors.background_image" alt="背景预览"
-                        style="max-width:100%;max-height:80px;border-radius:4px;border:1px solid #dcdfe6;">
-                      <el-button size="small" circle type="danger"
-                        style="position:absolute;top:-6px;right:-6px;"
-                        @click="removeBgImage">×</el-button>
-                    </div>
-                  </el-form-item>
-                </el-form>
-              </el-collapse-item>
-            </el-collapse>
-            <div style="margin-top:8px;display:flex;gap:8px;">
-              <el-button size="small" @click="openPreviewDialog" :disabled="!recordId">
-                👁️ 预览报告
-              </el-button>
-              <el-button size="small" @click="resetLayout">↩️ 重置</el-button>
-            </div>
-          </el-card>
         </div>
       </div>
 
@@ -580,11 +487,9 @@ const ReportEditorView = {
       dirty: false,
       autoSaveTimer: null,
 
-      // Logo 信息
-      logoInfo: { exists: false, path: null },
-
       // 输出路径
       outputDir: '',
+      defaultOutputDir: '',
 
       // 教师观察 (transient, 不持久化)
       teacherObservation: '',
@@ -616,44 +521,19 @@ const ReportEditorView = {
       // 需要重建项目的元信息
       projectMeta: null,
 
-      // 布局设置（用于 UI 双向绑定，独立于 form.layout_config）
-      layoutColors: {
-        primary_color: null,
-        secondary_color: null,
-        background_color: null,
-        font_title: null,
-        font_body: null,
-        font_size_title: 24,
-        font_size_body: 11,
-        background_image: null,
-        page_margin_top: null,
-        page_margin_bottom: null,
-        page_margin_left: null,
-        page_margin_right: null,
-      },
-      fontOptions: [
-        { value: 'Heiti SC', label: '黑体' },
-        { value: 'STSong', label: '宋体' },
-        { value: 'PingFang SC', label: '苹方' },
-        { value: 'SimSun', label: '宋体(SimSun)' },
-        { value: 'Microsoft YaHei', label: '微软雅黑' },
-        { value: 'KaiTi', label: '楷体' },
-        { value: 'FangSong', label: '仿宋' },
-        { value: 'STKaiti', label: '华文楷体' },
-        { value: 'STXihei', label: '华文细黑' },
-      ],
-      layoutActivePanels: ['colors', 'fonts'],
 
       // 预览
       showPreviewDialog: false,
       previewHtml: '',
       previewLoading: false,
       previewError: '',
-      previewDebounceTimer: null,
     };
   },
 
   computed: {
+    outputSubdirHint() {
+      return '{上课日期}_{班级名}/PDF(用于打印)/ 与 IMG(用于发送)/';
+    },
     statusType() {
       return { draft: 'warning', finalized: 'success', archived: 'info' }[this.form.status] || 'warning';
     },
@@ -683,9 +563,6 @@ const ReportEditorView = {
       await this._loadDefaultOutputDir();
     }
 
-    // 加载 Logo 信息
-    await this.loadLogoInfo();
-
     // 加载模板列表并应用模板配置
     await this.loadTemplates();
     if (this.selectedTemplate) {
@@ -712,7 +589,7 @@ const ReportEditorView = {
         knowledge_points: [],
         ability_improvement: '',
         content_items: [],
-        homework: { goal: '', hints: [], criteria: [] },
+        homework: { goal: '', hints: [], criteria: [], questions: [] },
         vocabulary: { word: '', phonetic: '', meaning: '', example: '' },
         evaluation: '',
         screenshot_paths: [],
@@ -722,16 +599,6 @@ const ReportEditorView = {
         template_id: 'classic',
         project_meta: null,
       };
-    },
-
-    cleanLayoutConfig(lc) {
-      // 只保留非 null 值以减少存储体积
-      if (!lc) return null;
-      const cleaned = {};
-      for (const [k, v] of Object.entries(lc)) {
-        if (v !== null && v !== undefined && v !== '') cleaned[k] = v;
-      }
-      return Object.keys(cleaned).length > 0 ? cleaned : null;
     },
 
     async loadStudents() {
@@ -768,7 +635,7 @@ const ReportEditorView = {
         this.form.knowledge_points = record.knowledge_points || [];
         this.form.ability_improvement = record.ability_improvement || '';
         this.form.content_items = record.content_items || [];
-        this.form.homework = record.homework || { goal: '', hints: [], criteria: [] };
+        this.form.homework = record.homework || { goal: '', hints: [], criteria: [], questions: [] };
         this.form.vocabulary = record.vocabulary || { word: '', phonetic: '', meaning: '', example: '' };
         this.form.evaluation = record.evaluation || '';
         this.form.screenshot_paths = record.screenshot_paths || [];
@@ -776,12 +643,7 @@ const ReportEditorView = {
         if (typeof this.form.logo_config.size === 'string') {
           this.form.logo_config.size = {small: 20, medium: 30, large: 45}[this.form.logo_config.size] || 30;
         }
-        const lc = record.layout_config || {};
-        this.form.layout_config = Object.keys(lc).length > 0 ? { ...lc } : null;
-        // 同步到 UI layoutColors
-        if (this.form.layout_config) {
-          Object.assign(this.layoutColors, this.form.layout_config);
-        }
+        this.form.layout_config = record.layout_config || null;
         this.form.status = record.status || 'draft';
         this.form.template_id = record.template_id || 'classic';
         this.form.project_meta = record.project_meta;
@@ -848,6 +710,48 @@ const ReportEditorView = {
       this.markDirty();
     },
 
+    // ===== 多题模式 =====
+    addQuestion() {
+      if (!this.form.homework.questions) this.form.homework.questions = [];
+      this.form.homework.questions.push({ goal: '', hints: [], criteria: [] });
+      this.markDirty();
+    },
+    removeQuestion(qi) {
+      if (!this.form.homework.questions) return;
+      this.form.homework.questions.splice(qi, 1);
+      this.markDirty();
+    },
+    addQuestionHint(qi) {
+      if (!this.form.homework.questions) return;
+      const q = this.form.homework.questions[qi];
+      if (!q) return;
+      if (!q.hints) q.hints = [];
+      q.hints.push('');
+      this.markDirty();
+    },
+    removeQuestionHint(qi, hi) {
+      if (!this.form.homework.questions) return;
+      const q = this.form.homework.questions[qi];
+      if (!q || !q.hints) return;
+      q.hints.splice(hi, 1);
+      this.markDirty();
+    },
+    addQuestionCriterion(qi) {
+      if (!this.form.homework.questions) return;
+      const q = this.form.homework.questions[qi];
+      if (!q) return;
+      if (!q.criteria) q.criteria = [];
+      q.criteria.push('');
+      this.markDirty();
+    },
+    removeQuestionCriterion(qi, ci) {
+      if (!this.form.homework.questions) return;
+      const q = this.form.homework.questions[qi];
+      if (!q || !q.criteria) return;
+      q.criteria.splice(ci, 1);
+      this.markDirty();
+    },
+
     // =====================
     // 截图操作
     // =====================
@@ -865,50 +769,6 @@ const ReportEditorView = {
     removeScreenshot(i) {
       this.form.screenshot_paths.splice(i, 1);
       this.markDirty();
-    },
-
-    // =====================
-    // 背景图片操作
-    // =====================
-    handleBgImageUpload(options) {
-      const file = options.file;
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        this.layoutColors.background_image = e.target.result;
-        this.onLayoutChange();
-        this.$message.success('背景图片已设置');
-      };
-      reader.onerror = () => {
-        this.$message.error('背景图片读取失败');
-      };
-      reader.readAsDataURL(file);
-    },
-
-    removeBgImage() {
-      this.layoutColors.background_image = null;
-      this.onLayoutChange();
-      this.$message.success('背景图片已移除');
-    },
-
-    // =====================
-    // Logo 操作
-    // =====================
-    async handleLogoUpload(options) {
-      try {
-        await API.assets.uploadLogo(options.file);
-        await this.loadLogoInfo();
-        this.markDirty();
-        this.$message.success('Logo 已上传');
-      } catch (e) {
-        this.$message.error('上传失败: ' + e.message);
-      }
-    },
-
-    async loadLogoInfo() {
-      try {
-        this.logoInfo = await API.assets.getLogo();
-      } catch (_) { /* ignore */ }
     },
 
     // =====================
@@ -954,13 +814,16 @@ const ReportEditorView = {
     // 从系统设置加载默认输出目录
     // =====================
     async _loadDefaultOutputDir() {
-      if (this.outputDir) return;
       try {
         const s = await API.settings.get();
-        if (s.custom_output_dir) {
-          this.outputDir = s.custom_output_dir;
+        const real = s.custom_output_dir || s.default_project_dir || '';
+        this.defaultOutputDir = real || '(未设置)';
+        if (!this.outputDir && real) {
+          this.outputDir = real;
         }
-      } catch (_) { /* 静默 */ }
+      } catch (_) {
+        this.defaultOutputDir = '(未设置)';
+      }
     },
 
     // =====================
@@ -1032,7 +895,14 @@ const ReportEditorView = {
       if (!folderPath) return;
       try {
         const result = await API.projects.scanScreenshots({ folder: folderPath });
-        const shots = result.screenshots || [];
+        // 新格式：{ code_screenshots, homework_screenshots, other_screenshots }
+        const allShots = [
+          ...(result.code_screenshots || []),
+          ...(result.homework_screenshots || []),
+          ...(result.other_screenshots || []),
+        ];
+        // 旧格式兼容：{ screenshots: [...] }
+        const shots = allShots.length > 0 ? allShots : (result.screenshots || []);
         if (shots.length === 0) return;
         for (const s of shots) {
           if (!this.form.screenshot_paths.includes(s.url)) {
@@ -1196,9 +1066,8 @@ const ReportEditorView = {
       }
       this.wordExporting = true;
       try {
-        const layoutConfig = this.cleanLayoutConfig(this.layoutColors);
         const ss = this.form && this.form.screenshot_paths;
-        const result = await API.reports.exportWord(this.recordId, this.selectedTemplate, layoutConfig, this.outputDir, ss);
+        const result = await API.reports.exportWord(this.recordId, this.selectedTemplate, null, this.outputDir, ss);
         window.open(result.docx_path, '_blank');
         if (result.custom_path) {
           this.$message.success('Word 已保存到: ' + result.custom_path);
@@ -1260,9 +1129,6 @@ const ReportEditorView = {
       try {
         const payload = { ...this.form };
         delete payload.project_meta;
-        // 保留 logo_config 以便持久化
-        // 清理 layout_config: 只存非 null 键
-        payload.layout_config = this.cleanLayoutConfig(this.layoutColors);
 
         if (this.recordId) {
           await API.reports.patch(this.recordId, payload);
@@ -1297,9 +1163,8 @@ const ReportEditorView = {
         if (this.dirty) {
           await this.saveDraft();
         }
-        const layoutConfig = this.cleanLayoutConfig(this.layoutColors);
         const ss = this.form && this.form.screenshot_paths;
-        const result = await API.reports.export(this.recordId, this.selectedTemplate, layoutConfig, this.outputDir, ss);
+        const result = await API.reports.export(this.recordId, this.selectedTemplate, null, this.outputDir, ss);
         this.form.status = 'finalized';
         this.pdfDownloadUrl = result.pdf_path;
 
@@ -1348,20 +1213,22 @@ const ReportEditorView = {
       try {
         const config = await API.templates.getConfig(val);
         if (config) {
-          const theme = config.theme;
           if (theme) {
-            this.layoutColors.primary_color = null;
-            this.layoutColors.secondary_color = null;
-            this.layoutColors.font_title = null;
-            this.layoutColors.font_body = null;
-            this.layoutColors.font_size_title = theme.font_size_title || 24;
-            this.layoutColors.font_size_body = theme.font_size_body || 11;
-            this.layoutColors.background_color = theme.background_color || null;
-            this.layoutColors.background_image = theme.background_image || null;
-            this.layoutColors.page_margin_top = theme.page_margin_top || null;
-            this.layoutColors.page_margin_bottom = theme.page_margin_bottom || null;
-            this.layoutColors.page_margin_left = theme.page_margin_left || null;
-            this.layoutColors.page_margin_right = theme.page_margin_right || null;
+            // 主题默认值直接写入 form.layout_config（模板渲染时使用）
+            this.form.layout_config = {
+              primary_color: theme.primary_color || null,
+              secondary_color: theme.secondary_color || null,
+              font_title: theme.font_title || null,
+              font_body: theme.font_body || null,
+              font_size_title: theme.font_size_title || 24,
+              font_size_body: theme.font_size_body || 11,
+              background_color: theme.background_color || null,
+              background_image: theme.background_image || null,
+              page_margin_top: theme.page_margin_top || null,
+              page_margin_bottom: theme.page_margin_bottom || null,
+              page_margin_left: theme.page_margin_left || null,
+              page_margin_right: theme.page_margin_right || null,
+            };
           }
           // 加载模板的 Logo 配置
           if (config.logo_config) {
@@ -1375,7 +1242,6 @@ const ReportEditorView = {
           }
         }
       } catch (_) { /* 不阻塞 */ }
-      this.onLayoutChange();
     },
 
     _resolveDefaultTemplate() {
@@ -1392,27 +1258,13 @@ const ReportEditorView = {
       this.markDirty();
     },
 
-    // =====================
-    // 布局设置
-    // =====================
-    onLayoutChange() {
-      // 同步 layoutColors → form.layout_config
-      this.form.layout_config = this.cleanLayoutConfig(this.layoutColors);
-      this.markDirty();
-      // 去抖预览：不立即刷新，等用户操作停止
-      if (this.previewDebounceTimer) clearTimeout(this.previewDebounceTimer);
-      this.previewDebounceTimer = setTimeout(() => {
-        if (this.showPreviewDialog) this.refreshPreview();
-      }, 800);
-    },
-
     async refreshPreview() {
       if (!this.recordId) return;
       this.previewLoading = true;
       this.previewError = '';
       try {
         const ss = this.form && this.form.screenshot_paths;
-        const html = await API.reports.preview(this.recordId, this.selectedTemplate, this.cleanLayoutConfig(this.layoutColors), ss);
+        const html = await API.reports.preview(this.recordId, this.selectedTemplate, null, ss);
         this.previewHtml = html;
       } catch (e) {
         this.previewError = '预览生成失败: ' + e.message;
@@ -1425,25 +1277,6 @@ const ReportEditorView = {
     openPreviewDialog() {
       this.showPreviewDialog = true;
       this.$nextTick(() => this.refreshPreview());
-    },
-
-    resetLayout() {
-      this.layoutColors = {
-        primary_color: null,
-        secondary_color: null,
-        background_color: null,
-        font_title: null,
-        font_body: null,
-        font_size_title: 24,
-        font_size_body: 11,
-        background_image: null,
-        page_margin_top: null,
-        page_margin_bottom: null,
-        page_margin_left: null,
-        page_margin_right: null,
-      };
-      this.onLayoutChange();
-      this.$message.success('布局已重置为模板默认');
     },
 
     confirmDeleteRecord() {
@@ -1477,7 +1310,6 @@ const ReportEditorView = {
         try {
           const payload = { ...this.form };
           delete payload.project_meta;
-          payload.layout_config = this.cleanLayoutConfig(this.layoutColors);
           await API.reports.patch(this.recordId, payload);
           this.dirty = false;
           this.saveState = 'saved';

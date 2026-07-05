@@ -1,18 +1,20 @@
 """模板管理 API 路由（CRUD + 预览）。"""
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, HTTPException, status
+from fastapi import APIRouter, Body, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
 
 from backend.schemas.template import TemplateListItem
 from backend.services.report_renderer import get_template_config, list_templates, wrap_preview_html
 from backend.services.template_manager import (
+    TemplateError,
     TemplateNotDeletableError,
     TemplateNotFoundError as SvcTemplateNotFoundError,
     create_template,
     delete_template,
     render_template_preview,
     update_template_config,
+    upload_template,
 )
 
 router = APIRouter(tags=["template-management"])
@@ -101,6 +103,36 @@ async def api_delete_template(template_id: str) -> None:
         raise HTTPException(status_code=404, detail=str(e))
     except TemplateNotDeletableError as e:
         raise HTTPException(status_code=403, detail=str(e))
+
+
+@router.post(
+    "/api/templates/upload",
+    response_model=TemplateListItem,
+    status_code=status.HTTP_201_CREATED,
+    summary="上传自定义模板 (ZIP)",
+)
+async def api_upload_template(file: UploadFile = File(...)) -> TemplateListItem:
+    """上传 ZIP 格式的自定义模板。
+
+    ZIP 必须包含 config.json, template.html, style.css 三个文件，无子目录。
+    系统自动生成 template ID，覆盖 config.json 中的 id/is_builtin/parent_template。
+    """
+    if not file.filename or not file.filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="仅支持 .zip 文件")
+
+    try:
+        content = await file.read()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"读取文件失败: {e}")
+
+    try:
+        result = upload_template(content)
+    except TemplateError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"模板上传失败: {e}")
+
+    return TemplateListItem(**result)
 
 
 @router.post(

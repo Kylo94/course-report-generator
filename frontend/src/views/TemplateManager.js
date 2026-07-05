@@ -7,9 +7,14 @@ const TemplateManagerView = {
     <div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
         <h2 style="margin:0;">🎨 模板管理</h2>
-        <el-button type="primary" @click="showCreateDialog">
-          <el-icon><Plus /></el-icon> 创建模板
-        </el-button>
+        <div style="display:flex;gap:8px;">
+          <el-button type="primary" @click="showCreateDialog">
+            <el-icon><Plus /></el-icon> 创建模板
+          </el-button>
+          <el-button type="success" @click="showUploadDialog">
+            <el-icon><UploadFilled /></el-icon> 上传模板
+          </el-button>
+        </div>
       </div>
 
       <!-- 内置模板区 -->
@@ -349,6 +354,41 @@ const TemplateManagerView = {
         </template>
       </el-dialog>
 
+      <!-- ======================== 上传对话框 ======================== -->
+      <el-dialog v-model="uploadDialogVisible" title="上传模板" width="420px"
+        :close-on-click-modal="false">
+        <el-upload
+          drag
+          accept=".zip"
+          :auto-upload="false"
+          :limit="1"
+          :on-change="handleUploadChange"
+          :on-exceed="handleUploadExceed"
+          ref="uploadRef">
+          <el-icon :size="40" style="color:#409eff;"><UploadFilled /></el-icon>
+          <div style="margin-top:8px;">将 .zip 模板文件拖拽到这里，或 <em>点击选择</em></div>
+          <template #tip>
+            <div style="color:#909399;font-size:12px;margin-top:4px;">
+              要求：zip 内包含 config.json, template.html, style.css（无子目录）
+            </div>
+          </template>
+        </el-upload>
+        <div v-if="uploadResult" :style="{
+          marginTop: '12px', padding: '10px', borderRadius: '4px',
+          background: uploadSuccess ? '#f0f9eb' : '#fef0f0',
+          color: uploadSuccess ? '#67c23a' : '#f56c6c'
+        }">
+          {{ uploadResult }}
+        </div>
+        <template #footer>
+          <el-button @click="uploadDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitUpload"
+            :loading="uploading" :disabled="!uploadFile">
+            {{ uploading ? '上传中...' : '开始上传' }}
+          </el-button>
+        </template>
+      </el-dialog>
+
       <!-- ======================== 预览弹窗 ======================== -->
       <el-dialog v-model="previewDialogVisible" title="模板预览" width="90%" top="2vh"
         :close-on-click-modal="false">
@@ -392,6 +432,13 @@ const TemplateManagerView = {
       previewHtml: '',
       previewLoading: false,
       previewError: '',
+
+      // 上传
+      uploadDialogVisible: false,
+      uploading: false,
+      uploadFile: null,
+      uploadResult: '',
+      uploadSuccess: false,
 
       // 字体选项
       defaultTemplateId: localStorage.getItem('crg_default_template') || '',
@@ -698,6 +745,46 @@ const TemplateManagerView = {
           this.$message.error('删除失败: ' + e.message);
         }
       }).catch(() => {});
+    },
+
+    showUploadDialog() {
+      this.uploadDialogVisible = true;
+      this.uploadFile = null;
+      this.uploadResult = '';
+      this.uploadSuccess = false;
+    },
+
+    handleUploadChange(file) {
+      this.uploadFile = file.raw;
+      this.uploadResult = '';
+    },
+
+    handleUploadExceed() {
+      this.$message.warning('每次只能上传一个文件');
+    },
+
+    async submitUpload() {
+      if (!this.uploadFile) {
+        this.$message.warning('请先选择要上传的模板文件');
+        return;
+      }
+      this.uploading = true;
+      this.uploadResult = '';
+      try {
+        const result = await API.templates.uploadTemplate(this.uploadFile);
+        this.uploadSuccess = true;
+        this.uploadResult = `✅ 模板「${result.name}」上传成功！`;
+        this.$message.success('模板上传成功');
+        this.uploadFile = null;
+        await this.loadTemplates();
+        setTimeout(() => { this.uploadDialogVisible = false; }, 1500);
+      } catch (e) {
+        this.uploadSuccess = false;
+        this.uploadResult = '❌ ' + e.message;
+        this.$message.error('上传失败: ' + e.message);
+      } finally {
+        this.uploading = false;
+      }
     },
   },
 };

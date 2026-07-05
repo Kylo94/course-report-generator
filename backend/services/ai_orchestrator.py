@@ -184,9 +184,30 @@ class AIOrchestrator:
         project: ProjectMetaSchema,
         default_student: StudentRead,
         teacher_observation: str = "",
+        code_screenshots: list[str] | None = None,
+        homework_screenshots: list[str] | None = None,
+        create_vocabulary: bool = True,
+        skip_code_analysis: bool = False,
+        skip_homework_gen: bool = False,
     ) -> dict:
-        """批量模式：所有学生共享的内容（Steps 0-3）。"""
-        log.info("批量共享生成: course=%s", project.course_title)
+        """批量模式：所有学生共享的内容（Steps 0-3）。
+
+        参数：
+        - code_screenshots: 代码截图 URL 列表（save/代码*.png 扫描得到）
+        - homework_screenshots: 作业截图 URL 列表（save/作业*.png 扫描得到）
+        - create_vocabulary: 是否生成单词卡（默认 True）
+        - skip_code_analysis: 是否有代码截图，跳过代码 AI 解析
+        - skip_homework_gen: 是否有作业截图，跳过作业 AI 生成
+        """
+        log.info(
+            "批量共享生成: course=%s code_imgs=%d hw_imgs=%d vocab=%s skip_code=%s skip_hw=%s",
+            project.course_title,
+            len(code_screenshots or []),
+            len(homework_screenshots or []),
+            create_vocabulary,
+            skip_code_analysis,
+            skip_homework_gen,
+        )
 
         conv = AIConversation(self.provider)
         code_content = self._build_code_content(project)
@@ -195,9 +216,20 @@ class AIOrchestrator:
         project_type = project.project_type
 
         # Step 0: 读代码
-        analysis = await conv.step_read_code(
-            code_content, entry_comment, course_topic, project_type,
-        )
+        if skip_code_analysis:
+            log.info("跳过代码 AI 解析（使用代码截图 %d 张）", len(code_screenshots or []))
+            analysis = {
+                "course_topic": course_topic,
+                "main_objectives": [],
+                "key_functions": [],
+                "python_techniques": [],
+                "code_screenshots": list(code_screenshots or []),
+                "skipped": True,
+            }
+        else:
+            analysis = await conv.step_read_code(
+                code_content, entry_comment, course_topic, project_type,
+            )
 
         # Step 1: 知识点
         kp = await conv.step_knowledge_points(course_topic, project_type, entry_comment)
@@ -208,12 +240,28 @@ class AIOrchestrator:
         log.info("共享内容概述: %d 条", len(items))
 
         # Step 3: 作业 + 单词
-        homework_guidance = self._get_homework_guidance(project)
-        hw, vocab = await conv.step_homework_vocab(
-            kp, default_student.base_level, entry_comment, project_type,
-            homework_guidance,
-        )
-        log.info("共享作业/单词完成")
+        if skip_homework_gen:
+            log.info("跳过作业 AI 生成（使用作业截图 %d 张）", len(homework_screenshots or []))
+            hw = {
+                "goal": "（基于作业截图，详见下方图片）",
+                "hints": [],
+                "criteria": [],
+                "questions": [],
+                "screenshots": list(homework_screenshots or []),
+                "skipped": True,
+            }
+            vocab = {"word": "", "phonetic": "", "meaning": "", "example": ""} if create_vocabulary else {}
+        else:
+            homework_guidance = self._get_homework_guidance(project)
+            hw, vocab = await conv.step_homework_vocab(
+                kp, default_student.base_level, entry_comment, project_type,
+                homework_guidance,
+            )
+            # 如果不需要单词，清空
+            if not create_vocabulary:
+                vocab = {"word": "", "phonetic": "", "meaning": "", "example": ""}
+
+        log.info("共享作业/单词完成 (vocab=%s)", "是" if create_vocabulary else "否")
 
         # 保存共享会话，供 generate_evaluations 使用
         self._shared_conv = conv
@@ -225,6 +273,8 @@ class AIOrchestrator:
             "homework": hw,
             "vocabulary": vocab,
             "code_analysis": analysis,
+            "code_screenshots": list(code_screenshots or []),
+            "homework_screenshots": list(homework_screenshots or []),
         }
 
     async def generate_evaluations(
@@ -233,13 +283,20 @@ class AIOrchestrator:
         students: list[StudentRead],
         shared_content: dict,
         teacher_observation: str = "",
+        observations: dict[int, str] | None = None,
     ) -> list:
-        """批量模式：为每个学生生成个性化评价（基于共享会话的记忆）。"""
-        log.info("批量评价: %d 名学生", len(students))
+        """批量模式：为每个学生生成个性化评价（基于共享会话的记忆）。
+
+        observations: 逐学生观察 dict（key=student_id）。未填则用 teacher_observation 全局值。
+        """
+        log.info("批量评价: %d 名学生 (含 %d 条逐学生观察)", len(students), len(observations or {}))
         kp = shared_content.get("knowledge_points", [])
         entry_comment = self._get_entry_comment(project)
+        observations = observations or {}
 
         async def _eval_one(student: StudentRead) -> str:
+            # 优先用逐学生观察，回退到全局观察
+            per_student_obs = observations.get(student.id) or teacher_observation
             # 从共享会话创建子会话（复制全部记忆，不重复调用 LLM）
             conv = AIConversation.from_shared(self.provider, self._shared_conv)
             return await conv.step_evaluation(
@@ -249,7 +306,7 @@ class AIOrchestrator:
                 student_level=student.base_level,
                 student_characteristics="、".join(student.characteristics) or "无特别记录",
                 knowledge_points=kp,
-                teacher_observation=teacher_observation,
+                teacher_observation=per_student_obs,
                 entry_comment=entry_comment,
             )
 

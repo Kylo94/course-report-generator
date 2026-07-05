@@ -10,11 +10,19 @@ class BatchGenerateRequest(BaseModel):
     course_date: str = ""
     course_topic: str = ""
     project_folder: str = ""
-    teacher_observation: str = ""
+    teacher_observation: str = ""  # 全局观察（兜底）
+    observations: dict[int, str] = {}  # 逐学生观察，key=student_id
     template_id: str = "classic"
     output_dir: str | None = None
     auto_export: bool = False
     screenshot_paths: list[str] = []
+    # === 截图分类（save/ 目录扫描后填充） ===
+    code_screenshots: list[str] = []      # 代码截图 URL（save/代码*.png）
+    homework_screenshots: list[str] = []  # 作业截图 URL（save/作业*.png）
+    # === AI 步骤开关 ===
+    create_vocabulary: bool = True  # 是否生成单词卡
+    skip_code_analysis: bool = False  # 是否有代码截图 → 跳过程序解析
+    skip_homework_gen: bool = False  # 是否有作业截图 → 跳过作业生成
 
 
 class BatchStudentResult(BaseModel):

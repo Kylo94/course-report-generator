@@ -42,10 +42,24 @@ const BatchReportView = {
                   <el-button @click="openDirBrowser">📂 浏览</el-button>
                 </div>
               </el-form-item>
-              <el-form-item label="教师观察">
+              <el-form-item label="教师观察（全局）">
                 <el-input v-model="config.teacher_observation" type="textarea" :rows="2"
                   maxlength="300" show-word-limit
                   placeholder="输入对班级整体的课堂观察，AI 评价将参考此信息" style="width:400px" />
+              </el-form-item>
+              <el-form-item v-if="studentList.length > 0" label="逐学生观察">
+                <div style="width:100%;">
+                  <div style="font-size:12px;color:#909399;margin-bottom:8px;">
+                    为个别学生填写个性化观察（选填），留空则使用上方全局观察
+                  </div>
+                  <div v-for="s in studentList" :key="s.id"
+                    style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;padding:6px 8px;border:1px solid #e4e7ed;border-radius:4px;">
+                    <div style="min-width:60px;font-weight:500;padding-top:4px;font-size:13px;">{{ s.name }}</div>
+                    <el-input v-model="observations[s.id]" type="textarea" :rows="1"
+                      maxlength="200" show-word-limit
+                      placeholder="个性化观察（选填）" style="flex:1" />
+                  </div>
+                </div>
               </el-form-item>
             </el-form>
           </el-card>
@@ -87,8 +101,8 @@ const BatchReportView = {
               show-word-limit placeholder="输入能力提升" />
           </el-card>
 
-          <!-- 内容概述 -->
-          <el-card class="section-card">
+          <!-- 内容概述（AI 生成后才显示） -->
+          <el-card v-if="sharedContent.content_items && sharedContent.content_items.length > 0" class="section-card">
             <template #header>
               <span>📝 内容概述</span>
               <el-button size="small" type="warning" link style="float:right"
@@ -96,9 +110,6 @@ const BatchReportView = {
                 {{ regeneratingFields['content_summary'] ? '生成中...' : '重新生成' }}
               </el-button>
             </template>
-            <div v-if="!sharedContent.content_items || sharedContent.content_items.length === 0" style="color:#909399;">
-              暂无内容，请先通过 AI 生成或手动添加
-            </div>
             <div v-for="(item, i) in sharedContent.content_items" :key="i" class="content-item">
               <div class="content-item-header">
                 {{ item.kp }}
@@ -143,7 +154,46 @@ const BatchReportView = {
                 {{ regeneratingFields['homework_vocab'] ? '生成中...' : '重新生成' }}
               </el-button>
             </template>
-            <el-form label-width="100px" size="small">
+            <!-- 多题模式 -->
+            <div v-if="sharedContent.homework.questions && sharedContent.homework.questions.length > 0">
+              <div v-for="(q, qi) in sharedContent.homework.questions" :key="qi"
+                style="margin-bottom:16px;padding:12px;border:1px solid #e4e7ed;border-radius:6px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                  <strong>第 {{ qi+1 }} 题</strong>
+                  <el-button size="small" type="danger" link @click="removeQuestion(qi)">删除</el-button>
+                </div>
+                <el-form label-width="80px" size="small">
+                  <el-form-item label="题目">
+                    <el-input v-model="q.goal" type="textarea" :rows="2" style="width:400px" />
+                  </el-form-item>
+                  <el-form-item label="提示">
+                    <div v-for="(h, hi) in q.hints" :key="'qh'+hi" style="margin-bottom:4px">
+                      <el-input v-model="q.hints[hi]" style="width:300px" placeholder="提示内容">
+                        <template #prefix>#{{ hi+1 }}</template>
+                        <template #suffix>
+                          <el-button link type="danger" size="small" @click="removeQuestionHint(qi, hi)">×</el-button>
+                        </template>
+                      </el-input>
+                    </div>
+                    <el-button size="small" @click="addQuestionHint(qi)">+ 添加提示</el-button>
+                  </el-form-item>
+                  <el-form-item label="评分点">
+                    <div v-for="(c, ci) in q.criteria" :key="'qc'+ci" style="margin-bottom:4px">
+                      <el-input v-model="q.criteria[ci]" style="width:300px" placeholder="评分标准">
+                        <template #prefix>#{{ ci+1 }}</template>
+                        <template #suffix>
+                          <el-button link type="danger" size="small" @click="removeQuestionCriterion(qi, ci)">×</el-button>
+                        </template>
+                      </el-input>
+                    </div>
+                    <el-button size="small" @click="addQuestionCriterion(qi)">+ 添加评分点</el-button>
+                  </el-form-item>
+                </el-form>
+              </div>
+              <el-button size="small" @click="addQuestion">+ 添加题目</el-button>
+            </div>
+            <!-- 单题兼容模式 -->
+            <el-form v-else label-width="100px" size="small">
               <el-form-item label="作业目标">
                 <el-input v-model="sharedContent.homework.goal" type="textarea" :rows="2" style="width:400px" />
               </el-form-item>
@@ -222,6 +272,7 @@ const BatchReportView = {
           <el-card class="section-card">
             <template #header>⚙️ 批量操作</template>
             <div style="display:flex;flex-direction:column;gap:8px;">
+              <el-checkbox v-model="createVocabulary" style="margin-bottom:4px;">生成单词知识点</el-checkbox>
               <el-button type="primary" class="btn-feature" @click="batchGenerate" :loading="batchRunning"
                 :disabled="!config.class_id" size="large">
                 🚀 批量生成{{ studentCount > 0 ? '（' + studentCount + '人）' : '' }}
@@ -273,6 +324,13 @@ const BatchReportView = {
                 <div style="display:flex;gap:8px;">
                   <el-input v-model="config.output_dir" placeholder="留空使用默认路径" style="flex:1" />
                   <el-button @click="browseOutputDir">📂 浏览</el-button>
+                </div>
+                <div style="margin-top:6px;color:#909399;font-size:12px;">
+                  默认路径：<code style="background:#f4f4f5;padding:2px 6px;border-radius:3px;">{{ defaultOutputDir }}</code>
+                  <span style="margin-left:12px;">
+                    导出会创建：
+                    <code style="background:#f4f4f5;padding:2px 6px;border-radius:3px;">{{ outputSubdirHint }}</code>
+                  </span>
                 </div>
               </el-form-item>
             </el-form>
@@ -337,7 +395,7 @@ const BatchReportView = {
         ability_improvement: '',
         content_items: [],
         vocabulary: { word: '', phonetic: '', meaning: '', example: '' },
-        homework: { goal: '', hints: [], criteria: [] },
+        homework: { goal: '', hints: [], criteria: [], questions: [] },
       },
       kpInputVisible: false,
       kpInputValue: '',
@@ -350,6 +408,10 @@ const BatchReportView = {
       dirBrowserLoading: false,
       dirBrowserError: null,
       _dirBrowserMode: 'project',
+
+      // 逐学生观察 { student_id: observation_text }
+      observations: {},
+      createVocabulary: true,
 
       config: {
         class_id: null,
@@ -385,6 +447,12 @@ const BatchReportView = {
   },
 
   computed: {
+    defaultOutputDir() {
+      return this.config.output_dir || '(留空使用默认)';
+    },
+    outputSubdirHint() {
+      return '{上课日期}_{班级名}/PDF(用于打印)/ 与 IMG(用于发送)/';
+    },
     className() {
       const c = this.classList.find(cls => cls.id === this.config.class_id);
       return c ? c.name : '';
@@ -405,8 +473,9 @@ const BatchReportView = {
     this.Router = Router;
     await this.loadClasses();
     await this.loadTemplates();
-    // 加载系统设置，预填项目目录
+    // 加载系统设置，预填项目目录 + 输出目录
     await this._loadDefaultProjectDir();
+    await this._loadDefaultOutputDir();
   },
 
   methods: {
@@ -435,6 +504,7 @@ const BatchReportView = {
     onClassSelected(classId) {
       this.config.class_id = classId;
       this.batchResults = [];
+      this.observations = {};
       this.resetSharedContent();
       this.loadFirstStudentId(classId);
     },
@@ -446,6 +516,11 @@ const BatchReportView = {
         const students = result.items || [];
         this.studentList = students.filter(s => s.class_id === classId);
         this.firstStudentId = this.studentList.length > 0 ? this.studentList[0].id : null;
+        // 初始化逐学生观察字典
+        this.observations = {};
+        for (const s of this.studentList) {
+          this.observations[s.id] = '';
+        }
         if (!this.firstStudentId) {
           this.$message.warning('该班级暂无学生，请先添加学生');
         }
@@ -458,6 +533,7 @@ const BatchReportView = {
       this.config.class_id = null;
       this.selectedClassId = null;
       this.batchResults = [];
+      this.observations = {};
       this.resetSharedContent();
     },
 
@@ -467,7 +543,7 @@ const BatchReportView = {
         ability_improvement: '',
         content_items: [],
         vocabulary: { word: '', phonetic: '', meaning: '', example: '' },
-        homework: { goal: '', hints: [], criteria: [] },
+        homework: { goal: '', hints: [], criteria: [], questions: [] },
       };
     },
 
@@ -511,6 +587,42 @@ const BatchReportView = {
       this.sharedContent.homework.criteria.splice(i, 1);
     },
 
+    // ===== 多题模式 =====
+    addQuestion() {
+      if (!this.sharedContent.homework.questions) this.sharedContent.homework.questions = [];
+      this.sharedContent.homework.questions.push({ goal: '', hints: [], criteria: [] });
+    },
+    removeQuestion(qi) {
+      if (!this.sharedContent.homework.questions) return;
+      this.sharedContent.homework.questions.splice(qi, 1);
+    },
+    addQuestionHint(qi) {
+      if (!this.sharedContent.homework.questions) return;
+      const q = this.sharedContent.homework.questions[qi];
+      if (!q) return;
+      if (!q.hints) q.hints = [];
+      q.hints.push('');
+    },
+    removeQuestionHint(qi, hi) {
+      if (!this.sharedContent.homework.questions) return;
+      const q = this.sharedContent.homework.questions[qi];
+      if (!q || !q.hints) return;
+      q.hints.splice(hi, 1);
+    },
+    addQuestionCriterion(qi) {
+      if (!this.sharedContent.homework.questions) return;
+      const q = this.sharedContent.homework.questions[qi];
+      if (!q) return;
+      if (!q.criteria) q.criteria = [];
+      q.criteria.push('');
+    },
+    removeQuestionCriterion(qi, ci) {
+      if (!this.sharedContent.homework.questions) return;
+      const q = this.sharedContent.homework.questions[qi];
+      if (!q || !q.criteria) return;
+      q.criteria.splice(ci, 1);
+    },
+
     // ===== 从系统设置加载默认项目目录 =====
     async _loadDefaultProjectDir() {
       if (this.config.project_folder) return; // 已有值不覆盖
@@ -518,6 +630,17 @@ const BatchReportView = {
         const s = await API.settings.get();
         if (s.default_project_dir) {
           this.config.project_folder = s.default_project_dir;
+        }
+      } catch (_) { /* 静默失败，不影响主流程 */ }
+    },
+
+    async _loadDefaultOutputDir() {
+      if (this.config.output_dir) return;
+      try {
+        const s = await API.settings.get();
+        const real = s.custom_output_dir || s.default_project_dir || '';
+        if (real) {
+          this.config.output_dir = real;
         }
       } catch (_) { /* 静默失败，不影响主流程 */ }
     },
@@ -598,7 +721,14 @@ const BatchReportView = {
       if (!folderPath) return;
       try {
         const result = await API.projects.scanScreenshots({ folder: folderPath });
-        const shots = result.screenshots || [];
+        // 新格式：{ code_screenshots, homework_screenshots, other_screenshots }
+        const allShots = [
+          ...(result.code_screenshots || []),
+          ...(result.homework_screenshots || []),
+          ...(result.other_screenshots || []),
+        ];
+        // 旧格式兼容：{ screenshots: [...] }
+        const shots = allShots.length > 0 ? allShots : (result.screenshots || []);
         if (shots.length === 0) return;
         for (const s of shots) {
           if (!this.config.screenshot_paths.includes(s.url)) {
@@ -699,6 +829,8 @@ const BatchReportView = {
           course_topic: this.config.course_topic,
           project_folder: this.config.project_folder,
           teacher_observation: this.config.teacher_observation || '',
+          observations: this.observations,
+          create_vocabulary: this.createVocabulary,
           template_id: this.config.template_id,
           output_dir: this.config.output_dir || null,
           auto_export: false,

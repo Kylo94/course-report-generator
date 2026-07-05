@@ -349,6 +349,17 @@ def get_settings() -> Settings:
             llm_data = yaml.safe_load(f) or {}
         settings.llm = LLMConfig(**llm_data)
 
+    # 环境变量覆盖 LLM 配置（最高优先级，支持 CRG_LLM__API_KEY 等）
+    for field_name in type(settings.llm).model_fields:
+        env_value = _env("LLM", field_name.upper())
+        if env_value is not None:
+            field = type(settings.llm).model_fields[field_name]
+            try:
+                coerced = field.annotation(env_value)  # type: ignore[arg-type]
+                setattr(settings.llm, field_name, coerced)
+            except (ValueError, TypeError):
+                pass
+
     # 加载用户持久化设置（覆盖 YAML 中的值）
     user_data = _load_user_settings()
     if user_data:
