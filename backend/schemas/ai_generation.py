@@ -48,6 +48,10 @@ class AIGenerateRequest(BaseModel):
         default=None,
         description="指定要生成的字段；None 表示全部",
     )
+    existing_content: dict | None = Field(
+        default=None,
+        description="用户已填写的内容（knowledge_points/homework/vocabulary 等），AI 以此为准不再生成",
+    )
 
 
 class AIGenerateResponse(BaseModel):

@@ -59,12 +59,7 @@ class PDFGenerator:
                     pdf_bytes = await page.pdf(
                         format="A4",
                         print_background=True,
-                        margin={
-                            "top": str(margin["top"]),
-                            "right": str(margin["right"]),
-                            "bottom": str(margin["bottom"]),
-                            "left": str(margin["left"]),
-                        },
+                        margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
                     )
                     return pdf_bytes
                 finally:

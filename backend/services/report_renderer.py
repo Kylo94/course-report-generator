@@ -48,10 +48,15 @@ def _url_to_fs_path(url_path: str) -> str | None:
             return str(full.resolve())
     elif url_path.startswith("/api/assets/"):
         # 通用 assets 路径：/api/assets/bg2.png → data/assets/bg2.png
+        # 优先 data/assets/（用户上传），回退 static/assets/（内置默认）
+        from backend.config import PROJECT_ROOT
         filename = url_path[len("/api/assets/"):]
         full = Path(settings.report.asset_dir) / filename
         if full.exists():
             return str(full.resolve())
+        static_full = PROJECT_ROOT / "static" / "assets" / filename
+        if static_full.exists():
+            return str(static_full.resolve())
     return None
 
 
@@ -188,11 +193,13 @@ class ReportRenderer:
         record,
         student_name: str = "",
         layout_config: dict | None = None,
+        run_screenshots: list[str] | None = None,
         code_screenshots: list[str] | None = None,
         homework_screenshots: list[str] | None = None,
     ) -> str:
         """渲染完整报告 HTML。
 
+        run_screenshots: 运行效果/项目截图 URL 列表，模板中在运行效果区域展示图片。
         code_screenshots: 代码截图 URL 列表，模板中优先显示图片而非 code_excerpt 文本。
         homework_screenshots: 作业截图 URL 列表，模板中在作业区域展示图片。
         """
@@ -227,7 +234,13 @@ class ReportRenderer:
         if logo_cfg.get("enabled", True):  # 默认启用（有文件就显示）
             # 优先使用模板内嵌的 logo，再回退到全局 Logo 文件
             logo_data_uri = self.config.get("logo_data_uri")
-            if not logo_data_uri:
+            # 如果配置中是 URL（如 /api/assets/logo.png），转为 data URI
+            if logo_data_uri and not logo_data_uri.startswith("data:"):
+                fs_path = _url_to_fs_path(logo_data_uri)
+                if fs_path:
+                    logo_data_uri = _image_to_data_uri(fs_path)
+            if not logo_data_uri or logo_data_uri.startswith("/api/"):
+                # 回退到从磁盘读取全局 Logo 文件
                 settings = get_settings()
                 asset_dir = Path(settings.report.asset_dir)
                 for ext in (".png", ".jpg", ".jpeg", ".webp"):
@@ -391,6 +404,19 @@ class ReportRenderer:
                 else:
                     resolved_homework_screenshots.append(s)
 
+        # 处理运行效果/项目截图：URL → data URI
+        resolved_run_screenshots: list[str] = []
+        if run_screenshots:
+            for s in run_screenshots:
+                if not isinstance(s, str):
+                    continue
+                fs_path = _url_to_fs_path(s)
+                if fs_path:
+                    data_uri = _image_to_data_uri(fs_path)
+                    resolved_run_screenshots.append(data_uri or fs_path)
+                else:
+                    resolved_run_screenshots.append(s)
+
         # 模板上下文
         ctx = {
             "css_content": self.css_content,
@@ -407,6 +433,7 @@ class ReportRenderer:
             "screenshots": resolved_screenshots,
             "logo": logo_data,
             "code_excerpt": code_excerpt,
+            "run_screenshots": resolved_run_screenshots,
             "code_screenshots": resolved_code_screenshots,
             "homework_screenshots": resolved_homework_screenshots,
         }
@@ -446,8 +473,10 @@ class ReportRenderer:
             lines.append(f"  --logo-offset-left: {logo_margin_mm}mm;")
         lines.append("}")
 
-        # 页面内边距（控制内容不覆盖背景图边框）
+        # 页面尺寸和内边距（控制内容不覆盖背景图边框）
         lines.append(".page {")
+        lines.append("  width: 210mm;")
+        lines.append("  min-height: 297mm;")
         lines.append("  padding:")
         lines.append(f"    var(--page-margin-top, 20mm)")
         lines.append(f"    var(--page-margin-right, 18mm)")
@@ -514,6 +543,17 @@ _A4_PREVIEW_CSS = """\
   }
   .page:last-of-type {
     margin-bottom: 30px !important;
+  }
+}
+@media print {
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    padding-top: var(--page-margin-top, 20mm);
+    padding-right: var(--page-margin-right, 18mm);
+    padding-bottom: var(--page-margin-bottom, 18mm);
+    padding-left: var(--page-margin-left, 18mm);
+    page-break-after: always;
   }
 }
 </style>

@@ -345,6 +345,7 @@ const ReportEditorView = {
 
             <!-- 分类切换 -->
             <el-radio-group v-model="screenshotCategory" size="small" style="margin-bottom:8px;width:100%;display:flex;">
+              <el-radio-button value="run" style="flex:1;">🚀 运行/效果</el-radio-button>
               <el-radio-button value="code" style="flex:1;">💻 代码</el-radio-button>
               <el-radio-button value="homework" style="flex:1;">📝 作业</el-radio-button>
               <el-radio-button value="general" style="flex:1;">🖼️ 其他</el-radio-button>
@@ -355,6 +356,18 @@ const ReportEditorView = {
               :disabled="screenshotUploading">
               <el-icon><Plus /></el-icon>
             </el-upload>
+
+            <!-- 运行效果/项目截图 -->
+            <div v-if="screenshotCategory === 'run'" class="screenshot-grid">
+              <div v-for="(s, i) in form.run_screenshots" :key="'run-'+i" class="screenshot-item">
+                <img :src="s" alt="运行截图">
+                <el-button class="delete-btn" size="small" circle type="danger"
+                  @click="removeScreenshot('run', i)">
+                  <el-icon><Close /></el-icon>
+                </el-button>
+              </div>
+              <div v-if="form.run_screenshots.length === 0" class="empty-category">暂无运行截图</div>
+            </div>
 
             <!-- 代码截图 -->
             <div v-if="screenshotCategory === 'code'" class="screenshot-grid">
@@ -628,6 +641,7 @@ const ReportEditorView = {
         vocabulary: { word: '', phonetic: '', meaning: '', example: '' },
         evaluation: '',
         screenshot_paths: [],
+        run_screenshots: [],
         code_screenshots: [],
         homework_screenshots: [],
         logo_config: { enabled: true, position: 'top-right', size: 30, show_on_all_pages: true, margin: 0 },
@@ -677,10 +691,12 @@ const ReportEditorView = {
         this.form.evaluation = record.evaluation || '';
         this.form.screenshot_paths = record.screenshot_paths || [];
         // 从 project_meta 中恢复分类截图信息（如果有）
+        this.form.run_screenshots = [];
         this.form.code_screenshots = [];
         this.form.homework_screenshots = [];
         if (record.project_meta && record.project_meta._extra_screenshots) {
           const extra = record.project_meta._extra_screenshots;
+          if (extra.run) this.form.run_screenshots = extra.run;
           if (extra.code) this.form.code_screenshots = extra.code;
           if (extra.homework) this.form.homework_screenshots = extra.homework;
         }
@@ -805,7 +821,9 @@ const ReportEditorView = {
       try {
         const result = await API.assets.uploadScreenshot(options.file);
         const cat = this.screenshotCategory;
-        if (cat === 'code') {
+        if (cat === 'run') {
+          this.form.run_screenshots.push(result.path);
+        } else if (cat === 'code') {
           this.form.code_screenshots.push(result.path);
         } else if (cat === 'homework') {
           this.form.homework_screenshots.push(result.path);
@@ -822,7 +840,9 @@ const ReportEditorView = {
     },
 
     removeScreenshot(cat, i) {
-      if (cat === 'code') {
+      if (cat === 'run') {
+        this.form.run_screenshots.splice(i, 1);
+      } else if (cat === 'code') {
         this.form.code_screenshots.splice(i, 1);
       } else if (cat === 'homework') {
         this.form.homework_screenshots.splice(i, 1);
@@ -956,16 +976,17 @@ const ReportEditorView = {
       if (!folderPath) return;
       try {
         const result = await API.projects.scanScreenshots({ folder: folderPath });
-        // 从 截图/ 目录扫描：{ code_screenshots, homework_screenshots, other_screenshots }
+        // 从 截图/ 目录扫描：{ run_screenshots, code_screenshots, homework_screenshots, other_screenshots }
         // 分别存储到数组中（不再合并成一个列表）
+        this.form.run_screenshots = (result.run_screenshots || []).map(s => s.url);
         this.form.code_screenshots = (result.code_screenshots || []).map(s => s.url);
         this.form.homework_screenshots = (result.homework_screenshots || []).map(s => s.url);
         this.form.screenshot_paths = (result.other_screenshots || []).map(s => s.url);
 
-        const totalShots = this.form.code_screenshots.length + this.form.homework_screenshots.length + this.form.screenshot_paths.length;
+        const totalShots = this.form.run_screenshots.length + this.form.code_screenshots.length + this.form.homework_screenshots.length + this.form.screenshot_paths.length;
         if (totalShots > 0) {
           this.markDirty();
-          this.$message.success(`已扫描到 ${totalShots} 张截图（代码 ${this.form.code_screenshots.length} / 作业 ${this.form.homework_screenshots.length} / 其他 ${this.form.screenshot_paths.length}）`);
+          this.$message.success(`已扫描到 ${totalShots} 张截图（运行/效果 ${this.form.run_screenshots.length} / 代码 ${this.form.code_screenshots.length} / 作业 ${this.form.homework_screenshots.length} / 其他 ${this.form.screenshot_paths.length}）`);
         }
       } catch (e) {
         // 静默失败 — 截图/ 目录不存在时不打扰用户
@@ -1082,20 +1103,60 @@ const ReportEditorView = {
           return;
         }
       }
+
+      // 构建用户已填写的内容（AI 以用户为准，不再生成这些字段）
+      const existingContent = {};
+      if (this.form.knowledge_points && this.form.knowledge_points.length > 0) {
+        existingContent.knowledge_points = this.form.knowledge_points;
+      }
+      if (this.form.content_items && this.form.content_items.length > 0) {
+        existingContent.content_items = this.form.content_items;
+      }
+      if (this.form.ability_improvement && this.form.ability_improvement.trim()) {
+        existingContent.ability_improvement = this.form.ability_improvement;
+      }
+      if (this.form.homework) {
+        const hw = this.form.homework;
+        if (hw.goal || (hw.questions && hw.questions.length > 0)) {
+          existingContent.homework = hw;
+        }
+      }
+      if (this.form.vocabulary && this.form.vocabulary.word) {
+        existingContent.vocabulary = this.form.vocabulary;
+      }
+
       this.aiGenerating = true;
       try {
         const result = await API.ai.generate({
           project: this.form.project_meta,
           student_id: this.form.student_id,
           teacher_observation: this.teacherObservation || '',
+          existing_content: Object.keys(existingContent).length > 0 ? existingContent : null,
         });
         const content = result.content;
-        if (content.knowledge_points) this.form.knowledge_points = content.knowledge_points;
-        if (content.ability_improvement) this.form.ability_improvement = content.ability_improvement;
-        if (content.content_items) this.form.content_items = content.content_items;
-        if (content.homework) this.form.homework = content.homework;
-        if (content.vocabulary) this.form.vocabulary = content.vocabulary;
-        if (content.evaluation) this.form.evaluation = content.evaluation;
+        // 只更新用户未填写的字段，用户已填的内容优先保留
+        if (content.knowledge_points && this.form.knowledge_points.length === 0) {
+          this.form.knowledge_points = content.knowledge_points;
+        }
+        if (content.ability_improvement && !this.form.ability_improvement.trim()) {
+          this.form.ability_improvement = content.ability_improvement;
+        }
+        if (content.content_items && this.form.content_items.length === 0) {
+          this.form.content_items = content.content_items;
+        }
+        if (content.homework) {
+          const curHw = this.form.homework;
+          if (!curHw.goal && (!curHw.questions || curHw.questions.length === 0)) {
+            this.form.homework = content.homework;
+          }
+        }
+        if (content.vocabulary && !this.form.vocabulary.word) {
+          this.form.vocabulary = content.vocabulary;
+        }
+        // evaluation 始终由 AI 生成，无条件更新
+        if (content.evaluation) {
+          this.form.evaluation = content.evaluation;
+        }
         if (!this.form.course_topic && this.form.project_meta?.course_title) {
           this.form.course_topic = this.form.project_meta.course_title;
         }
@@ -1123,9 +1184,10 @@ const ReportEditorView = {
       this.wordExporting = true;
       try {
         const ss = this.form && this.form.screenshot_paths;
+        const rss = this.form && this.form.run_screenshots;
         const css = this.form && this.form.code_screenshots;
         const hss = this.form && this.form.homework_screenshots;
-        const result = await API.reports.exportWord(this.recordId, this.selectedTemplate, null, this.outputDir, ss, css, hss);
+        const result = await API.reports.exportWord(this.recordId, this.selectedTemplate, null, this.outputDir, ss, css, hss, rss);
         window.open(result.docx_path, '_blank');
         if (result.custom_path) {
           this.$message.success('Word 已保存到: ' + result.custom_path);
@@ -1222,9 +1284,10 @@ const ReportEditorView = {
           await this.saveDraft();
         }
         const ss = this.form && this.form.screenshot_paths;
+        const rss = this.form && this.form.run_screenshots;
         const css = this.form && this.form.code_screenshots;
         const hss = this.form && this.form.homework_screenshots;
-        const result = await API.reports.export(this.recordId, this.selectedTemplate, null, this.outputDir, ss, css, hss);
+        const result = await API.reports.export(this.recordId, this.selectedTemplate, null, this.outputDir, ss, css, hss, rss);
         this.form.status = 'finalized';
         this.pdfDownloadUrl = result.pdf_path;
 
@@ -1325,9 +1388,10 @@ const ReportEditorView = {
       this.previewError = '';
       try {
         const ss = this.form && this.form.screenshot_paths;
+        const rss = this.form && this.form.run_screenshots;
         const css = this.form && this.form.code_screenshots;
         const hss = this.form && this.form.homework_screenshots;
-        const html = await API.reports.preview(this.recordId, this.selectedTemplate, null, ss, css, hss);
+        const html = await API.reports.preview(this.recordId, this.selectedTemplate, null, ss, css, hss, rss);
         this.previewHtml = html;
       } catch (e) {
         this.previewError = '预览生成失败: ' + e.message;

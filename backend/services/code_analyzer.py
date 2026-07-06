@@ -327,18 +327,58 @@ def _decorator_name(node: ast.expr) -> str:
 
 
 def _extract_top_comment(source: str) -> str:
-    """提取文件首部连续的 # 注释行。"""
+    """提取文件首部的 # 注释行或文档字符串(v2 支持 '''/\"\"\" 多行)。"""
     lines: list[str] = []
+    in_docstring = False
+    quote_type = None  # '"""' 或 "'''"
+
     for line in source.splitlines():
         stripped = line.strip()
-        if not stripped:
-            if lines:  # 注释块结束
+
+        # 文档字符串模式：收集到关闭引号为止
+        if in_docstring:
+            idx = stripped.find(quote_type)
+            if idx >= 0:
+                before = stripped[:idx].strip()
+                if before:
+                    lines.append(before)
                 break
+            lines.append(stripped)
             continue
+
+        # 跳过开头的空行
+        if not stripped:
+            continue
+
+        # 检测三引号文档字符串
+        is_docstring = False
+        for qt in ('"""', "'''"):
+            if stripped.startswith(qt):
+                remainder = stripped[3:]
+                close_idx = remainder.rfind(qt)
+                if close_idx >= 0:
+                    # 单行文档字符串："""内容"""
+                    content = remainder[:close_idx].strip()
+                    if content:
+                        lines.append(content)
+                else:
+                    # 多行文档字符串
+                    in_docstring = True
+                    quote_type = qt
+                    if remainder.strip():
+                        lines.append(remainder.strip())
+                is_docstring = True
+                break
+
+        if is_docstring:
+            continue
+
+        # # 注释模式（原有逻辑）
         if stripped.startswith("#"):
             lines.append(stripped[1:].strip())
         else:
             break
+
     return "\n".join(lines)
 
 

@@ -149,12 +149,13 @@ async def scan_save_screenshots(
     自动将其复制到截图目录，返回 URL 路径列表供前端直接使用。
 
     按文件名分类：
-    - run.png / 运行截图.*       → code_screenshots（程序运行结果截图）
-    - code*.png / 代码*.png     → code_screenshots
-    - homework*.png / 作业*.png → homework_screenshots
-    - 其他                     → other_screenshots
+    - run.* / 运行* / 效果* / 项目* → run_screenshots（运行效果/项目截图）
+    - code*.png / 代码*.png         → code_screenshots
+    - homework*.png / 作业*.png     → homework_screenshots
+    - 其他                         → other_screenshots
 
     返回: {
+      "run_screenshots": [...],
       "code_screenshots": [...],
       "homework_screenshots": [...],
       "other_screenshots": [...],
@@ -162,20 +163,21 @@ async def scan_save_screenshots(
     """
     folder = (body.get("folder") or "").strip()
     if not folder:
-        return {"code_screenshots": [], "homework_screenshots": [], "other_screenshots": []}
+        return {"run_screenshots": [], "code_screenshots": [], "homework_screenshots": [], "other_screenshots": []}
 
     target = Path(folder).expanduser().resolve()
     if not target.exists() or not target.is_dir():
-        return {"code_screenshots": [], "homework_screenshots": [], "other_screenshots": []}
+        return {"run_screenshots": [], "code_screenshots": [], "homework_screenshots": [], "other_screenshots": []}
 
     save_dir = target / "截图"
     if not save_dir.exists() or not save_dir.is_dir():
-        return {"code_screenshots": [], "homework_screenshots": [], "other_screenshots": []}
+        return {"run_screenshots": [], "code_screenshots": [], "homework_screenshots": [], "other_screenshots": []}
 
     settings = get_settings()
     screenshot_store = Path(settings.report.screenshot_dir)
     screenshot_store.mkdir(parents=True, exist_ok=True)
 
+    run_imgs: list[dict] = []
     code_imgs: list[dict] = []
     homework_imgs: list[dict] = []
     other_imgs: list[dict] = []
@@ -197,9 +199,9 @@ async def scan_save_screenshots(
         info = {"url": url_path, "filename": png_file.name}
         lower_name = png_file.name.lower()
         stem_lower = png_file.stem.lower()
-        # 运行截图 run.* → code_screenshots
-        if stem_lower == "run" or png_file.name.startswith("运行截图"):
-            code_imgs.append(info)
+        # 运行截图 run.* / 运行* / 效果* / 项目* → run_screenshots
+        if stem_lower == "run" or png_file.name.startswith(("运行", "效果", "项目")):
+            run_imgs.append(info)
         # 代码截图 code* / 代码* → code_screenshots
         elif png_file.name.startswith("代码") or lower_name.startswith("code"):
             code_imgs.append(info)
@@ -210,10 +212,11 @@ async def scan_save_screenshots(
             other_imgs.append(info)
 
     log.info(
-        "截图/ 扫描: folder=%s code=%d homework=%d other=%d",
-        folder, len(code_imgs), len(homework_imgs), len(other_imgs),
+        "截图/ 扫描: folder=%s run=%d code=%d homework=%d other=%d",
+        folder, len(run_imgs), len(code_imgs), len(homework_imgs), len(other_imgs),
     )
     return {
+        "run_screenshots": run_imgs,
         "code_screenshots": code_imgs,
         "homework_screenshots": homework_imgs,
         "other_screenshots": other_imgs,

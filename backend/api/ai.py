@@ -76,7 +76,8 @@ async def generate_report(
         # 3. 编排生成
         orch = AIOrchestrator()
         result = await orch.generate_all(
-            project, student_read, req.teacher_observation
+            project, student_read, req.teacher_observation,
+            existing_content=req.existing_content,
         )
 
         content = _result_to_content(result.to_dict())

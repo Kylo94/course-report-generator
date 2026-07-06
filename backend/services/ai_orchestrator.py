@@ -18,6 +18,7 @@ v3 — 对话记忆架构（2025-06）
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -95,9 +96,15 @@ class AIOrchestrator:
         project: ProjectMetaSchema,
         student: StudentRead,
         teacher_observation: str = "",
+        existing_content: dict | None = None,
     ) -> GenerationResult:
-        """完整生成：读代码 → 知识点 → 内容概述 → 作业/单词 → 评价。"""
+        """完整生成：读代码 → 知识点 → 内容概述 → 作业/单词 → 评价。
+
+        existing_content: 用户已填写的字段（如 homework/knowledge_points 等），
+                          AI 跳过这些字段的生成，直接使用用户提供的值。
+        """
         log.info("开始生成报告: course=%s student=%s", project.course_title, student.name)
+        existing_content = existing_content or {}
 
         conv = AIConversation(self.provider)
         code_content = self._build_code_content(project)
@@ -107,7 +114,7 @@ class AIOrchestrator:
 
         result = GenerationResult()
 
-        # Step 0: 读代码
+        # Step 0: 读代码（始终需要——评价依赖记忆）
         try:
             analysis = await conv.step_read_code(
                 code_content, entry_comment, course_topic, project_type,
@@ -118,46 +125,75 @@ class AIOrchestrator:
             result.errors["code_analysis"] = str(e)
             return result
 
-        # Step 1: 知识点
+        # Step 1: 知识点（用户已填则跳过 AI）
         try:
-            result.knowledge_points = await conv.step_knowledge_points(
-                course_topic, project_type, entry_comment,
-            )
-            log.info("知识点完成: %d 条", len(result.knowledge_points))
+            if existing_content.get("knowledge_points"):
+                result.knowledge_points = existing_content["knowledge_points"]
+                log.info("知识点: 使用用户已填内容 (%d 条)", len(result.knowledge_points))
+            else:
+                result.knowledge_points = await conv.step_knowledge_points(
+                    course_topic, project_type, entry_comment,
+                )
+                log.info("知识点完成: %d 条", len(result.knowledge_points))
         except Exception as e:
             log.exception("知识点失败: %s", e)
             result.errors["knowledge_points"] = str(e)
             return result
 
-        # Step 2: 内容概述 + 能力提升
+        # Step 2: 内容概述 + 能力提升（用户已填则跳过 AI）
         try:
-            items, ability = await conv.step_content_summary(
-                result.knowledge_points, entry_comment, project_type,
-            )
-            result.content_items = items
-            result.ability_improvement = ability
-            log.info("内容概述完成: %d 条", len(result.content_items))
+            if existing_content.get("content_items"):
+                result.content_items = existing_content["content_items"]
+                result.ability_improvement = existing_content.get("ability_improvement", "")
+                log.info("内容概述: 使用用户已填内容 (%d 条)", len(result.content_items))
+            else:
+                items, ability = await conv.step_content_summary(
+                    result.knowledge_points, entry_comment, project_type,
+                )
+                result.content_items = items
+                result.ability_improvement = ability
+                log.info("内容概述完成: %d 条", len(result.content_items))
         except Exception as e:
             log.exception("内容概述失败: %s", e)
             result.errors["content_summary"] = str(e)
             return result
 
-        # Step 3: 作业 + 单词
+        # Step 3: 作业 + 单词（用户已填则跳过 AI）
         try:
-            homework_guidance = self._get_homework_guidance(project)
-            hw, vocab = await conv.step_homework_vocab(
-                result.knowledge_points, student.base_level,
-                entry_comment, project_type, homework_guidance,
-            )
-            result.homework = hw
-            result.vocabulary = vocab
-            log.info("作业/单词完成")
+            if existing_content.get("homework"):
+                result.homework = existing_content["homework"]
+                result.vocabulary = existing_content.get("vocabulary", {})
+                log.info("作业/单词: 使用用户已填内容")
+            else:
+                homework_guidance = self._get_homework_guidance(project)
+                hw, vocab = await conv.step_homework_vocab(
+                    result.knowledge_points, student.base_level,
+                    entry_comment, project_type, homework_guidance,
+                )
+                result.homework = hw
+                result.vocabulary = vocab
+                log.info("作业/单词完成")
         except Exception as e:
             log.exception("作业/单词失败: %s", e)
             result.errors["homework_vocab"] = str(e)
 
-        # Step 4: 评价
+        # Step 4: 评价（始终生成，基于用户已填内容或 AI 生成内容）
         try:
+            # 构造课程内容/作业上下文供评价参考
+            _hw = result.homework or {}
+            _hw_str_lines = []
+            if _hw.get("goal"):
+                _hw_str_lines.append(f"目标：{_hw['goal']}")
+            for q in (_hw.get("questions") or []):
+                _hw_str_lines.append(f"题目：{q.get('goal', '')}")
+            _hw_str = "\n".join(_hw_str_lines)
+
+            _content_str_lines = []
+            for item in (result.content_items or []):
+                if isinstance(item, dict):
+                    _content_str_lines.append(f"{item.get('kp', '')}: {item.get('text', '')}")
+            _content_str = "\n".join(_content_str_lines)
+
             result.evaluation = await conv.step_evaluation(
                 student_name=student.name,
                 student_age=student.age or "未知",
@@ -167,6 +203,8 @@ class AIOrchestrator:
                 knowledge_points=result.knowledge_points,
                 teacher_observation=teacher_observation,
                 entry_comment=entry_comment,
+                homework_context=_hw_str,
+                course_content_context=_content_str,
             )
             log.info("评价完成: %d 字", len(result.evaluation))
         except Exception as e:
@@ -189,6 +227,7 @@ class AIOrchestrator:
         create_vocabulary: bool = True,
         skip_code_analysis: bool = False,
         skip_homework_gen: bool = False,
+        existing_content: dict | None = None,
     ) -> dict:
         """批量模式：所有学生共享的内容（Steps 0-3）。
 
@@ -198,6 +237,8 @@ class AIOrchestrator:
         - create_vocabulary: 是否生成单词卡（默认 True）
         - skip_code_analysis: 是否有代码截图，跳过代码 AI 解析
         - skip_homework_gen: 是否有作业截图，跳过作业 AI 生成
+        - existing_content: 用户已填写的共享字段（如 homework/knowledge_points 等），
+                            AI 跳过这些字段的生成，直接使用用户提供的值
         """
         log.info(
             "批量共享生成: course=%s code_imgs=%d hw_imgs=%d vocab=%s skip_code=%s skip_hw=%s",
@@ -208,6 +249,7 @@ class AIOrchestrator:
             skip_code_analysis,
             skip_homework_gen,
         )
+        existing_content = existing_content or {}
 
         conv = AIConversation(self.provider)
         code_content = self._build_code_content(project)
@@ -231,16 +273,29 @@ class AIOrchestrator:
                 code_content, entry_comment, course_topic, project_type,
             )
 
-        # Step 1: 知识点
-        kp = await conv.step_knowledge_points(course_topic, project_type, entry_comment)
-        log.info("共享知识点: %d 条", len(kp))
+        # Step 1: 知识点（用户已填则跳过 AI）
+        if existing_content.get("knowledge_points"):
+            kp = existing_content["knowledge_points"]
+            log.info("共享知识点: 使用用户已填内容 (%d 条)", len(kp))
+        else:
+            kp = await conv.step_knowledge_points(course_topic, project_type, entry_comment)
+            log.info("共享知识点: %d 条", len(kp))
 
-        # Step 2: 内容概述
-        items, ability = await conv.step_content_summary(kp, entry_comment, project_type)
-        log.info("共享内容概述: %d 条", len(items))
+        # Step 2: 内容概述（用户已填则跳过 AI）
+        if existing_content.get("content_items"):
+            items = existing_content["content_items"]
+            ability = existing_content.get("ability_improvement", "")
+            log.info("共享内容概述: 使用用户已填内容 (%d 条)", len(items))
+        else:
+            items, ability = await conv.step_content_summary(kp, entry_comment, project_type)
+            log.info("共享内容概述: %d 条", len(items))
 
-        # Step 3: 作业 + 单词
-        if skip_homework_gen:
+        # Step 3: 作业 + 单词（用户已填则跳过 AI）
+        if existing_content.get("homework"):
+            hw = existing_content["homework"]
+            vocab = existing_content.get("vocabulary", {})
+            log.info("共享作业/单词: 使用用户已填内容")
+        elif skip_homework_gen:
             log.info("跳过作业 AI 生成（使用作业截图 %d 张）", len(homework_screenshots or []))
             hw = {
                 "goal": "（基于作业截图，详见下方图片）",
@@ -294,6 +349,21 @@ class AIOrchestrator:
         entry_comment = self._get_entry_comment(project)
         observations = observations or {}
 
+        # 构造课程内容/作业上下文供评价参考
+        _hw = shared_content.get("homework", {}) or {}
+        _hw_str_lines = []
+        if _hw.get("goal"):
+            _hw_str_lines.append(f"目标：{_hw['goal']}")
+        for q in (_hw.get("questions") or []):
+            _hw_str_lines.append(f"题目：{q.get('goal', '')}")
+        _hw_str = "\n".join(_hw_str_lines)
+
+        _content_str_lines = []
+        for item in (shared_content.get("content_items") or []):
+            if isinstance(item, dict):
+                _content_str_lines.append(f"{item.get('kp', '')}: {item.get('text', '')}")
+        _content_str = "\n".join(_content_str_lines)
+
         async def _eval_one(student: StudentRead) -> str:
             # 优先用逐学生观察，回退到全局观察
             per_student_obs = observations.get(student.id) or teacher_observation
@@ -308,6 +378,8 @@ class AIOrchestrator:
                 knowledge_points=kp,
                 teacher_observation=per_student_obs,
                 entry_comment=entry_comment,
+                homework_context=_hw_str,
+                course_content_context=_content_str,
             )
 
         tasks = [_eval_one(s) for s in students]
@@ -426,14 +498,30 @@ class AIOrchestrator:
                 return f.homework_guidance or ""
         return ""
 
+    def _extract_referenced_files(self, entry_comment: str) -> set[str]:
+        """从入口注释中提取被引用的 .py 文件名，如 tools.py、sun.py。
+
+        用户写课程目标时习惯注明文件名：
+        - "学习字符串分割函数split, 文件tools.py"
+        - "加入定时任务类 Task, 文件tools.py"
+        - "文件: sun.py"
+        这些文件是本节课的重点学习对象，应优先提供给 AI。
+        """
+        if not entry_comment:
+            return set()
+        refs = re.findall(r'\b([\w-]+\.py)\b', entry_comment)
+        return set(refs)
+
     def _build_code_content(self, project: ProjectMetaSchema) -> str:
         """拼接项目代码，从磁盘读取实际源码。
 
         策略：
         1. 入口文件（含课程标题注释）总在最前，读完整源码
-        2. 其余文件按行数从小到大排序，小文件（≤80行）读完整源码
-        3. 大文件只列结构信息
-        4. 结果在实例内缓存，同一次请求不重复读盘
+        2. 从入口注释中提取引用的 .py 文件名（如 tools.py、sun.py），
+           这些文件优先排在其余文件之前，且全部读完整源码（不论行数）
+        3. 其余文件按行数从小到大排序，小文件（≤80行）读完整源码
+        4. 大文件只列结构信息
+        5. 结果在实例内缓存，同一次请求不重复读盘
         """
         if self._code_cache is not None:
             return self._code_cache
@@ -448,6 +536,12 @@ class AIOrchestrator:
             else:
                 others.append(f)
 
+        # 提取入口注释中引用的文件名
+        entry_comment = self._get_entry_comment(project)
+        referenced_files = self._extract_referenced_files(entry_comment)
+        if referenced_files:
+            log.info("入口注释中引用的文件: %s", referenced_files)
+
         parts: list[str] = []
 
         if entry:
@@ -458,8 +552,34 @@ class AIOrchestrator:
             except (OSError, IOError):
                 parts.append(f"# === {entry.path}（启动文件）===\n# (文件无法读取)")
 
-        others.sort(key=lambda f: f.line_count if f.line_count else 9999)
+        # 重点文件：入口注释中提到的文件，按行数排序后排在前面（全部读完整源码）
+        referenced_list = []
+        non_referenced_list = []
         for f in others:
+            if f.path in referenced_files:
+                referenced_list.append(f)
+            else:
+                non_referenced_list.append(f)
+
+        referenced_list.sort(key=lambda f: f.line_count if f.line_count else 9999)
+        non_referenced_list.sort(key=lambda f: f.line_count if f.line_count else 9999)
+
+        # 重点文件全部读完整源码（不论行数）
+        for f in referenced_list:
+            file_path = (project_root / f.path).resolve()
+            try:
+                source = file_path.read_text(encoding='utf-8')
+                parts.append(f"# === {f.path}（重点文件 - 入口注释引用）===\n{source}")
+            except (OSError, IOError):
+                parts.append(
+                    f"# === {f.path}（重点文件 - 入口注释引用）===\n"
+                    f"imports: {f.imports}\n"
+                    f"functions: {f.function_names}\n"
+                    f"classes: {f.class_names}"
+                )
+
+        # 其余文件按行数排序，小文件（≤80行）读完整源码
+        for f in non_referenced_list:
             file_path = (project_root / f.path).resolve()
             if f.line_count and f.line_count <= 80:
                 try:

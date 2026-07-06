@@ -139,7 +139,8 @@ class AIConversation:
         这是 LLM 唯一一次接触原始代码。后续所有步骤依靠记忆。
         """
         # 代码太长时截断，留足 token 给输出
-        code = code_content[:6000]
+        # 由于入口注释中提到的文件已被优先排列，即使截断也能保证重点文件被 AI 看到
+        code = code_content[:10000]
 
         prompt = f"""你是少儿 Python 编程教学助手。请仔细阅读以下项目代码并**记住所有函数**。
 
@@ -175,6 +176,7 @@ class AIConversation:
 }}
 
 【重要】
+- **入口注释中提到的文件名（如 tools.py、sun.py）是本课的核心学习文件，必须重点关注这些文件中的函数**
 - key_functions **只包含直接服务于 main_objectives 的函数**，每个必须关联至少一个目标
 - 纯辅助函数（如初始化、工具函数）不要放进来
 - 必须从源码中确定 start_line / end_line
@@ -209,8 +211,9 @@ class AIConversation:
 入口注释：{entry_comment}
 
 要求：
-- 每个知识点必须对应代码中**实际存在且与课程目标直接相关的函数**
-- 禁止编造代码中没有的函数或技术点
+- **每个知识点必须对应代码中实际存在且与课程目标直接相关的函数**
+- **优先从入口注释中提到的文件中提取知识点**，入口注释中出现的文件（如 tools.py、sun.py）是本课的核心学习文件
+- **禁止编造代码中没有的函数或技术点**
 - 格式「具体技术点 + 训练能力」，如：
   "if-else 训练条件判断逻辑"
   "字典配置训练数据组织能力"
@@ -379,10 +382,23 @@ class AIConversation:
         knowledge_points: list[str],
         teacher_observation: str,
         entry_comment: str,
+        homework_context: str = "",
+        course_content_context: str = "",
     ) -> str:
-        """基于记忆生成个性化学生评价。"""
+        """基于记忆生成个性化学生评价。
+
+        homework_context: 用户编写的课后作业内容，AI 应在评价中引用学生的完成情况。
+        course_content_context: 用户编写的课程内容/笔记/目标，AI 应在评价中参考。
+        """
         kp_str = "、".join(knowledge_points)
         pronoun = "他" if student_gender == "男" else "她"
+
+        # 构建用户编写内容的上下文
+        user_content_section = ""
+        if course_content_context:
+            user_content_section += f"\n【本节课内容/笔记——教师在报告中填写，评价时请参考】\n{course_content_context}\n"
+        if homework_context:
+            user_content_section += f"\n【课后作业——教师布置的作业，评价时请参考学生的完成情况】\n{homework_context}\n"
 
         prompt = f"""根据你阅读的代码和知识点，为该学生写学习评价。
 
@@ -391,7 +407,7 @@ class AIConversation:
 性格：{student_characteristics}
 知识点：{kp_str}
 课堂表现：{teacher_observation}
-入口注释：{entry_comment}
+入口注释：{entry_comment}{user_content_section}
 
 【字数——这是最重要的约束】
 全文必须控制在 **180-200 个中文字符**（含标点）。先写好草稿，然后逐字计数，
@@ -400,6 +416,8 @@ class AIConversation:
 【内容要求】
 - 只围绕【知识点】中的函数写，禁止提知识点外的技术点
 - 自然一段话：学了什么（引用 1 个具体函数名）→ 做得怎么样 → 总结
+- 如果有【课后作业】内容，评价中应提到作业完成情况（"作业中……做得很好/还需要注意……"）
+- 如果有【本节课内容/笔记】，评价中可参考这些内容来描述学习表现
 - 用「{pronoun}」指代学生
 - 语气亲切自然、内容具体
 - 避免"上课认真""积极举手""表现良好"等空话

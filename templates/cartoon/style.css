@@ -284,13 +284,14 @@ body {
   max-width: 100%;
   border-radius: 8mm;
   overflow: hidden;
-  border: 2px solid #FFD0C0;
-  box-shadow: 0 2px 8px rgba(255,107,107,0.08);
 }
 .code-screenshot-item img {
-  width: 100%;
+  max-width: 100%;
+  max-height: 90mm;
+  width: auto;
   height: auto;
   display: block;
+  margin: 0 auto;
 }
 
 /* ===== 代码展示 ===== */
@@ -314,3 +315,20 @@ body {
   font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
   color: #cdd6f4;
 }
+
+/* ===== 截图占位 ===== */
+.screenshot-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3mm;
+  height: 80mm;
+  margin: 4mm 0;
+  border: 3px dashed #FFD0C0;
+  border-radius: 8mm;
+  background: linear-gradient(135deg, #FFF8F3, #FFF0E8);
+  color: #A07658;
+}
+.placeholder-icon { font-size: 24pt; }
+.placeholder-text { font-size: 12pt; }

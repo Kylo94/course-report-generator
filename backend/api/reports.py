@@ -433,14 +433,17 @@ async def export_report(
     else:
         log.info("PDF导出: 请求体中没有 screenshot_paths，使用 DB 中的原始值 (type=%s)", type(record.screenshot_paths).__name__)
 
-    # 提取代码截图（单独传递给模板，用于图片展示）
+    # 提取分类截图（单独传递给模板，用于图片展示）
+    body_run_screenshots = body.get("run_screenshots")
     body_code_screenshots = body.get("code_screenshots")
     body_homework_screenshots = body.get("homework_screenshots")
 
     # 如果请求中没有传入分类截图，尝试从 project_meta 中恢复
-    if not body_code_screenshots and not body_homework_screenshots:
+    if not body_run_screenshots and not body_code_screenshots and not body_homework_screenshots:
         _pm = _load_json(getattr(record, "project_meta", None), {})
         _extra = _pm.get("_extra_screenshots", {})
+        if not body_run_screenshots:
+            body_run_screenshots = _extra.get("run", [])
         if not body_code_screenshots:
             body_code_screenshots = _extra.get("code", [])
         if not body_homework_screenshots:
@@ -470,6 +473,7 @@ async def export_report(
         record,
         student_name=student_name,
         layout_config=layout_config,
+        run_screenshots=body_run_screenshots,
         code_screenshots=body_code_screenshots,
         homework_screenshots=body_homework_screenshots,
     )
@@ -793,6 +797,7 @@ async def batch_generate_reports(
                 create_vocabulary=body.create_vocabulary,
                 skip_code_analysis=bool(body.code_screenshots),
                 skip_homework_gen=bool(body.homework_screenshots),
+                existing_content=body.existing_content,
             )
         except Exception as e:
             log.exception("共享内容生成失败: %s", e)
@@ -831,13 +836,11 @@ async def batch_generate_reports(
     else:
         evaluations = [""] * len(students)
 
-    # 6. 为每个学生创建 CourseRecord
+    # 6. 构建批量报告（1 条 BatchReport，替代 N 条 CourseRecord）
+    from backend.services import batch_reports as batch_svc
+
     results: list[BatchStudentResult] = []
-    records_data = []
-    serialized_kp = json.dumps(shared.get("knowledge_points", []), ensure_ascii=False)
-    serialized_content = json.dumps(shared.get("content_items", []), ensure_ascii=False)
-    serialized_homework = json.dumps(shared.get("homework", {}), ensure_ascii=False)
-    serialized_vocab = json.dumps(shared.get("vocabulary", {}), ensure_ascii=False)
+    evaluations_dict: dict[str, dict] = {}
 
     for i, student in enumerate(students):
         evaluation_text = ""
@@ -851,35 +854,10 @@ async def batch_generate_reports(
         elif eval_result is None:
             error_text = "评价生成为空"
 
-        # 附加截图分类信息到 project_meta 以便后续预览/导出时区分
-        _pm_dict = project_meta.model_dump() if project_meta else {}
-        if body.code_screenshots or body.homework_screenshots:
-            _pm_dict["_extra_screenshots"] = {
-                "code": list(body.code_screenshots),
-                "homework": list(body.homework_screenshots),
-            }
-
-        records_data.append({
-            "student_id": student.id,
-            "course_date": course_date,
-            "course_topic": course_topic,
-            "project_folder": body.project_folder,
-            "project_meta": json.dumps(_pm_dict, ensure_ascii=False),
-            "knowledge_points": serialized_kp,
-            "ability_improvement": shared.get("ability_improvement", ""),
-            "content_items": serialized_content,
-            "homework": serialized_homework,
-            "vocabulary": serialized_vocab,
+        evaluations_dict[str(student.id)] = {
+            "name": student.name,
             "evaluation": evaluation_text,
-            "status": "draft",
-            "template_id": body.template_id,
-            "screenshot_paths": json.dumps(
-                list(body.screenshot_paths),
-                ensure_ascii=False,
-            ),
-            "logo_config": json.dumps(_resolve_logo_config(body.template_id), ensure_ascii=False),
-            "ai_meta": json.dumps(shared.get("code_analysis"), ensure_ascii=False) if shared.get("code_analysis") else None,
-        })
+        }
 
         results.append(BatchStudentResult(
             student_id=student.id,
@@ -888,19 +866,64 @@ async def batch_generate_reports(
             error=error_text,
         ))
 
-    # 批量保存
+    # 创建 BatchReport
+    batch_id = None
     try:
-        created = await record_svc.batch_create_records(session, records_data)
-        for i, rec in enumerate(created):
-            if i < len(results):
-                results[i].record_id = rec.id
+        batch_data = {
+            "class_id": body.class_id,
+            "class_name": klass.name,
+            "course_date": course_date,
+            "course_topic": course_topic,
+            "project_folder": body.project_folder or "",
+            "template_id": body.template_id,
+            "knowledge_points": json.dumps(shared.get("knowledge_points", []), ensure_ascii=False),
+            "ability_improvement": shared.get("ability_improvement", ""),
+            "content_items": json.dumps(shared.get("content_items", []), ensure_ascii=False),
+            "homework": json.dumps(shared.get("homework", {}), ensure_ascii=False),
+            "vocabulary": json.dumps(shared.get("vocabulary", {}), ensure_ascii=False),
+            "evaluations": json.dumps(evaluations_dict, ensure_ascii=False),
+            "screenshot_paths": json.dumps(list(body.screenshot_paths), ensure_ascii=False),
+            "run_screenshots": json.dumps(list(body.run_screenshots), ensure_ascii=False),
+            "code_screenshots": json.dumps(list(body.code_screenshots), ensure_ascii=False),
+            "homework_screenshots": json.dumps(list(body.homework_screenshots), ensure_ascii=False),
+            "logo_config": json.dumps(_resolve_logo_config(body.template_id), ensure_ascii=False),
+            "teacher_observation": body.teacher_observation or "",
+            "observations": json.dumps(body.observations or {}, ensure_ascii=False),
+            "ai_meta": json.dumps(shared.get("code_analysis"), ensure_ascii=False) if shared.get("code_analysis") else None,
+            "status": "draft",
+        }
+        batch = await batch_svc.create_batch_report(session, batch_data)
+        batch_id = batch.id
+        log.info("批量报告创建成功: id=%s class=%s", batch_id, klass.name)
     except Exception as e:
-        log.exception("批量保存记录失败: %s", e)
-        # 即使保存失败，也返回已生成的内容
+        log.exception("创建批量报告失败: %s", e)
 
     # 7. 若 auto_export 则导出 PDF
-    if body.auto_export and not shared_error:
-        # 计算模板页边距（批量共用同一个模板和布局）
+    if body.auto_export and not shared_error and batch_id:
+        from types import SimpleNamespace as _NS
+
+        # 构造伪 record 供渲染（共享内容 + 当前学生评价）
+        def _make_record(student_id: int, eval_text: str) -> _NS:
+            return _NS(
+                id=batch_id,
+                student_id=student_id,
+                evaluation=eval_text,
+                course_topic=course_topic,
+                course_date=course_date,
+                ability_improvement=shared.get("ability_improvement", ""),
+                knowledge_points=json.dumps(shared.get("knowledge_points", []), ensure_ascii=False),
+                content_items=json.dumps(shared.get("content_items", []), ensure_ascii=False),
+                vocabulary=json.dumps(shared.get("vocabulary", {}), ensure_ascii=False),
+                homework=json.dumps(shared.get("homework", {}), ensure_ascii=False),
+                logo_config=json.dumps(_resolve_logo_config(body.template_id), ensure_ascii=False),
+                teacher_observation=body.teacher_observation or "",
+                observations=json.dumps(body.observations or {}, ensure_ascii=False),
+                project_folder=body.project_folder or "",
+                project_meta=None,
+                ai_meta=None,
+                screenshot_paths=json.dumps(list(body.screenshot_paths), ensure_ascii=False),
+            )
+
         tpl_cfg = get_template_config(body.template_id)
         tpl_merged = merge_layout_with_theme(tpl_cfg, None)
         batch_margin = {
@@ -910,12 +933,18 @@ async def batch_generate_reports(
             "left": f"{tpl_merged['page_margin_left']}mm",
         }
         pdf_gen = PDFGenerator()
-        for i, rec in enumerate(created):
+        for i, result in enumerate(results):
             try:
-                student_name = results[i].student_name if i < len(results) else "学生"
+                student_name = result.student_name or "学生"
                 template_id = body.template_id
+                rec = _make_record(result.student_id, result.evaluation or "")
                 renderer = ReportRenderer(template_id)
-                html = renderer.render(rec, student_name=student_name, code_screenshots=body.code_screenshots, homework_screenshots=body.homework_screenshots)
+                html = renderer.render(
+                    rec, student_name=student_name,
+                    run_screenshots=body.run_screenshots,
+                    code_screenshots=body.code_screenshots,
+                    homework_screenshots=body.homework_screenshots,
+                )
 
                 has_custom_dir = bool(body.output_dir or settings.report.custom_output_dir or body.project_folder)
                 if has_custom_dir:
@@ -923,10 +952,10 @@ async def batch_generate_reports(
                     output_path = pdf_out
                 else:
                     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-                    output_path = Path(settings.report.output_dir) / f"report_{rec.id}_{timestamp}.pdf"
+                    output_path = Path(settings.report.output_dir) / f"batch_{batch_id}_{result.student_id}_{timestamp}.pdf"
 
                 await pdf_gen.generate(html, str(output_path), margin=batch_margin)
-                log.info("批量导出 PDF 成功: record_id=%s path=%s", rec.id, output_path)
+                log.info("批量导出 PDF 成功: student_id=%s path=%s", result.student_id, output_path)
 
                 # 自动将 PDF 转为 JPG 长图
                 if has_custom_dir and settings.image.enabled:
@@ -940,14 +969,14 @@ async def batch_generate_reports(
                         )
                         log.info("批量 JPG 已生成: %s", img_out)
                     except Exception as e:
-                        log.warning("批量 PDF 转长图失败 record_id=%s: %s", rec.id, e)
+                        log.warning("批量 PDF 转长图失败 student_id=%s: %s", result.student_id, e)
                 elif output_path.exists() and settings.image.enabled:
                     try:
                         pdf_to_long_image(str(output_path))
                     except Exception as e:
-                        log.warning("批量 PDF 转长图失败 record_id=%s: %s", rec.id, e)
+                        log.warning("批量 PDF 转长图失败 student_id=%s: %s", result.student_id, e)
             except Exception as e:
-                log.warning("批量导出 PDF 失败 record_id=%s: %s", rec.id, e)
+                log.warning("批量导出 PDF 失败 student_id=%s: %s", result.student_id, e)
 
     success_count = sum(1 for r in results if r.error is None)
     return BatchGenerateResponse(
@@ -956,6 +985,7 @@ async def batch_generate_reports(
         success=success_count,
         failed=len(results) - success_count,
         results=results,
+        batch_id=batch_id,
     )
 
 
@@ -1000,14 +1030,17 @@ async def preview_report(
     else:
         log.info("预览: 请求体中没有 screenshot_paths，使用 DB 原始值 (type=%s)", type(record.screenshot_paths).__name__)
 
-    # 提取代码截图和作业截图
+    # 提取分类截图
+    body_run_screenshots = body.get("run_screenshots")
     body_code_screenshots = body.get("code_screenshots")
     body_homework_screenshots = body.get("homework_screenshots")
 
     # 如果请求中没有传入分类截图，尝试从 project_meta 中恢复
-    if not body_code_screenshots and not body_homework_screenshots:
+    if not body_run_screenshots and not body_code_screenshots and not body_homework_screenshots:
         _pm = _load_json(getattr(record, "project_meta", None), {})
         _extra = _pm.get("_extra_screenshots", {})
+        if not body_run_screenshots:
+            body_run_screenshots = _extra.get("run", [])
         if not body_code_screenshots:
             body_code_screenshots = _extra.get("code", [])
         if not body_homework_screenshots:
@@ -1028,7 +1061,7 @@ async def preview_report(
     except TemplateNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    html = renderer.render(record, student_name=student_name, layout_config=layout_config, code_screenshots=body_code_screenshots, homework_screenshots=body_homework_screenshots)
+    html = renderer.render(record, student_name=student_name, layout_config=layout_config, run_screenshots=body_run_screenshots, code_screenshots=body_code_screenshots, homework_screenshots=body_homework_screenshots)
     html = wrap_preview_html(html)
     return Response(content=html, media_type="text/html; charset=utf-8")
 

@@ -134,7 +134,7 @@ async def init_db(echo: bool = False) -> None:
     初始化数据库：创建所有表。
     """
     # 确保所有 model 已导入（register tables）
-    from backend.models import course_record, klass, student  # noqa: F401
+    from backend.models import batch_report, course_record, klass, student  # noqa: F401
 
     engine = get_engine()
     async with engine.begin() as conn:

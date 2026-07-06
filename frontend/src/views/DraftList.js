@@ -1,5 +1,6 @@
 /**
  * 草稿管理列表页面
+ * 展示 CourseRecord（个人报告）和 BatchReport（批量报告）
  */
 const DraftListView = {
   template: `
@@ -18,6 +19,12 @@ const DraftListView = {
           </el-form-item>
           <el-form-item label="课程名称">
             <el-input v-model="filters.keyword" placeholder="搜索..." clearable style="width:180px" />
+          </el-form-item>
+          <el-form-item label="类型">
+            <el-select v-model="filters.type" placeholder="全部" clearable style="width:120px">
+              <el-option label="个人报告" value="record" />
+              <el-option label="批量报告" value="batch" />
+            </el-select>
           </el-form-item>
           <el-form-item>
             <div class="btn-group">
@@ -57,10 +64,23 @@ const DraftListView = {
             ref="tableRef"
             :data="items" stripe style="width:100%"
             @selection-change="onSelectionChange"
+            row-key="rowKey"
           >
             <el-table-column type="selection" width="40" />
           <el-table-column prop="id" label="ID" width="60" />
+          <el-table-column label="类型" width="100">
+            <template #default="{ row }">
+              <el-tag v-if="row._type === 'batch'" type="success" size="small">批量报告</el-tag>
+              <el-tag v-else type="info" size="small" effect="plain">个人报告</el-tag>
+            </template>
+          </el-table-column>
           <el-table-column prop="course_topic" label="课程名称" min-width="160" />
+          <el-table-column label="班级" width="120">
+            <template #default="{ row }">
+              <span v-if="row._type === 'batch'">{{ row.class_name || '-' }}</span>
+              <span v-else style="color:#909399;">-</span>
+            </template>
+          </el-table-column>
           <el-table-column label="状态" width="90">
             <template #default="{ row }">
               <el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
@@ -75,16 +95,16 @@ const DraftListView = {
           <el-table-column label="操作" width="200" fixed="right">
             <template #default="{ row }">
               <div class="draft-actions">
-                <el-button size="small" type="primary" link @click="openDraft(row.id)">
+                <el-button size="small" type="primary" link @click="openDraft(row)">
                   编辑
                 </el-button>
                 <el-button
                   v-if="row.status === 'draft'"
-                  size="small" type="success" link @click="finalizeDraft(row.id)"
+                  size="small" type="success" link @click="finalizeDraft(row)"
                 >
                   标记已导出
                 </el-button>
-                <el-button size="small" type="danger" link @click="confirmDelete(row.id)">
+                <el-button size="small" type="danger" link @click="confirmDelete(row)">
                   删除
                 </el-button>
               </div>
@@ -116,7 +136,7 @@ const DraftListView = {
       page: 1,
       pageSize: 20,
       loading: false,
-      filters: { status: '', keyword: '' },
+      filters: { status: '', keyword: '', type: '' },
       selectedIds: [],
       selectAll: false,
       isIndeterminate: false,
@@ -135,9 +155,47 @@ const DraftListView = {
         const params = { page: this.page, page_size: this.pageSize };
         if (this.filters.status) params.status = this.filters.status;
         if (this.filters.keyword) params.keyword = this.filters.keyword;
-        const result = await API.reports.list(params);
-        this.items = result.items;
-        this.total = result.total;
+
+        // —— 同步加载 CourseRecord 和 BatchReport ——
+        const [recordResult, batchResult] = await Promise.all([
+          API.reports.list(params),
+          API.batchReports.listAll(params),
+        ]);
+
+        // 添加类型标记和唯一行键
+        const records = (recordResult.items || []).map(r => ({
+          ...r,
+          _type: 'record',
+          rowKey: 'record_' + r.id,
+        }));
+        const batches = (batchResult.items || []).map(b => ({
+          ...b,
+          _type: 'batch',
+          rowKey: 'batch_' + b.id,
+        }));
+
+        // 类型筛选（前端过滤）
+        let merged = [...records, ...batches];
+        if (this.filters.type === 'record') {
+          merged = merged.filter(i => i._type === 'record');
+        } else if (this.filters.type === 'batch') {
+          merged = merged.filter(i => i._type === 'batch');
+        }
+
+        // 按创建时间倒序
+        merged.sort((a, b) => {
+          const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return tb - ta;
+        });
+
+        // 分页本地（两边的分页独立，合并后总数 = 两边之和）
+        this.total = merged.length;
+        // 服务端已经各自分了页，但合并后总数是两边的 sum
+        // 注意：当筛选状态或关键词时，两边各自独立分页，合并结果可能不准
+        // 简单处理：作为本地分页合并
+        const start = (this.page - 1) * this.pageSize;
+        this.items = merged.slice(start, start + this.pageSize);
       } catch (e) {
         this.$message.error('加载失败: ' + e.message);
       } finally {
@@ -151,13 +209,13 @@ const DraftListView = {
     },
 
     resetFilters() {
-      this.filters = { status: '', keyword: '' };
+      this.filters = { status: '', keyword: '', type: '' };
       this.page = 1;
       this.loadList();
     },
 
     onSelectionChange(selection) {
-      this.selectedIds = selection.map(r => r.id);
+      this.selectedIds = selection.map(r => ({ id: r.id, type: r._type, rowKey: r.rowKey }));
       this.selectAll = selection.length === this.items.length && this.items.length > 0;
       this.isIndeterminate = selection.length > 0 && selection.length < this.items.length;
     },
@@ -182,8 +240,19 @@ const DraftListView = {
       }).then(async () => {
         this.batchDeleting = true;
         try {
-          const result = await API.reports.batchDelete(this.selectedIds);
-          this.$message.success(`成功删除 ${result.deleted} 条记录`);
+          // 按类型分开删除
+          const recordIds = this.selectedIds.filter(s => s.type === 'record').map(s => s.id);
+          const batchIds = this.selectedIds.filter(s => s.type === 'batch').map(s => s.id);
+          let deleted = 0;
+          if (recordIds.length > 0) {
+            const res = await API.reports.batchDelete(recordIds);
+            deleted += res.deleted || 0;
+          }
+          if (batchIds.length > 0) {
+            const res = await API.batchReports.batchDelete(batchIds);
+            deleted += res.deleted || 0;
+          }
+          this.$message.success(`成功删除 ${deleted} 条记录`);
           this.selectedIds = [];
           this.selectAll = false;
           this.isIndeterminate = false;
@@ -196,13 +265,22 @@ const DraftListView = {
       }).catch(() => {});
     },
 
-    openDraft(id) {
-      this.Router.navigate('editor?id=' + id);
+    openDraft(row) {
+      if (row._type === 'batch') {
+        // 批量报告 → 跳转到批量页面，带上 batch_id
+        window.location.hash = '#batch?id=' + row.id;
+      } else {
+        this.Router.navigate('editor?id=' + row.id);
+      }
     },
 
-    async finalizeDraft(id) {
+    async finalizeDraft(row) {
       try {
-        await API.reports.updateStatus(id, 'finalized');
+        if (row._type === 'batch') {
+          await API.batchReports.updateStatus(row.id, 'finalized');
+        } else {
+          await API.reports.updateStatus(row.id, 'finalized');
+        }
         this.$message.success('已标记为已导出');
         this.loadList();
       } catch (e) {
@@ -210,14 +288,18 @@ const DraftListView = {
       }
     },
 
-    confirmDelete(id) {
+    confirmDelete(row) {
       this.$confirm('确定删除此记录？此操作不可撤销。', '确认删除', {
         type: 'warning',
         confirmButtonText: '删除',
         cancelButtonText: '取消',
       }).then(async () => {
         try {
-          await API.reports.delete(id);
+          if (row._type === 'batch') {
+            await API.batchReports.delete(row.id);
+          } else {
+            await API.reports.delete(row.id);
+          }
           this.$message.success('已删除');
           this.loadList();
         } catch (e) {

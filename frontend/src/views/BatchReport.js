@@ -241,9 +241,9 @@ const BatchReportView = {
                   <el-tag v-if="r.error" type="danger" size="small" effect="plain">生成失败</el-tag>
                   <el-tag v-else-if="r.evaluation" type="success" size="small" effect="plain">已生成</el-tag>
                   <el-tag v-else size="info" effect="plain">待填写</el-tag>
-                  <el-button v-if="r.record_id" size="small" link type="primary"
+                  <el-button v-if="batchId" size="small" link type="primary"
                     @click="exportSinglePdf(r)">导出PDF</el-button>
-                  <el-button v-if="r.record_id" size="small" link type="info"
+                  <el-button v-if="batchId" size="small" link type="info"
                     @click="previewReport(r)">预览</el-button>
                 </span>
               </div>
@@ -320,6 +320,7 @@ const BatchReportView = {
 
             <!-- 分类切换 -->
             <el-radio-group v-model="screenshotCategory" size="small" style="margin-bottom:8px;width:100%;display:flex;">
+              <el-radio-button value="run" style="flex:1;">🚀 运行/效果</el-radio-button>
               <el-radio-button value="code" style="flex:1;">💻 代码</el-radio-button>
               <el-radio-button value="homework" style="flex:1;">📝 作业</el-radio-button>
               <el-radio-button value="general" style="flex:1;">🖼️ 其他</el-radio-button>
@@ -330,6 +331,18 @@ const BatchReportView = {
               :disabled="screenshotUploading">
               <el-icon><Plus /></el-icon>
             </el-upload>
+
+            <!-- 运行效果/项目截图 -->
+            <div v-if="screenshotCategory === 'run'" class="screenshot-grid">
+              <div v-for="(s, i) in config.run_screenshots" :key="'run-'+i" class="screenshot-item">
+                <img :src="s" alt="运行截图">
+                <el-button class="delete-btn" size="small" circle type="danger"
+                  @click="removeScreenshot('run', i)">
+                  <el-icon><Close /></el-icon>
+                </el-button>
+              </div>
+              <div v-if="config.run_screenshots.length === 0" class="empty-category">暂无运行截图</div>
+            </div>
 
             <!-- 代码截图 -->
             <div v-if="screenshotCategory === 'code'" class="screenshot-grid">
@@ -455,6 +468,7 @@ const BatchReportView = {
         template_id: 'classic',
         output_dir: '',
         screenshot_paths: [],
+        run_screenshots: [],
         code_screenshots: [],
         homework_screenshots: [],
       },
@@ -473,12 +487,12 @@ const BatchReportView = {
       savingAll: false,
       savingAllCount: 0,
       classInfo: '',
+      batchId: null,  // BatchReport 的 ID（替代逐个 record_id）
       // 预览
       showPreviewDialog: false,
       previewHtml: '',
       previewLoading: false,
       previewError: '',
-      previewRecordId: null,
     };
   },
 
@@ -512,6 +526,11 @@ const BatchReportView = {
     // 加载系统设置，预填项目目录 + 输出目录
     await this._loadDefaultProjectDir();
     await this._loadDefaultOutputDir();
+    // 检查是否通过 URL 参数加载已有批量报告
+    const params = Router.getParams();
+    if (params.id) {
+      await this.loadExistingBatch(parseInt(params.id));
+    }
   },
 
   methods: {
@@ -757,15 +776,16 @@ const BatchReportView = {
       if (!folderPath) return;
       try {
         const result = await API.projects.scanScreenshots({ folder: folderPath });
-        // 从 截图/ 目录扫描：{ code_screenshots, homework_screenshots, other_screenshots }
+        // 从 截图/ 目录扫描：{ run_screenshots, code_screenshots, homework_screenshots, other_screenshots }
         // 分别存储到数组中（不再合并成一个列表）
+        this.config.run_screenshots = (result.run_screenshots || []).map(s => s.url);
         this.config.code_screenshots = (result.code_screenshots || []).map(s => s.url);
         this.config.homework_screenshots = (result.homework_screenshots || []).map(s => s.url);
         this.config.screenshot_paths = (result.other_screenshots || []).map(s => s.url);
 
-        const totalShots = this.config.code_screenshots.length + this.config.homework_screenshots.length + this.config.screenshot_paths.length;
+        const totalShots = this.config.run_screenshots.length + this.config.code_screenshots.length + this.config.homework_screenshots.length + this.config.screenshot_paths.length;
         if (totalShots > 0) {
-          this.$message.success(`已扫描到 ${totalShots} 张截图（代码 ${this.config.code_screenshots.length} / 作业 ${this.config.homework_screenshots.length} / 其他 ${this.config.screenshot_paths.length}）`);
+          this.$message.success(`已扫描到 ${totalShots} 张截图（运行/效果 ${this.config.run_screenshots.length} / 代码 ${this.config.code_screenshots.length} / 作业 ${this.config.homework_screenshots.length} / 其他 ${this.config.screenshot_paths.length}）`);
         }
       } catch (e) {
         console.debug('自动上传截图扫描（可忽略）:', e.message);
@@ -778,7 +798,9 @@ const BatchReportView = {
       try {
         const result = await API.assets.uploadScreenshot(options.file);
         const cat = this.screenshotCategory;
-        if (cat === 'code') {
+        if (cat === 'run') {
+          this.config.run_screenshots.push(result.path);
+        } else if (cat === 'code') {
           this.config.code_screenshots.push(result.path);
         } else if (cat === 'homework') {
           this.config.homework_screenshots.push(result.path);
@@ -794,7 +816,9 @@ const BatchReportView = {
     },
 
     removeScreenshot(cat, i) {
-      if (cat === 'code') {
+      if (cat === 'run') {
+        this.config.run_screenshots.splice(i, 1);
+      } else if (cat === 'code') {
         this.config.code_screenshots.splice(i, 1);
       } else if (cat === 'homework') {
         this.config.homework_screenshots.splice(i, 1);
@@ -852,6 +876,28 @@ const BatchReportView = {
         this.$message.warning('请选择班级');
         return;
       }
+
+      // 构建用户已填写的内容（AI 以用户为准，不再生成这些字段）
+      const existingContent = {};
+      if (this.sharedContent.knowledge_points && this.sharedContent.knowledge_points.length > 0) {
+        existingContent.knowledge_points = this.sharedContent.knowledge_points;
+      }
+      if (this.sharedContent.content_items && this.sharedContent.content_items.length > 0) {
+        existingContent.content_items = this.sharedContent.content_items;
+      }
+      if (this.sharedContent.ability_improvement && this.sharedContent.ability_improvement.trim()) {
+        existingContent.ability_improvement = this.sharedContent.ability_improvement;
+      }
+      if (this.sharedContent.homework) {
+        const hw = this.sharedContent.homework;
+        if (hw.goal || (hw.questions && hw.questions.length > 0)) {
+          existingContent.homework = hw;
+        }
+      }
+      if (this.sharedContent.vocabulary && this.sharedContent.vocabulary.word) {
+        existingContent.vocabulary = this.sharedContent.vocabulary;
+      }
+
       this.batchRunning = true;
       this.batchProgress = 5;
       this.batchProgressText = '正在生成共享内容...';
@@ -879,20 +925,22 @@ const BatchReportView = {
           output_dir: this.config.output_dir || null,
           auto_export: false,
           screenshot_paths: this.config.screenshot_paths,
+          run_screenshots: this.config.run_screenshots,
           code_screenshots: this.config.code_screenshots,
           homework_screenshots: this.config.homework_screenshots,
+          existing_content: Object.keys(existingContent).length > 0 ? existingContent : null,
         });
 
         clearInterval(progressTimer);
         this.batchProgress = 100;
         this.batchProgressText = '完成';
         this.batchResults = result.results || [];
+        this.batchId = result.batch_id || null;
         this.classInfo = result.class_name || '';
 
-        // 填充共享内容（如果返回了可以填充）
-        if (result.results && result.results.length > 0) {
-          // 尝试加载已保存记录来填充共享编辑区
-          await this.loadSharedFromRecord(result.results[0].record_id);
+        // 填充共享内容（从 batch 记录加载共享字段）
+        if (this.batchId) {
+          await this.loadSharedFromBatch(this.batchId);
         }
 
         if (result.success === result.total) {
@@ -909,45 +957,74 @@ const BatchReportView = {
       }
     },
 
-    async loadSharedFromRecord(recordId) {
-      if (!recordId) return;
+    // ===== 保存全部记录（批量更新 evaluations + 共享内容） =====
+    async saveAllRecords() {
+      if (!this.batchId) {
+        this.$message.warning('没有可保存的批量报告');
+        return;
+      }
+      this.savingAll = true;
+      this.savingAllCount = 0;
       try {
-        const record = await API.reports.get(recordId);
-        if (record.knowledge_points) this.sharedContent.knowledge_points = record.knowledge_points;
-        if (record.ability_improvement) this.sharedContent.ability_improvement = record.ability_improvement;
-        if (record.content_items) this.sharedContent.content_items = record.content_items;
-        if (record.vocabulary) this.sharedContent.vocabulary = record.vocabulary;
-        if (record.homework) this.sharedContent.homework = record.homework;
+        // 构建 evaluations 字典 { student_id: { name, evaluation } }
+        const evaluations = {};
+        for (const r of this.batchResults) {
+          evaluations[r.student_id] = {
+            name: r.student_name,
+            evaluation: r.evaluation || '',
+          };
+        }
+        // 同时保存共享内容和截图
+        const updateData = {
+          evaluations,
+          knowledge_points: this.sharedContent.knowledge_points,
+          ability_improvement: this.sharedContent.ability_improvement,
+          content_items: this.sharedContent.content_items,
+          homework: this.sharedContent.homework,
+          vocabulary: this.sharedContent.vocabulary,
+          teacher_observation: this.config.teacher_observation,
+          run_screenshots: this.config.run_screenshots,
+          code_screenshots: this.config.code_screenshots,
+          homework_screenshots: this.config.homework_screenshots,
+          screenshot_paths: this.config.screenshot_paths,
+        };
+        await API.batchReports.update(this.batchId, updateData);
+        this.savingAllCount = this.batchResults.length;
+        this.$message.success(`已保存全部内容（含共享信息）`);
       } catch (e) {
-        console.error('加载共享内容失败:', e);
+        this.$message.error('保存失败: ' + e.message);
+      } finally {
+        this.savingAll = false;
       }
     },
 
-    // ===== 保存全部记录 =====
-    async saveAllRecords() {
-      this.savingAll = true;
-      this.savingAllCount = 0;
-      for (const r of this.batchResults) {
-        if (!r.record_id) continue;
-        try {
-          await API.reports.patch(r.record_id, {
-            evaluation: r.evaluation || '',
-          });
-          r.error = null;
-          this.savingAllCount++;
-        } catch (e) {
-          console.error('保存失败:', r.student_name, e);
-        }
+    // ===== 导出前自动保存共享内容 =====
+    async _autoSaveShared() {
+      if (!this.batchId) return;
+      try {
+        await API.batchReports.update(this.batchId, {
+          knowledge_points: this.sharedContent.knowledge_points,
+          ability_improvement: this.sharedContent.ability_improvement,
+          content_items: this.sharedContent.content_items,
+          homework: this.sharedContent.homework,
+          vocabulary: this.sharedContent.vocabulary,
+          teacher_observation: this.config.teacher_observation,
+          run_screenshots: this.config.run_screenshots,
+          code_screenshots: this.config.code_screenshots,
+          homework_screenshots: this.config.homework_screenshots,
+          screenshot_paths: this.config.screenshot_paths,
+        });
+      } catch (e) {
+        console.warn('自动保存共享内容失败:', e);
       }
-      this.$message.success(`已保存 ${this.savingAllCount}/${this.batchResults.length} 份评价`);
-      this.savingAll = false;
     },
 
     // ===== 导出 =====
     async exportSinglePdf(row) {
-      if (!row.record_id) return;
+      if (!this.batchId) return;
+      await this._autoSaveShared();
       try {
-        await API.reports.export(row.record_id, this.config.template_id, null, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots);
+        await API.batchReports.exportPdf(this.batchId, row.student_id, this.config.template_id, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots, this.config.run_screenshots);
         this.$message.success(row.student_name + ' PDF 已导出');
       } catch (e) {
         this.$message.error('导出失败: ' + e.message);
@@ -956,14 +1033,14 @@ const BatchReportView = {
 
     // ===== 预览 =====
     async previewReport(row) {
-      if (!row.record_id) return;
-      this.previewRecordId = row.record_id;
+      if (!this.batchId) return;
+      await this._autoSaveShared();
       this.showPreviewDialog = true;
       this.previewHtml = '';
       this.previewError = '';
       this.previewLoading = true;
       try {
-        const html = await API.reports.preview(row.record_id, this.config.template_id, null, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots);
+        const html = await API.batchReports.preview(this.batchId, row.student_id, this.config.template_id, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots, this.config.run_screenshots);
         this.previewHtml = html;
       } catch (e) {
         this.previewError = '预览生成失败: ' + e.message;
@@ -973,45 +1050,142 @@ const BatchReportView = {
     },
 
     async exportPdf() {
-      const records = this.batchResults.filter(r => !r.error && r.record_id);
-      if (records.length === 0) {
+      const results = this.batchResults.filter(r => !r.error);
+      if (results.length === 0 || !this.batchId) {
         this.$message.warning('没有可导出的记录');
         return;
       }
+      await this._autoSaveShared();
       this.exporting = true;
-      this.$message.info('开始导出 PDF（共 ' + records.length + ' 份）...');
+      this.$message.info('开始导出 PDF（共 ' + results.length + ' 份）...');
       let count = 0;
-      for (const r of records) {
+      for (const r of results) {
         try {
-          await API.reports.export(r.record_id, this.config.template_id, null, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots);
+          await API.batchReports.exportPdf(this.batchId, r.student_id, this.config.template_id, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots, this.config.run_screenshots);
           count++;
         } catch (e) {
           console.error('导出失败:', r.student_name, e);
         }
       }
-      this.$message.success(`已完成 ${count}/${records.length} 份 PDF 导出`);
+      this.$message.success(`已完成 ${count}/${results.length} 份 PDF 导出`);
       this.exporting = false;
     },
 
     async exportWord() {
-      const records = this.batchResults.filter(r => !r.error && r.record_id);
-      if (records.length === 0) {
+      const results = this.batchResults.filter(r => !r.error);
+      if (results.length === 0 || !this.batchId) {
         this.$message.warning('没有可导出的记录');
         return;
       }
       this.wordExporting = true;
-      this.$message.info('开始导出 Word（共 ' + records.length + ' 份）...');
+      await this._autoSaveShared();
+      this.$message.info('开始导出 Word（共 ' + results.length + ' 份）...');
       let count = 0;
-      for (const r of records) {
+      for (const r of results) {
         try {
-          await API.reports.exportWord(r.record_id, this.config.template_id, null, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots);
+          await API.batchReports.exportWord(this.batchId, r.student_id, this.config.template_id, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots, this.config.run_screenshots);
           count++;
         } catch (e) {
           console.error('导出失败:', r.student_name, e);
         }
       }
-      this.$message.success(`已完成 ${count}/${records.length} 份 Word 导出`);
+      this.$message.success(`已完成 ${count}/${results.length} 份 Word 导出`);
       this.wordExporting = false;
+    },
+
+    // ===== 从批量报告加载共享内容 =====
+    async loadSharedFromBatch(batchId) {
+      if (!batchId) return;
+      try {
+        const batch = await API.batchReports.get(batchId);
+        if (!batch) return;
+        if (batch.knowledge_points && this.sharedContent.knowledge_points.length === 0) {
+          this.sharedContent.knowledge_points = batch.knowledge_points;
+        }
+        if (batch.ability_improvement && !this.sharedContent.ability_improvement.trim()) {
+          this.sharedContent.ability_improvement = batch.ability_improvement;
+        }
+        if (batch.content_items && this.sharedContent.content_items.length === 0) {
+          this.sharedContent.content_items = batch.content_items;
+        }
+        if (batch.vocabulary && !this.sharedContent.vocabulary.word) {
+          this.sharedContent.vocabulary = batch.vocabulary;
+        }
+        if (batch.homework) {
+          const curHw = this.sharedContent.homework;
+          if (!curHw.goal && (!curHw.questions || curHw.questions.length === 0)) {
+            this.sharedContent.homework = batch.homework;
+          }
+        }
+        // 恢复之前保存的 evaluations 到 batchResults
+        if (batch.evaluations && this.batchResults.length > 0) {
+          for (const r of this.batchResults) {
+            const saved = batch.evaluations[String(r.student_id)];
+            if (saved && saved.evaluation) {
+              r.evaluation = saved.evaluation;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('加载批量报告共享内容失败:', e);
+      }
+    },
+
+    // ===== 从草稿管理加载已有批量报告 =====
+    async loadExistingBatch(batchId) {
+      try {
+        const batch = await API.batchReports.get(batchId);
+        if (!batch) {
+          this.$message.error('批量报告不存在');
+          return;
+        }
+        // 设置班级和基本信息
+        this.config.class_id = batch.class_id;
+        this.config.course_date = batch.course_date || '';
+        this.config.course_topic = batch.course_topic || '';
+        this.config.project_folder = batch.project_folder || '';
+        this.config.template_id = batch.template_id || 'classic';
+        this.config.teacher_observation = batch.teacher_observation || '';
+        this.batchId = batch.id;
+
+        // 恢复截图
+        if (batch.run_screenshots) this.config.run_screenshots = batch.run_screenshots;
+        if (batch.code_screenshots) this.config.code_screenshots = batch.code_screenshots;
+        if (batch.homework_screenshots) this.config.homework_screenshots = batch.homework_screenshots;
+        if (batch.screenshot_paths) this.config.screenshot_paths = batch.screenshot_paths;
+
+        // 加载班级和学生
+        await this.loadFirstStudentId(batch.class_id);
+
+        // 恢复共享内容
+        if (batch.knowledge_points) this.sharedContent.knowledge_points = batch.knowledge_points;
+        if (batch.ability_improvement) this.sharedContent.ability_improvement = batch.ability_improvement;
+        if (batch.content_items) this.sharedContent.content_items = batch.content_items;
+        if (batch.vocabulary) {
+          if (batch.vocabulary.word) this.sharedContent.vocabulary.word = batch.vocabulary.word;
+          if (batch.vocabulary.phonetic) this.sharedContent.vocabulary.phonetic = batch.vocabulary.phonetic;
+          if (batch.vocabulary.meaning) this.sharedContent.vocabulary.meaning = batch.vocabulary.meaning;
+          if (batch.vocabulary.example) this.sharedContent.vocabulary.example = batch.vocabulary.example;
+        }
+        if (batch.homework) this.sharedContent.homework = batch.homework;
+
+        // 从 evaluations 恢复 batchResults
+        if (batch.evaluations && this.studentList.length > 0) {
+          this.batchResults = this.studentList.map(s => {
+            const saved = batch.evaluations[String(s.id)] || {};
+            return {
+              student_id: s.id,
+              student_name: s.name,
+              evaluation: (saved.evaluation || ''),
+              error: null,
+            };
+          });
+        }
+
+        this.$message.success('已加载批量报告');
+      } catch (e) {
+        this.$message.error('加载批量报告失败: ' + e.message);
+      }
     },
   },
 };

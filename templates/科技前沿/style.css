@@ -143,7 +143,9 @@ body {
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 .strip-item img {
-  width: 100%;
+  max-width: 100%;
+  max-height: 50mm;
+  width: auto;
   height: auto;
   display: block;
 }
@@ -206,13 +208,14 @@ body {
   max-width: 100%;
   border-radius: 6px;
   overflow: hidden;
-  border: 1px solid #E2E8F0;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 .code-screenshot-item img {
-  width: 100%;
+  max-width: 100%;
+  max-height: 90mm;
+  width: auto;
   height: auto;
   display: block;
+  margin: 0 auto;
 }
 
 /* ===== 代码块 ===== */
@@ -405,6 +408,23 @@ body {
 }
 
 /* ===== 页脚 ===== */
+/* ===== 截图占位 ===== */
+.screenshot-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3mm;
+  height: 80mm;
+  margin: 0 4mm 5mm;
+  border: 2px dashed #CBD5E1;
+  border-radius: 6px;
+  background: #F8FAFC;
+  color: #94A3B8;
+}
+.placeholder-icon { font-size: 24pt; }
+.placeholder-text { font-size: 11pt; }
+
 .footer-line {
   margin: 14mm 4mm 2mm;
   height: 1px;

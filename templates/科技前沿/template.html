@@ -49,11 +49,25 @@
     {% endfor %}
   </div>
 
+  <!-- 项目运行效果截图（首页展示） -->
+  {% if run_screenshots and run_screenshots|length > 0 %}
   <div class="section-header">
     <span class="section-icon">◆</span>
-    <span>能力提升</span>
+    <span>项目运行效果</span>
   </div>
-  <div class="ability-box">{{ ability_improvement }}</div>
+  <div class="code-screenshots-grid">
+    {% for s in run_screenshots %}
+    <div class="code-screenshot-item">
+      <img src="{{ s }}" alt="运行截图 {{ loop.index }}">
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="screenshot-placeholder">
+    <div class="placeholder-icon">🚀</div>
+    <div class="placeholder-text">运行截图位置</div>
+  </div>
+  {% endif %}
 </div>
 
 <!-- ===== 第 2 页：内容详解 ===== -->
@@ -85,7 +99,7 @@
   </div>
 </div>
 
-<!-- ===== 第 3 页：代码展示 + 词汇 ===== -->
+<!-- ===== 第 3 页：代码展示 + 单词学习 ===== -->
 <div class="page page-3">
   {% if logo and logo.show_on_all_pages %}
   <div class="logo logo-{{ logo.position if logo else 'top-right' }}">
@@ -95,11 +109,11 @@
   </div>
   {% endif %}
   <div class="corner-deco"></div>
-  <div class="page-subtitle">▸ 代码 & 核心词汇</div>
+  <div class="page-subtitle">▸ 代码展示 & 核心词汇</div>
 
   <!-- 代码展示：优先显示代码截图，没有截图则显示文本 -->
   {% if code_screenshots and code_screenshots|length > 0 %}
-  <div class="section-header">
+  <div class="section-header" style="margin-top: 4mm;">
     <span class="section-icon">◆</span>
     <span>代码展示</span>
   </div>
@@ -111,13 +125,18 @@
     {% endfor %}
   </div>
   {% elif code_excerpt %}
-  <div class="section-header">
+  <div class="section-header" style="margin-top: 4mm;">
     <span class="section-icon">◆</span>
     <span>代码展示</span>
   </div>
   <div class="code-block">
     <div class="code-bar"><span class="code-dot" style="background:#ff5f56;"></span><span class="code-dot" style="background:#ffbd2e;"></span><span class="code-dot" style="background:#27c93f;"></span></div>
     <pre><code>{{ code_excerpt | e }}</code></pre>
+  </div>
+  {% else %}
+  <div class="screenshot-placeholder">
+    <div class="placeholder-icon">💻</div>
+    <div class="placeholder-text">代码截图位置</div>
   </div>
   {% endif %}
 
@@ -137,6 +156,12 @@
     </div>
   </div>
   {% endif %}
+
+  <div class="section-header" style="margin-top: 6mm;">
+    <span class="section-icon">◆</span>
+    <span>能力提升</span>
+  </div>
+  <div class="ability-box">{{ ability_improvement }}</div>
 </div>
 
 <!-- ===== 第 4 页：作业 + 评价 ===== -->

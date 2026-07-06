@@ -70,31 +70,34 @@ const API = {
     delete(id) { return API.delete(`/api/reports/${id}`); },
     batchDelete(ids) { return API.post('/api/reports/batch-delete', { ids }); },
     updateStatus(id, status) { return API.patch(`/api/reports/${id}/status`, { status }); },
-    export(id, templateId = 'classic', layoutConfig = null, outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null) {
+    export(id, templateId = 'classic', layoutConfig = null, outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null) {
       const body = { template_id: templateId };
       if (layoutConfig) body.layout_config = layoutConfig;
       if (outputDir) body.output_dir = outputDir;
       if (screenshotPaths && screenshotPaths.length > 0) body.screenshot_paths = screenshotPaths;
+      if (runScreenshots && runScreenshots.length > 0) body.run_screenshots = runScreenshots;
       if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
       if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
       return API.post(`/api/reports/${id}/export`, body);
     },
-    exportWord(id, templateId = 'classic', layoutConfig = null, outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null) {
+    exportWord(id, templateId = 'classic', layoutConfig = null, outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null) {
       const body = { template_id: templateId };
       if (layoutConfig) body.layout_config = layoutConfig;
       if (outputDir) body.output_dir = outputDir;
       if (screenshotPaths && screenshotPaths.length > 0) body.screenshot_paths = screenshotPaths;
+      if (runScreenshots && runScreenshots.length > 0) body.run_screenshots = runScreenshots;
       if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
       if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
       return API.post(`/api/reports/${id}/export-word`, body);
     },
     batchGenerate(data) { return API.post('/api/reports/batch', data); },
 
-    preview(id, templateId = 'classic', layoutConfig = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null) {
+    preview(id, templateId = 'classic', layoutConfig = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null) {
       // 预览接口返回 HTML（非 JSON），需要用 fetch 直接获取文本
       const body = { template_id: templateId };
       if (layoutConfig) body.layout_config = layoutConfig;
       if (screenshotPaths && screenshotPaths.length > 0) body.screenshot_paths = screenshotPaths;
+      if (runScreenshots && runScreenshots.length > 0) body.run_screenshots = runScreenshots;
       if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
       if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
       return fetch(API.baseURL + `/api/reports/${id}/preview`, {
@@ -187,6 +190,65 @@ const API = {
   settings: {
     get() { return API.get('/api/settings'); },
     save(data) { return API.put('/api/settings', data); },
+  },
+
+  // =====================
+  // 批量报告 API
+  // =====================
+  batchReports: {
+    get(id) { return API.get(`/api/batch-reports/${id}`); },
+    list(classId, params = {}) {
+      const q = new URLSearchParams({ class_id: classId });
+      if (params.page) q.set('page', params.page);
+      if (params.page_size) q.set('page_size', params.page_size);
+      return API.get(`/api/batch-reports?${q.toString()}`);
+    },
+    listAll(params = {}) {
+      const q = new URLSearchParams();
+      if (params.keyword) q.set('keyword', params.keyword);
+      if (params.status) q.set('status', params.status);
+      if (params.page) q.set('page', params.page);
+      if (params.page_size) q.set('page_size', params.page_size);
+      const qs = q.toString();
+      return API.get(`/api/batch-reports${qs ? '?' + qs : ''}`);
+    },
+    update(id, data) { return API.patch(`/api/batch-reports/${id}`, data); },
+    updateStatus(id, status) { return API.patch(`/api/batch-reports/${id}/status`, { status }); },
+    delete(id) { return API.delete(`/api/batch-reports/${id}`); },
+    batchDelete(ids) { return API.post('/api/batch-reports/batch-delete', { ids }); },
+    exportPdf(id, studentId, templateId = 'classic', outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null) {
+      const body = { template_id: templateId };
+      if (outputDir) body.output_dir = outputDir;
+      if (screenshotPaths && screenshotPaths.length > 0) body.screenshot_paths = screenshotPaths;
+      if (runScreenshots && runScreenshots.length > 0) body.run_screenshots = runScreenshots;
+      if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
+      if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
+      return API.post(`/api/batch-reports/${id}/export/${studentId}`, body);
+    },
+    exportWord(id, studentId, templateId = 'classic', outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null) {
+      const body = { template_id: templateId };
+      if (outputDir) body.output_dir = outputDir;
+      if (screenshotPaths && screenshotPaths.length > 0) body.screenshot_paths = screenshotPaths;
+      if (runScreenshots && runScreenshots.length > 0) body.run_screenshots = runScreenshots;
+      if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
+      if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
+      return API.post(`/api/batch-reports/${id}/export-word/${studentId}`, body);
+    },
+    preview(id, studentId, templateId = 'classic', screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null) {
+      const body = { template_id: templateId };
+      if (screenshotPaths && screenshotPaths.length > 0) body.screenshot_paths = screenshotPaths;
+      if (runScreenshots && runScreenshots.length > 0) body.run_screenshots = runScreenshots;
+      if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
+      if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
+      return fetch(API.baseURL + `/api/batch-reports/${id}/preview/${studentId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(r => {
+        if (!r.ok) throw new Error('预览生成失败: HTTP ' + r.status);
+        return r.text();
+      });
+    },
   },
 
   // =====================
