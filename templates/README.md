@@ -99,7 +99,7 @@ my-template/
 | `{{ ability_improvement }}` | string | 能力提升描述文本 |
 | `{{ content_items }}` | list\[dict\] | 内容详解，每项 `{kp: "知识点名", text: "60-100字描述"}` |
 | `{{ vocabulary }}` | dict | 单词学习卡：`{word, phonetic, meaning, example}` |
-| `{{ homework }}` | dict | 作业：`{goal, hints: [], criteria: [], questions: []}` |
+| `{{ homework }}` | dict | 作业：`{goal, hints: [], questions: [{goal, hints: []}]}` |
 | `{{ evaluation }}` | string | 学生评价文本 |
 | `{{ screenshots }}` | list\[string\] | 截图列表（data URI 格式） |
 | `{{ logo }}` | dict\|null | Logo 信息：`{data_uri, position, width_mm, show_on_all_pages}`，无 Logo 时为 null |
