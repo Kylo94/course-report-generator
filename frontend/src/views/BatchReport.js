@@ -45,7 +45,7 @@ const BatchReportView = {
               <el-form-item label="教师观察（全局）">
                 <el-input v-model="config.teacher_observation" type="textarea" :rows="2"
                   maxlength="300" show-word-limit
-                  placeholder="输入对班级整体的课堂观察，AI 评价将参考此信息" style="width:400px" />
+                  placeholder="输入对班级整体的课堂观察，AI 评价将参考此信息" style="width:400px" @blur="autoSaveShared" />
               </el-form-item>
               <el-form-item v-if="studentList.length > 0" label="逐学生观察">
                 <div style="width:100%;">
@@ -98,7 +98,7 @@ const BatchReportView = {
               </el-button>
             </template>
             <el-input v-model="sharedContent.ability_improvement" type="textarea" :rows="2"
-              show-word-limit placeholder="输入能力提升" />
+              show-word-limit placeholder="输入能力提升" @blur="autoSaveShared" />
           </el-card>
 
           <!-- 内容概述（AI 生成后才显示） -->
@@ -116,7 +116,7 @@ const BatchReportView = {
                 <el-button size="small" type="danger" link @click="removeContentItem(i)">删除</el-button>
               </div>
               <el-input v-model="item.text" type="textarea" :rows="3"
-                maxlength="200" show-word-limit />
+                maxlength="200" show-word-limit @blur="autoSaveShared" />
             </div>
           </el-card>
 
@@ -131,16 +131,16 @@ const BatchReportView = {
             </template>
             <el-form label-width="100px" size="small">
               <el-form-item label="单词">
-                <el-input v-model="sharedContent.vocabulary.word" style="width:200px" />
+                <el-input v-model="sharedContent.vocabulary.word" style="width:200px" @blur="autoSaveShared" />
               </el-form-item>
               <el-form-item label="音标">
-                <el-input v-model="sharedContent.vocabulary.phonetic" style="width:200px" />
+                <el-input v-model="sharedContent.vocabulary.phonetic" style="width:200px" @blur="autoSaveShared" />
               </el-form-item>
               <el-form-item label="释义">
-                <el-input v-model="sharedContent.vocabulary.meaning" style="width:300px" />
+                <el-input v-model="sharedContent.vocabulary.meaning" style="width:300px" @blur="autoSaveShared" />
               </el-form-item>
               <el-form-item label="例句">
-                <el-input v-model="sharedContent.vocabulary.example" type="textarea" :rows="2" style="width:400px" />
+                <el-input v-model="sharedContent.vocabulary.example" type="textarea" :rows="2" style="width:400px" @blur="autoSaveShared" />
               </el-form-item>
             </el-form>
           </el-card>
@@ -177,17 +177,6 @@ const BatchReportView = {
                     </div>
                     <el-button size="small" @click="addQuestionHint(qi)">+ 添加提示</el-button>
                   </el-form-item>
-                  <el-form-item label="评分点">
-                    <div v-for="(c, ci) in q.criteria" :key="'qc'+ci" style="margin-bottom:4px">
-                      <el-input v-model="q.criteria[ci]" style="width:300px" placeholder="评分标准">
-                        <template #prefix>#{{ ci+1 }}</template>
-                        <template #suffix>
-                          <el-button link type="danger" size="small" @click="removeQuestionCriterion(qi, ci)">×</el-button>
-                        </template>
-                      </el-input>
-                    </div>
-                    <el-button size="small" @click="addQuestionCriterion(qi)">+ 添加评分点</el-button>
-                  </el-form-item>
                 </el-form>
               </div>
               <el-button size="small" @click="addQuestion">+ 添加题目</el-button>
@@ -195,7 +184,7 @@ const BatchReportView = {
             <!-- 单题兼容模式 -->
             <el-form v-else label-width="100px" size="small">
               <el-form-item label="作业目标">
-                <el-input v-model="sharedContent.homework.goal" type="textarea" :rows="2" style="width:400px" />
+                <el-input v-model="sharedContent.homework.goal" type="textarea" :rows="2" style="width:400px" @blur="autoSaveShared" />
               </el-form-item>
               <el-form-item label="提示">
                 <div v-for="(h, i) in sharedContent.homework.hints" :key="'h'+i" style="margin-bottom:4px">
@@ -207,17 +196,6 @@ const BatchReportView = {
                   </el-input>
                 </div>
                 <el-button size="small" @click="addHint">+ 添加提示</el-button>
-              </el-form-item>
-              <el-form-item label="评分点">
-                <div v-for="(c, i) in sharedContent.homework.criteria" :key="'c'+i" style="margin-bottom:4px">
-                  <el-input v-model="sharedContent.homework.criteria[i]" style="width:300px" placeholder="评分标准">
-                    <template #prefix>#{{ i+1 }}</template>
-                    <template #suffix>
-                      <el-button link type="danger" size="small" @click="removeCriterion(i)">×</el-button>
-                    </template>
-                  </el-input>
-                </div>
-                <el-button size="small" @click="addCriterion">+ 添加评分点</el-button>
               </el-form-item>
             </el-form>
           </el-card>
@@ -441,7 +419,7 @@ const BatchReportView = {
         ability_improvement: '',
         content_items: [],
         vocabulary: { word: '', phonetic: '', meaning: '', example: '' },
-        homework: { goal: '', hints: [], criteria: [], questions: [] },
+        homework: { goal: '', hints: [], questions: [] },
       },
       kpInputVisible: false,
       kpInputValue: '',
@@ -598,7 +576,7 @@ const BatchReportView = {
         ability_improvement: '',
         content_items: [],
         vocabulary: { word: '', phonetic: '', meaning: '', example: '' },
-        homework: { goal: '', hints: [], criteria: [], questions: [] },
+        homework: { goal: '', hints: [], questions: [] },
       };
     },
 
@@ -634,18 +612,11 @@ const BatchReportView = {
     removeHint(i) {
       this.sharedContent.homework.hints.splice(i, 1);
     },
-    addCriterion() {
-      if (!this.sharedContent.homework.criteria) this.sharedContent.homework.criteria = [];
-      this.sharedContent.homework.criteria.push('');
-    },
-    removeCriterion(i) {
-      this.sharedContent.homework.criteria.splice(i, 1);
-    },
 
     // ===== 多题模式 =====
     addQuestion() {
       if (!this.sharedContent.homework.questions) this.sharedContent.homework.questions = [];
-      this.sharedContent.homework.questions.push({ goal: '', hints: [], criteria: [] });
+      this.sharedContent.homework.questions.push({ goal: '', hints: [] });
     },
     removeQuestion(qi) {
       if (!this.sharedContent.homework.questions) return;
@@ -663,19 +634,6 @@ const BatchReportView = {
       const q = this.sharedContent.homework.questions[qi];
       if (!q || !q.hints) return;
       q.hints.splice(hi, 1);
-    },
-    addQuestionCriterion(qi) {
-      if (!this.sharedContent.homework.questions) return;
-      const q = this.sharedContent.homework.questions[qi];
-      if (!q) return;
-      if (!q.criteria) q.criteria = [];
-      q.criteria.push('');
-    },
-    removeQuestionCriterion(qi, ci) {
-      if (!this.sharedContent.homework.questions) return;
-      const q = this.sharedContent.homework.questions[qi];
-      if (!q || !q.criteria) return;
-      q.criteria.splice(ci, 1);
     },
 
     // ===== 从系统设置加载默认项目目录 =====
@@ -999,8 +957,12 @@ const BatchReportView = {
     },
 
     // ===== 导出前自动保存共享内容 =====
-    async _autoSaveShared() {
+    async autoSaveShared() {
+      // 先确保 Vue 的 v-model 更新已处理完毕
+      await this.$nextTick();
       if (!this.batchId) return;
+      const hwGoal = this.sharedContent.homework?.goal || '(empty)';
+      console.log('[autoSaveShared] 准备保存 homework.goal =', hwGoal);
       try {
         await API.batchReports.update(this.batchId, {
           knowledge_points: this.sharedContent.knowledge_points,
@@ -1014,6 +976,7 @@ const BatchReportView = {
           homework_screenshots: this.config.homework_screenshots,
           screenshot_paths: this.config.screenshot_paths,
         });
+        console.log('[autoSaveShared] 保存成功 homework.goal =', hwGoal);
       } catch (e) {
         console.warn('自动保存共享内容失败:', e);
       }
@@ -1022,7 +985,7 @@ const BatchReportView = {
     // ===== 导出 =====
     async exportSinglePdf(row) {
       if (!this.batchId) return;
-      await this._autoSaveShared();
+      await this.autoSaveShared();
       try {
         await API.batchReports.exportPdf(this.batchId, row.student_id, this.config.template_id, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots, this.config.run_screenshots);
         this.$message.success(row.student_name + ' PDF 已导出');
@@ -1034,12 +997,17 @@ const BatchReportView = {
     // ===== 预览 =====
     async previewReport(row) {
       if (!this.batchId) return;
-      await this._autoSaveShared();
+      const beforeGoal = this.sharedContent.homework?.goal || '(empty)';
+      console.log('[previewReport] 保存前 sharedContent.homework.goal =', beforeGoal);
+      await this.autoSaveShared();
+      const afterGoal = this.sharedContent.homework?.goal || '(empty)';
+      console.log('[previewReport] 保存后 sharedContent.homework.goal =', afterGoal);
       this.showPreviewDialog = true;
       this.previewHtml = '';
       this.previewError = '';
       this.previewLoading = true;
       try {
+        console.log('[previewReport] 开始调用预览 API, batchId=%s studentId=%s', this.batchId, row.student_id);
         const html = await API.batchReports.preview(this.batchId, row.student_id, this.config.template_id, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots, this.config.run_screenshots);
         this.previewHtml = html;
       } catch (e) {
@@ -1055,7 +1023,7 @@ const BatchReportView = {
         this.$message.warning('没有可导出的记录');
         return;
       }
-      await this._autoSaveShared();
+      await this.autoSaveShared();
       this.exporting = true;
       this.$message.info('开始导出 PDF（共 ' + results.length + ' 份）...');
       let count = 0;
@@ -1078,7 +1046,7 @@ const BatchReportView = {
         return;
       }
       this.wordExporting = true;
-      await this._autoSaveShared();
+      await this.autoSaveShared();
       this.$message.info('开始导出 Word（共 ' + results.length + ' 份）...');
       let count = 0;
       for (const r of results) {

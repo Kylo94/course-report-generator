@@ -77,19 +77,28 @@ def _build_batch_record(
     run_screenshots: list[str] | None = None,
     homework_screenshots: list[str] | None = None,
     screenshot_paths: list[str] | None = None,
+    # 共享内容覆盖（不传则使用 DB 中的值）
+    homework_override: dict | None = None,
+    knowledge_points_override: list[str] | None = None,
+    ability_improvement_override: str | None = None,
+    content_items_override: list[dict] | None = None,
+    vocabulary_override: dict | None = None,
 ):
-    """从 BatchReport + 学生评价构造 SimpleNamespace 伪 record（与 renderer 兼容）。"""
+    """从 BatchReport + 学生评价构造 SimpleNamespace 伪 record（与 renderer 兼容）。
+
+    可传共享内容覆盖参数，不传则从 batch 数据库记录读取。
+    """
     record = SimpleNamespace(
         id=batch.id,
         student_id=student_id,
         evaluation=evaluation_text,
         course_topic=batch.course_topic,
         course_date=batch.course_date,
-        ability_improvement=batch.ability_improvement or "",
-        knowledge_points=batch.knowledge_points or "[]",
-        content_items=batch.content_items or "[]",
-        vocabulary=batch.vocabulary or "{}",
-        homework=batch.homework or "{}",
+        ability_improvement=ability_improvement_override if ability_improvement_override is not None else (batch.ability_improvement or ""),
+        knowledge_points=_json.dumps(knowledge_points_override, ensure_ascii=False) if knowledge_points_override is not None else (batch.knowledge_points or "[]"),
+        content_items=_json.dumps(content_items_override, ensure_ascii=False) if content_items_override is not None else (batch.content_items or "[]"),
+        vocabulary=_json.dumps(vocabulary_override, ensure_ascii=False) if vocabulary_override is not None else (batch.vocabulary or "{}"),
+        homework=_json.dumps(homework_override, ensure_ascii=False) if homework_override is not None else (batch.homework or "{}"),
         logo_config=batch.logo_config or "{}",
         teacher_observation=batch.teacher_observation or "",
         observations=batch.observations or "{}",
@@ -338,12 +347,36 @@ async def preview_batch_report(
     homework_screenshots = body.get("homework_screenshots", [])
     screenshot_paths = body.get("screenshot_paths", [])
 
+    # 共享内容覆盖（前端传入，不依赖数据库回读）
+    homework_override = body.get("homework")
+    knowledge_points_override = body.get("knowledge_points")
+    ability_improvement_override = body.get("ability_improvement")
+    content_items_override = body.get("content_items")
+    vocabulary_override = body.get("vocabulary")
+
+    # ===== DEBUG: 追踪 homework 值 =====
+    log.info("预览 DEBUG: batch.homework 类型=%s", type(batch.homework).__name__)
+    log.info("预览 DEBUG: batch.homework 原始值(前200)=%s", str(batch.homework)[:200] if batch.homework else "None")
+
+    if homework_override is not None:
+        hw_goal = homework_override.get("goal", "")[:40] if isinstance(homework_override, dict) else str(homework_override)[:40]
+        log.info("预览 batch=%d student=%d 使用前端 homework.goal=%s", batch_id, student_id, hw_goal)
+    else:
+        raw = batch.homework or ""
+        hw_goal = _json.loads(raw).get("goal", "")[:40] if raw else "(none)"
+        log.info("预览 batch=%d student=%d 使用 DB homework.goal=%s", batch_id, student_id, hw_goal)
+
     record = _build_batch_record(
         batch, student_id, student_name, eval_text,
         code_screenshots=code_screenshots,
         run_screenshots=run_screenshots,
         homework_screenshots=homework_screenshots,
         screenshot_paths=screenshot_paths,
+        homework_override=homework_override,
+        knowledge_points_override=knowledge_points_override,
+        ability_improvement_override=ability_improvement_override,
+        content_items_override=content_items_override,
+        vocabulary_override=vocabulary_override,
     )
 
     try:
@@ -411,12 +444,24 @@ async def export_batch_report(
     homework_screenshots = body.get("homework_screenshots", [])
     screenshot_paths = body.get("screenshot_paths", [])
 
+    # 共享内容覆盖（前端传入，不依赖数据库回读）
+    homework_override = body.get("homework")
+    knowledge_points_override = body.get("knowledge_points")
+    ability_improvement_override = body.get("ability_improvement")
+    content_items_override = body.get("content_items")
+    vocabulary_override = body.get("vocabulary")
+
     record = _build_batch_record(
         batch, student_id, student_name, eval_text,
         code_screenshots=code_screenshots,
         run_screenshots=run_screenshots,
         homework_screenshots=homework_screenshots,
         screenshot_paths=screenshot_paths,
+        homework_override=homework_override,
+        knowledge_points_override=knowledge_points_override,
+        ability_improvement_override=ability_improvement_override,
+        content_items_override=content_items_override,
+        vocabulary_override=vocabulary_override,
     )
 
     # 渲染 HTML
@@ -584,12 +629,24 @@ async def export_batch_word(
     homework_screenshots = body.get("homework_screenshots", [])
     screenshot_paths = body.get("screenshot_paths", [])
 
+    # 共享内容覆盖（前端传入，不依赖数据库回读）
+    homework_override = body.get("homework")
+    knowledge_points_override = body.get("knowledge_points")
+    ability_improvement_override = body.get("ability_improvement")
+    content_items_override = body.get("content_items")
+    vocabulary_override = body.get("vocabulary")
+
     record = _build_batch_record(
         batch, student_id, student_name, eval_text,
         code_screenshots=code_screenshots,
         run_screenshots=run_screenshots,
         homework_screenshots=homework_screenshots,
         screenshot_paths=screenshot_paths,
+        homework_override=homework_override,
+        knowledge_points_override=knowledge_points_override,
+        ability_improvement_override=ability_improvement_override,
+        content_items_override=content_items_override,
+        vocabulary_override=vocabulary_override,
     )
 
     # 获取模板配置

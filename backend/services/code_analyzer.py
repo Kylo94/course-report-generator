@@ -36,6 +36,7 @@ log = get_logger(__name__)
 COURSE_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"^\s*#?\s*Course\s*[:：]\s*(.+?)\s*$", re.IGNORECASE),
     re.compile(r"^\s*#?\s*课程\s*[:：]\s*(.+?)\s*$"),
+    re.compile(r"^\s*#?\s*课程\s+(.+?)\s*$"),                # "课程 飞向地球"（空格分隔）
     re.compile(r"^\s*#?\s*课程名\s*[:：]\s*(.+?)\s*$"),
     re.compile(r"^\s*#?\s*主题\s*[:：]\s*(.+?)\s*$"),
 ]
@@ -44,6 +45,7 @@ COURSE_PATTERNS: list[re.Pattern[str]] = [
 HOMEWORK_GUIDANCE_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"^\s*作业引导\s*[:：]\s*$"),
     re.compile(r"^\s*作业指导\s*[:：]\s*$"),
+    re.compile(r"^\s*作业\s*[:：]\s*$"),                    # "作业:"（Walimaker 风格）
     re.compile(r"^\s*HomeworkGuidance\s*[:：]\s*$", re.IGNORECASE),
 ]
 
@@ -57,6 +59,7 @@ PROJECT_TYPE_RULES: list[tuple[str, str]] = [
     ("pyside", "pyqt"),
     ("arcade", "arcade"),
     ("pgzero", "pgzero"),
+    ("walimaker", "pgzero"),       # Walimaker ≈ pgzero（游戏框架）
     ("flask", "web"),
     ("fastapi", "web"),
     ("django", "web"),

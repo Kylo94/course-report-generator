@@ -176,16 +176,37 @@
   <div class="corner-deco"></div>
   <div class="page-subtitle">▸ 课后 & 总结</div>
 
-  {% if homework and homework.goal %}
+  {% if homework and (homework.goal or (homework.questions and homework.questions|length > 0)) %}
   <div class="section-header">
     <span class="section-icon">◆</span>
     <span>课后作业</span>
   </div>
   <div class="homework-card">
+    {% if homework.questions and homework.questions|length > 0 %}
+    {% for q in homework.questions %}
+    <div class="hw-question"{% if not loop.first %} style="margin-top:3mm;padding-top:3mm;border-top:1px dashed #999;"{% endif %}>
+      <div class="hw-goal">
+        <span class="hw-tag">第 {{ loop.index }} 题</span>
+        <span>{{ q.goal }}</span>
+      </div>
+      {% if q.hints %}
+      <div class="hw-sub">
+        <div class="hw-sub-title">💡 提示</div>
+        <ul class="hw-list">
+          {% for h in q.hints %}
+          <li>{{ h }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% elif homework.goal %}
     <div class="hw-goal">
       <span class="hw-tag">目标</span>
       <span>{{ homework.goal }}</span>
     </div>
+    {% endif %}
 
     {% if homework_screenshots and homework_screenshots|length > 0 %}
     <div class="section-header" style="margin-top:3mm;">
@@ -201,22 +222,12 @@
     </div>
     {% endif %}
 
-    {% if homework.hints %}
+    {% if homework.hints and (not homework.questions or homework.questions|length == 0) %}
     <div class="hw-sub">
       <div class="hw-sub-title">💡 提示</div>
       <ul class="hw-list">
         {% for h in homework.hints %}
         <li>{{ h }}</li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-    {% if homework.criteria %}
-    <div class="hw-sub">
-      <div class="hw-sub-title">✅ 评分标准</div>
-      <ul class="hw-list">
-        {% for c in homework.criteria %}
-        <li>{{ c }}</li>
         {% endfor %}
       </ul>
     </div>

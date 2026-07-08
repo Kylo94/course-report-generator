@@ -216,30 +216,33 @@ const API = {
     updateStatus(id, status) { return API.patch(`/api/batch-reports/${id}/status`, { status }); },
     delete(id) { return API.delete(`/api/batch-reports/${id}`); },
     batchDelete(ids) { return API.post('/api/batch-reports/batch-delete', { ids }); },
-    exportPdf(id, studentId, templateId = 'classic', outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null) {
+    exportPdf(id, studentId, templateId = 'classic', outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null, overrides = null) {
       const body = { template_id: templateId };
       if (outputDir) body.output_dir = outputDir;
       if (screenshotPaths && screenshotPaths.length > 0) body.screenshot_paths = screenshotPaths;
       if (runScreenshots && runScreenshots.length > 0) body.run_screenshots = runScreenshots;
       if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
       if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
+      if (overrides) Object.assign(body, overrides);
       return API.post(`/api/batch-reports/${id}/export/${studentId}`, body);
     },
-    exportWord(id, studentId, templateId = 'classic', outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null) {
+    exportWord(id, studentId, templateId = 'classic', outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null, overrides = null) {
       const body = { template_id: templateId };
       if (outputDir) body.output_dir = outputDir;
       if (screenshotPaths && screenshotPaths.length > 0) body.screenshot_paths = screenshotPaths;
       if (runScreenshots && runScreenshots.length > 0) body.run_screenshots = runScreenshots;
       if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
       if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
+      if (overrides) Object.assign(body, overrides);
       return API.post(`/api/batch-reports/${id}/export-word/${studentId}`, body);
     },
-    preview(id, studentId, templateId = 'classic', screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null) {
+    preview(id, studentId, templateId = 'classic', screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null, overrides = null) {
       const body = { template_id: templateId };
       if (screenshotPaths && screenshotPaths.length > 0) body.screenshot_paths = screenshotPaths;
       if (runScreenshots && runScreenshots.length > 0) body.run_screenshots = runScreenshots;
       if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
       if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
+      if (overrides) Object.assign(body, overrides);
       return fetch(API.baseURL + `/api/batch-reports/${id}/preview/${studentId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

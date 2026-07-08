@@ -314,7 +314,7 @@ class AIConversation:
 - 每题 30-50 字
 - 难度适中
 - 题型在 goal 中明确体现
-- 提示 2-3 条，评分点 2-3 条（"能做到：... / 还需要练：..."）
+- 提示 2-3 条
 
 【单词——来自代码中实际出现的术语或函数名】
 - 音标、中文释义、代码语境例句
@@ -325,13 +325,11 @@ class AIConversation:
     "questions": [
       {{
         "goal": "题1（含题型动词，引用函数名）",
-        "hints": ["提示1", "提示2"],
-        "criteria": ["能做到：...", "还需要练：..."]
+        "hints": ["提示1", "提示2"]
       }},
       {{
         "goal": "题2...",
-        "hints": [...],
-        "criteria": [...]
+        "hints": [...]
       }}
     ]
   }},
@@ -354,18 +352,15 @@ class AIConversation:
                 "questions": [{
                     "goal": hw.get("goal", ""),
                     "hints": hw.get("hints", []),
-                    "criteria": hw.get("criteria", []),
                 }],
                 "goal": hw.get("goal", ""),
                 "hints": hw.get("hints", []),
-                "criteria": hw.get("criteria", []),
             }
-        # 顶层 goal/hints/criteria 保留为 questions[0] 的同步，方便老渲染逻辑
+        # 顶层 goal/hints 保留为 questions[0] 的同步，方便老渲染逻辑
         if hw.get("questions"):
             first = hw["questions"][0]
             hw.setdefault("goal", first.get("goal", ""))
             hw.setdefault("hints", first.get("hints", []))
-            hw.setdefault("criteria", first.get("criteria", []))
         self._output("homework", hw)
         self._output("vocabulary", vocab)
         return hw, vocab
