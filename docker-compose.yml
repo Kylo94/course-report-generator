@@ -3,8 +3,8 @@
 # ===================================================================
 # 使用方式：
 #
-#   1. 设置环境变量（推荐写入 .env 文件）：
-#         echo 'CRG_LLM_API_KEY=sk-xxxxxxxx' >> .env
+#   1. 编辑下方「AI 供应商配置」区域，填入你的 API Key
+#      或创建 .env 文件写入 CRG_LLM_API_KEY=sk-xxxxx
 #
 #   2. 启动服务：
 #         docker compose up -d
@@ -14,27 +14,16 @@
 #
 #   4. 查看日志：
 #         docker compose logs -f
-# ===================================================================
 #
-# ⚠ 首次使用需要配置 AI 供应商 API Key，
-#    以下是三种方式（任选其一）：
-#
-#   A) 环境变量（推荐）：
-#         CRG_LLM_API_KEY=sk-xxxxx  → 对应 CRG_LLM__API_KEY
-#
-#   B) .env 文件（本文件同目录）：
-#         CRG_LLM_API_KEY=sk-xxxxx
-#
-#   C) 挂载本地 llm.yaml：
-#         volumes: [./config/llm.yaml:/app/config/llm.yaml]
-#
+#   5. 停止：
+#         docker compose down
 # ===================================================================
 
 services:
   course-report-generator:
     # ── 镜像 ──────────────────────────────────────────────
     # 优先使用已推送至 GHCR 的镜像。
-    # 如需本地构建，取消下行注释并注释上方 image 行：
+    # 如需本地构建，取消下行注释并注释下方 image 行：
     # build: .
     image: ghcr.io/${GITHUB_REPOSITORY:-your-username/course-report-generator}:latest
     container_name: course-report
@@ -43,35 +32,66 @@ services:
     ports:
       - "${CRG_HOST_PORT:-8765}:8765"
 
-    # ── 环境变量 ──────────────────────────────────────────
-    # 所有配置均可通过 CRG_ 前缀的环境变量覆盖。
-    # 完整字段映射见 backend/config.py。
+    # ════════════════════════════════════════════════════════
+    # ▼▼▼  编 辑 区 — 修改下方配置即可使用  ▼▼▼
+    # ════════════════════════════════════════════════════════
     environment:
-      # LLM / AI 供应商（必填：API Key）
+      # ──────────────────────────────────────
+      # 【必填】AI 供应商配置
+      # ──────────────────────────────────────
+      # provider 可选值：deepseek / qwen / glm / openai / claude
       - CRG_LLM__PROVIDER=${CRG_LLM_PROVIDER:-deepseek}
-      - CRG_LLM__API_KEY=${CRG_LLM_API_KEY:?请设置 CRG_LLM_API_KEY 环境变量}
+
+      # ★ 把你的 API Key 填在这里（替换 sk-your-api-key）
+      - CRG_LLM__API_KEY=${CRG_LLM_API_KEY:-sk-your-api-key}
+
+      # 模型名称（各供应商推荐模型见下方注释）
       - CRG_LLM__DEFAULT_MODEL=${CRG_LLM_DEFAULT_MODEL:-deepseek-chat}
+
+      # 自定义 API 地址（留空则使用供应商默认地址）
       - CRG_LLM__BASE_URL=${CRG_LLM_BASE_URL:-}
+
+      # 请求超时（秒）/ 失败重试次数
       - CRG_LLM__TIMEOUT=${CRG_LLM_TIMEOUT:-60}
       - CRG_LLM__MAX_RETRIES=${CRG_LLM_MAX_RETRIES:-2}
 
-      # 应用配置
+      # ── 推荐模型对照 ─────────────────────
+      # DeepSeek:  deepseek-chat       （性价比首选）
+      # 通义千问:  qwen-plus           （阿里云稳定接入）
+      # 智谱 GLM:  glm-4               （教育领域优化）
+      # OpenAI:    gpt-4o-mini         （兜底方案）
+      # Claude:    claude-sonnet-4-6   （高质量长文本）
+      # ──────────────────────────────────────
+
+      # ──────────────────────────────────────
+      # 【可选】应用配置
+      # ──────────────────────────────────────
       - CRG_APP__DEBUG=${CRG_APP_DEBUG:-false}
       - CRG_APP__LOG_LEVEL=${CRG_APP_LOG_LEVEL:-INFO}
 
-      # 数据库（SQLite 默认存储在 /app/data/app.db，已在 volume 中持久化）
+      # ──────────────────────────────────────
+      # 【可选】数据库（SQLite 默认）
+      # ──────────────────────────────────────
       - CRG_DATABASE__URL=${CRG_DATABASE_URL:-sqlite+aiosqlite:///./data/app.db}
       - CRG_SERVER__HOST=0.0.0.0
       - CRG_SERVER__PORT=${CRG_SERVER_PORT:-8765}
       - CRG_SERVER__RELOAD=false
 
-      # 报告目录（使用 volume 内路径）
+      # ──────────────────────────────────────
+      # 【可选】报告输出目录
+      # ──────────────────────────────────────
       - CRG_REPORT__OUTPUT_DIR=${CRG_REPORT_OUTPUT_DIR:-./data/reports}
       - CRG_REPORT__SCREENSHOT_DIR=${CRG_REPORT_SCREENSHOT_DIR:-./data/screenshots}
       - CRG_REPORT__ASSET_DIR=${CRG_REPORT_ASSET_DIR:-./data/assets}
 
-      # Logo
+      # ──────────────────────────────────────
+      # 【可选】Logo
+      # ──────────────────────────────────────
       - CRG_LOGO__ENABLED=${CRG_LOGO_ENABLED:-false}
+
+    # ════════════════════════════════════════════════════════
+    # ▲▲▲  编辑区结束  ▲▲▲
+    # ════════════════════════════════════════════════════════
 
     # ── 持久化 ────────────────────────────────────────────
     # SQLite 数据库、导出的 PDF 报告、截图等保存在命名 volume 中。
