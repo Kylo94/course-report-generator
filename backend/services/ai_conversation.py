@@ -142,7 +142,21 @@ class AIConversation:
         # 由于入口注释中提到的文件已被优先排列，即使截断也能保证重点文件被 AI 看到
         code = code_content[:10000]
 
-        prompt = f"""你是少儿 Python 编程教学助手。请仔细阅读以下项目代码并**记住所有函数**。
+        # 判断项目类型：脚本式代码（Walimaker/pgzero）没有 def 函数定义，
+        # 此时 key_functions 应关注主要逻辑块而非函数
+        is_script_style = project_type in ("pgzero", "turtle", "arcade")
+
+        if is_script_style:
+            func_desc = """注意：本项目是脚本风格（使用框架函数如 key_pressed、Character、goto 等），
+没有显式的 def 函数定义。请将 main_objectives 对应的**主要逻辑块**列在 key_functions 中，
+用逻辑块的核心 API 调用作为名称（如 key_just_pressed、play_snd、goto），
+start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
+        else:
+            func_desc = """key_functions **只包含直接服务于 main_objectives 的函数**，每个必须关联至少一个目标。
+纯辅助函数（如初始化、工具函数）不要放进来。
+必须从源码中确定 start_line / end_line。"""
+
+        prompt = f"""你是少儿 Python 编程教学助手。请仔细阅读以下项目代码并**记住所有代码和逻辑**。
 
 【入口文件顶部注释（说明本节课目标和主题）】
 {entry_comment}
@@ -163,7 +177,7 @@ class AIConversation:
   "main_objectives": ["从入口注释提取的课程主要目标，如实现双人按键配置"],
   "key_functions": [
     {{
-      "name": "函数名，如 set_keys",
+      "name": "函数名或核心逻辑块名，如 set_keys",
       "purpose": "作用描述，20-40字",
       "technique": "核心 Python 技术点",
       "file_path": "文件名",
@@ -172,14 +186,13 @@ class AIConversation:
       "related_objectives": [0]
     }}
   ],
-  "python_techniques": ["技术点1", "技术点2"]
+  "python_techniques": ["代码中实际用到的 Python 技术点，如条件判断、列表操作、循环、字符串操作等"]
 }}
 
 【重要】
-- **入口注释中提到的文件名（如 tools.py、sun.py）是本课的核心学习文件，必须重点关注这些文件中的函数**
-- key_functions **只包含直接服务于 main_objectives 的函数**，每个必须关联至少一个目标
-- 纯辅助函数（如初始化、工具函数）不要放进来
-- 必须从源码中确定 start_line / end_line
+- **入口注释中提到的文件名（如 tools.py、sun.py）是本课的核心学习文件，必须重点关注这些文件中的函数或逻辑**
+- {func_desc}
+- **禁止编造代码中不存在的内容**。如果代码中没有 def 函数定义，请把关键逻辑块当作函数来分析
 - 只输出 JSON，不要额外解释"""
 
         result_text = await self._call(prompt, TEMPS["read_code"])
@@ -204,6 +217,13 @@ class AIConversation:
         entry_comment: str,
     ) -> list[str]:
         """基于记忆生成 5 个知识点。"""
+        # 脚本式项目（Walimaker/pgzero/turtle）没有 def 函数，放宽函数关联要求
+        func_rule = (
+            "- **每个知识点必须对应代码中实际存在的函数、逻辑块或 API 调用**"
+        ) if project_type in ("pgzero", "turtle", "arcade") else (
+            "- **每个知识点必须对应代码中实际存在且与课程目标直接相关的函数**"
+        )
+
         prompt = f"""基于你刚才阅读的代码，生成恰好 5 个本节课的知识点。
 
 课程主题：{course_topic}
@@ -211,7 +231,7 @@ class AIConversation:
 入口注释：{entry_comment}
 
 要求：
-- **每个知识点必须对应代码中实际存在且与课程目标直接相关的函数**
+{func_rule}
 - **优先从入口注释中提到的文件中提取知识点**，入口注释中出现的文件（如 tools.py、sun.py）是本课的核心学习文件
 - **禁止编造代码中没有的函数或技术点**
 - 格式「具体技术点 + 训练能力」，如：
@@ -251,6 +271,18 @@ class AIConversation:
     ) -> tuple[list[dict], str]:
         """基于记忆生成内容概述和能提。"""
         kp_str = "、".join(knowledge_points)
+        # 脚本式项目（Walimaker/pgzero）没有 def 函数，用 API 调用名替代
+        ref_desc = (
+            "引用代码中**实际使用的 API 调用或变量操作**（如 key_just_pressed、goto、play_snd、.color = 等）"
+        ) if project_type in ("pgzero", "turtle", "arcade") else (
+            "引用代码中**实际存在的函数名**"
+        )
+        forbidden = (
+            "禁止引用你没有阅读到的内容。只能引用代码中实际存在的 API 调用或逻辑块。"
+        ) if project_type in ("pgzero", "turtle", "arcade") else (
+            "禁止引用你没有阅读到的函数。只能引用代码分析结果中已有的函数。"
+        )
+
         prompt = f"""基于你阅读的代码和以下知识点，生成课程内容概述。
 
 知识点：{kp_str}
@@ -259,18 +291,18 @@ class AIConversation:
 
 要求：
 1. 每个知识点写一段 **40-60 字**的描述，格式：
-   - 做了什么（引用代码中**实际存在的函数名**）
+   - 做了什么（{ref_desc}）
    - 核心逻辑
    - 锻炼了什么思维
-2. **禁止引用你没有阅读到的函数。只能引用代码分析结果中已有的函数。**
+2. {forbidden}
 3. 直接陈述技术内容。不要写"家长可以让孩子""家长可以问孩子"等指导语。
 4. 最后写一段 **40-100 字**的"能力提升"，围绕每个知识点逐条展开。
 
 输出 JSON：
 {{
   "content_items": [
-    {{"kp": "知识点1", "text": "40-60字描述（引用具体函数名）"}},
-    {{"kp": "知识点2", "text": "40-60字描述（引用具体函数名）"}}
+    {{"kp": "知识点1", "text": "40-60字描述（引用具体函数名或 API）"}},
+    {{"kp": "知识点2", "text": "40-60字描述（引用具体函数名或 API）"}}
   ],
   "ability_improvement": "40-100字能力提升总结，逐条展开"
 }}
@@ -301,12 +333,24 @@ class AIConversation:
             if homework_guidance
             else ""
         )
+        # 脚本式项目（如 Walimaker/pgzero）的函数都是框架 API 调用而非 def 定义
+        hw_source = (
+            "只基于代码中实际出现的 API 调用或变量操作出题"
+        ) if project_type in ("pgzero", "turtle", "arcade") else (
+            "只基于代码中实际函数出题"
+        )
+        vocab_source = (
+            "来自代码中实际出现的术语、API 函数名或变量名"
+        ) if project_type in ("pgzero", "turtle", "arcade") else (
+            "来自代码中实际出现的术语或函数名"
+        )
+
         prompt = f"""根据你阅读的代码和知识点（{kp_str}），生成课后作业（多题）和英文单词。
 
 学生水平：{student_level}
 项目类型：{project_type}
 入口注释：{entry_comment}{guidance_section}
-【作业——只基于代码中实际函数出题，生成 1-3 道题】
+【作业——{hw_source}，生成 1-3 道题】
 - 根据课程内容决定题型：
   · 概念/逻辑类 → 问答题（"请描述 XX() 的执行流程"）
   · 参数/配置类 → 修改题（"请修改 XX() 中的配置"）
@@ -316,7 +360,7 @@ class AIConversation:
 - 题型在 goal 中明确体现
 - 提示 2-3 条
 
-【单词——来自代码中实际出现的术语或函数名】
+【单词——{vocab_source}】
 - 音标、中文释义、代码语境例句
 
 输出 JSON：
@@ -324,7 +368,7 @@ class AIConversation:
   "homework": {{
     "questions": [
       {{
-        "goal": "题1（含题型动词，引用函数名）",
+        "goal": "题1（含题型动词，引用代码中的函数名或 API）",
         "hints": ["提示1", "提示2"]
       }},
       {{
@@ -334,7 +378,7 @@ class AIConversation:
     ]
   }},
   "vocabulary": {{
-    "word": "function_name",
+    "word": "代码中的术语或函数名",
     "phonetic": "/音标/",
     "meaning": "中文释义",
     "example": "代码中的使用示例"

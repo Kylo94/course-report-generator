@@ -68,6 +68,12 @@ const DashboardView = {
         <el-table v-else :data="recentDrafts" stripe style="width: 100%">
           <el-table-column prop="id" label="ID" width="60" />
           <el-table-column prop="course_topic" label="课程名称" min-width="150" />
+          <el-table-column label="类型" width="70">
+            <template #default="{ row }">
+              <el-tag v-if="row.record_type === 'batch_report'" size="small" type="primary">批量</el-tag>
+              <el-tag v-else size="small" type="info">单份</el-tag>
+            </template>
+          </el-table-column>
           <el-table-column label="状态" width="100">
             <template #default="{ row }">
               <el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
@@ -80,7 +86,7 @@ const DashboardView = {
           </el-table-column>
           <el-table-column label="操作" width="120">
             <template #default="{ row }">
-              <el-button size="small" type="primary" link @click="openDraft(row.id)">
+              <el-button size="small" type="primary" link @click="openDraft(row)">
                 打开
               </el-button>
             </template>
@@ -107,16 +113,16 @@ const DashboardView = {
   methods: {
     async loadStats() {
       try {
-        const [drafts, students] = await Promise.all([
+        const [drafts, students, batchDrafts, finalized, batchFinalized] = await Promise.all([
           API.reports.list({ page_size: 1 }),
           API.students.list({ page_size: 1 }),
+          API.batchReports.listAll({ status: 'draft', page_size: 1 }),
+          API.reports.list({ status: 'finalized', page_size: 1 }),
+          API.batchReports.listAll({ status: 'finalized', page_size: 1 }),
         ]);
-        this.draftCount = drafts.total;
+        this.draftCount = (drafts.total || 0) + (batchDrafts.total || 0);
         this.studentCount = students.total;
-
-        // 已导出报告数量
-        const finalized = await API.reports.list({ status: 'finalized', page_size: 1 });
-        this.finalizedCount = finalized.total;
+        this.finalizedCount = (finalized.total || 0) + (batchFinalized.total || 0);
       } catch (e) {
         console.error('加载统计失败:', e);
       }
@@ -124,8 +130,19 @@ const DashboardView = {
 
     async loadRecentDrafts() {
       try {
-        const result = await API.reports.list({ page_size: 5 });
-        this.recentDrafts = result.items;
+        const [records, batchRecords] = await Promise.all([
+          API.reports.list({ page_size: 5 }),
+          API.batchReports.listAll({ page_size: 5 }),
+        ]);
+        // 合并两种记录，标记类型，按 updated_at 排序取前 5
+        const a = (records.items || []).map(r => ({ ...r, record_type: 'course_record' }));
+        const b = (batchRecords.items || []).map(r => ({ ...r, record_type: 'batch_report' }));
+        const merged = [...a, ...b].sort((x, y) => {
+          const dx = new Date(x.updated_at || 0).getTime();
+          const dy = new Date(y.updated_at || 0).getTime();
+          return dy - dx;
+        });
+        this.recentDrafts = merged.slice(0, 5);
       } catch (e) {
         console.error('加载草稿列表失败:', e);
       }
@@ -135,8 +152,12 @@ const DashboardView = {
       this.Router.navigate('editor?new');
     },
 
-    openDraft(id) {
-      this.Router.navigate('editor?id=' + id);
+    openDraft(row) {
+      if (row.record_type === 'batch_report') {
+        this.Router.navigate('batch?id=' + row.id);
+      } else {
+        this.Router.navigate('editor?id=' + row.id);
+      }
     },
 
     statusType(s) {
