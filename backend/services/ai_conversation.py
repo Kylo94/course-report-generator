@@ -142,13 +142,13 @@ class AIConversation:
         # 由于入口注释中提到的文件已被优先排列，即使截断也能保证重点文件被 AI 看到
         code = code_content[:10000]
 
-        # 判断项目类型：脚本式代码（Walimaker/pgzero）没有 def 函数定义，
-        # 此时 key_functions 应关注主要逻辑块而非函数
-        is_script_style = project_type in ("pgzero", "turtle", "arcade")
+        # 检测代码风格：扫描代码中是否有 def 函数定义或 class 定义
+        # 如果有，优先识别为函数；如果没有(或极少)，则将逻辑块/API调用视为函数
+        has_defs = len(re.findall(r'\bdef\s+\w+|class\s+\w+', code)) >= 3
 
-        if is_script_style:
-            func_desc = """注意：本项目是脚本风格（使用框架函数如 key_pressed、Character、goto 等），
-没有显式的 def 函数定义。请将 main_objectives 对应的**主要逻辑块**列在 key_functions 中，
+        if not has_defs:
+            func_desc = """注意：本代码是脚本风格（主要使用框架 API 调用如 key_pressed、goto 等），
+没有或极少有显式的 def 函数定义。请将 main_objectives 对应的**主要逻辑块**列在 key_functions 中，
 用逻辑块的核心 API 调用作为名称（如 key_just_pressed、play_snd、goto），
 start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
         else:
@@ -217,13 +217,6 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
         entry_comment: str,
     ) -> list[str]:
         """基于记忆生成 5 个知识点。"""
-        # 脚本式项目（Walimaker/pgzero/turtle）没有 def 函数，放宽函数关联要求
-        func_rule = (
-            "- **每个知识点必须对应代码中实际存在的函数、逻辑块或 API 调用**"
-        ) if project_type in ("pgzero", "turtle", "arcade") else (
-            "- **每个知识点必须对应代码中实际存在且与课程目标直接相关的函数**"
-        )
-
         prompt = f"""基于你刚才阅读的代码，生成恰好 5 个本节课的知识点。
 
 课程主题：{course_topic}
@@ -231,7 +224,7 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 入口注释：{entry_comment}
 
 要求：
-{func_rule}
+- **每个知识点必须对应代码中实际存在的函数、类、方法或 API 调用**
 - **优先从入口注释中提到的文件中提取知识点**，入口注释中出现的文件（如 tools.py、sun.py）是本课的核心学习文件
 - **禁止编造代码中没有的函数或技术点**
 - 格式「具体技术点 + 训练能力」，如：
@@ -245,6 +238,14 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 
         result_text = await self._call(prompt, TEMPS["knowledge_points"])
         result = _extract_json(result_text)
+        # 兼容 LLM 返回对象包装（如 {"knowledge_points": [...]}）
+        if isinstance(result, dict):
+            for key in ("knowledge_points", "items", "list", "data"):
+                if key in result and isinstance(result[key], list):
+                    result = result[key]
+                    break
+            else:
+                result = []
         if not isinstance(result, list):
             result = []
         result = [str(x).strip() for x in result if str(x).strip()][:5]
@@ -271,17 +272,6 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
     ) -> tuple[list[dict], str]:
         """基于记忆生成内容概述和能提。"""
         kp_str = "、".join(knowledge_points)
-        # 脚本式项目（Walimaker/pgzero）没有 def 函数，用 API 调用名替代
-        ref_desc = (
-            "引用代码中**实际使用的 API 调用或变量操作**（如 key_just_pressed、goto、play_snd、.color = 等）"
-        ) if project_type in ("pgzero", "turtle", "arcade") else (
-            "引用代码中**实际存在的函数名**"
-        )
-        forbidden = (
-            "禁止引用你没有阅读到的内容。只能引用代码中实际存在的 API 调用或逻辑块。"
-        ) if project_type in ("pgzero", "turtle", "arcade") else (
-            "禁止引用你没有阅读到的函数。只能引用代码分析结果中已有的函数。"
-        )
 
         prompt = f"""基于你阅读的代码和以下知识点，生成课程内容概述。
 
@@ -291,10 +281,10 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 
 要求：
 1. 每个知识点写一段 **40-60 字**的描述，格式：
-   - 做了什么（{ref_desc}）
+   - 做了什么（引用代码中**实际存在的函数、类、方法或 API 调用**）
    - 核心逻辑
    - 锻炼了什么思维
-2. {forbidden}
+2. **禁止引用代码中不存在的内容**。只引用你实际阅读到的代码元素。
 3. 直接陈述技术内容。不要写"家长可以让孩子""家长可以问孩子"等指导语。
 4. 最后写一段 **40-100 字**的"能力提升"，围绕每个知识点逐条展开。
 
@@ -333,24 +323,12 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
             if homework_guidance
             else ""
         )
-        # 脚本式项目（如 Walimaker/pgzero）的函数都是框架 API 调用而非 def 定义
-        hw_source = (
-            "只基于代码中实际出现的 API 调用或变量操作出题"
-        ) if project_type in ("pgzero", "turtle", "arcade") else (
-            "只基于代码中实际函数出题"
-        )
-        vocab_source = (
-            "来自代码中实际出现的术语、API 函数名或变量名"
-        ) if project_type in ("pgzero", "turtle", "arcade") else (
-            "来自代码中实际出现的术语或函数名"
-        )
-
         prompt = f"""根据你阅读的代码和知识点（{kp_str}），生成课后作业（多题）和英文单词。
 
 学生水平：{student_level}
 项目类型：{project_type}
 入口注释：{entry_comment}{guidance_section}
-【作业——{hw_source}，生成 1-3 道题】
+【作业——只基于代码中实际出现的函数、类方法或 API 调用出题，生成 1-3 道题】
 - 根据课程内容决定题型：
   · 概念/逻辑类 → 问答题（"请描述 XX() 的执行流程"）
   · 参数/配置类 → 修改题（"请修改 XX() 中的配置"）
@@ -360,7 +338,7 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 - 题型在 goal 中明确体现
 - 提示 2-3 条
 
-【单词——{vocab_source}】
+【单词——来自代码中实际出现的术语、函数名或 API 函数名】
 - 音标、中文释义、代码语境例句
 
 输出 JSON：
