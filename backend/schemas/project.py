@@ -38,6 +38,21 @@ class ProjectMetaSchema(BaseModel):
     total_lines: int
     warnings: list[str]
 
+    @classmethod
+    def no_code_stub(cls, course_topic: str = "") -> "ProjectMetaSchema":
+        """创建纯图文课程的空白项目元信息（无代码文件）。"""
+        return cls(
+            folder="",
+            entry_file="",
+            project_type="图文",
+            course_title=course_topic,
+            all_files=[],
+            py_files=[],
+            all_imports=[],
+            total_lines=0,
+            warnings=["纯图文课程，无代码文件"],
+        )
+
 
 class ProjectScanRequest(BaseModel):
     """项目扫描请求。"""

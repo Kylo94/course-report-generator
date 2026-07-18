@@ -128,6 +128,13 @@ async def _migrate_schema() -> None:
                 sa.text("ALTER TABLE classes ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
             )
 
+        # 检查 batch_reports 是否已有 course_description 列
+        if not await conn.run_sync(_has_column, "batch_reports", "course_description"):
+            _log.info("迁移数据库: 添加 batch_reports.course_description 列")
+            await conn.execute(
+                sa.text("ALTER TABLE batch_reports ADD COLUMN course_description VARCHAR(2000) NOT NULL DEFAULT ''")
+            )
+
 
 async def init_db(echo: bool = False) -> None:
     """

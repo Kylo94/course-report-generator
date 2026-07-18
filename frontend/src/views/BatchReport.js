@@ -36,7 +36,19 @@ const BatchReportView = {
                 <el-input v-model="config.course_topic" maxlength="10" show-word-limit style="width:300px"
                   placeholder="≤10 字" />
               </el-form-item>
-              <el-form-item label="项目文件夹">
+              <el-form-item>
+                <el-checkbox v-model="isNoCode" style="margin-left:100px;">
+                  纯图文课程（无代码文件）
+                </el-checkbox>
+              </el-form-item>
+              <!-- 纯图文：课程描述 -->
+              <el-form-item v-if="isNoCode" label="课程描述">
+                <el-input v-model="config.course_description" type="textarea" :rows="4"
+                  maxlength="2000" show-word-limit
+                  placeholder="详细描述本节课的内容、目标、知识点等，AI 将基于此生成报告" style="width:500px" />
+              </el-form-item>
+              <!-- 普通模式：项目文件夹 -->
+              <el-form-item v-if="!isNoCode" label="项目文件夹">
                 <div style="display:flex;gap:8px;width:100%;">
                   <el-input v-model="config.project_folder" placeholder="输入项目文件夹绝对路径，或点击📂浏览" style="flex:1" />
                   <el-button @click="openDirBrowser">📂 浏览</el-button>
@@ -412,6 +424,7 @@ const BatchReportView = {
   data() {
     return {
       selectedClassId: null,
+      isNoCode: false,
 
       // 共享内容
       sharedContent: {
@@ -441,6 +454,7 @@ const BatchReportView = {
         class_id: null,
         course_date: new Date().toISOString().slice(0, 10),
         course_topic: '',
+        course_description: '',
         project_folder: '',
         teacher_observation: '',
         template_id: 'classic',
@@ -578,6 +592,8 @@ const BatchReportView = {
         vocabulary: { word: '', phonetic: '', meaning: '', example: '' },
         homework: { goal: '', hints: [], questions: [] },
       };
+      this.isNoCode = false;
+      this.config.course_description = '';
     },
 
     // ===== 知识点 =====
@@ -787,16 +803,24 @@ const BatchReportView = {
 
     // ===== AI 重新生成单个字段 =====
     async regenerateField(field) {
-      if (!this.config.project_folder) {
+      if (!this.isNoCode && !this.config.project_folder) {
         this.$message.warning('请先配置项目文件夹');
         return;
       }
-      if (!this.config.course_topic) {
+      if (!this.isNoCode && !this.config.course_topic) {
         this.$message.warning('请先填写课程名称');
+        return;
+      }
+      if (this.isNoCode && !this.config.course_description) {
+        this.$message.warning('请先填写课程描述');
         return;
       }
       if (!this.firstStudentId) {
         this.$message.warning('该班级暂无学生，无法进行 AI 生成');
+        return;
+      }
+      if (this.isNoCode) {
+        this.$message.info('纯图文模式暂不支持独立字段重生成，请直接编辑内容或重新批量生成');
         return;
       }
       this.regeneratingFields = { ...this.regeneratingFields, [field]: true };
@@ -832,6 +856,11 @@ const BatchReportView = {
     async batchGenerate() {
       if (!this.config.class_id) {
         this.$message.warning('请选择班级');
+        return;
+      }
+
+      if (this.isNoCode && !this.config.course_description) {
+        this.$message.warning('纯图文模式请填写"课程描述"，AI 将基于此生成报告');
         return;
       }
 
@@ -875,7 +904,9 @@ const BatchReportView = {
           class_id: this.config.class_id,
           course_date: this.config.course_date,
           course_topic: this.config.course_topic,
-          project_folder: this.config.project_folder,
+          course_description: this.config.course_description,
+          is_no_code: this.isNoCode,
+          project_folder: this.isNoCode ? '' : this.config.project_folder,
           teacher_observation: this.config.teacher_observation || '',
           observations: this.observations,
           create_vocabulary: this.createVocabulary,
@@ -935,6 +966,7 @@ const BatchReportView = {
         // 同时保存共享内容和截图
         const updateData = {
           evaluations,
+          course_description: this.config.course_description,
           knowledge_points: this.sharedContent.knowledge_points,
           ability_improvement: this.sharedContent.ability_improvement,
           content_items: this.sharedContent.content_items,
@@ -965,6 +997,7 @@ const BatchReportView = {
       console.log('[autoSaveShared] 准备保存 homework.goal =', hwGoal);
       try {
         await API.batchReports.update(this.batchId, {
+          course_description: this.config.course_description,
           knowledge_points: this.sharedContent.knowledge_points,
           ability_improvement: this.sharedContent.ability_improvement,
           content_items: this.sharedContent.content_items,
@@ -1111,7 +1144,9 @@ const BatchReportView = {
         this.config.class_id = batch.class_id;
         this.config.course_date = batch.course_date || '';
         this.config.course_topic = batch.course_topic || '';
+        this.config.course_description = batch.course_description || '';
         this.config.project_folder = batch.project_folder || '';
+        this.isNoCode = !batch.project_folder && !!batch.course_description;
         this.config.template_id = batch.template_id || 'classic';
         this.config.teacher_observation = batch.teacher_observation || '';
         this.batchId = batch.id;

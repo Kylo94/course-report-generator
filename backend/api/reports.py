@@ -731,7 +731,10 @@ async def batch_generate_reports(
     # 3. 构建 ProjectMeta
     project_meta: ProjectMetaSchema | None = None
     scan_error: str | None = None
-    if body.project_folder:
+    if body.is_no_code:
+        log.info("纯图文模式: 使用 stub project meta")
+        project_meta = ProjectMetaSchema.no_code_stub(body.course_topic)
+    elif body.project_folder:
         from backend.schemas.project import FileInfoSchema, PyStructureSchema
         from backend.services import code_analyzer
         try:
@@ -788,17 +791,29 @@ async def batch_generate_reports(
                 created_at=students[0].created_at,
                 updated_at=students[0].updated_at,
             )
-            shared = await orchestrator.generate_shared(
-                project_meta,
-                default_student_read,
-                teacher_observation=body.teacher_observation,
-                code_screenshots=body.code_screenshots,
-                homework_screenshots=body.homework_screenshots,
-                create_vocabulary=body.create_vocabulary,
-                skip_code_analysis=bool(body.code_screenshots),
-                skip_homework_gen=bool(body.homework_screenshots),
-                existing_content=body.existing_content,
-            )
+            if body.is_no_code:
+                shared = await orchestrator._generate_no_code_shared(
+                    course_topic=course_topic,
+                    course_description=body.course_description,
+                    default_student=default_student_read,
+                    code_screenshots=body.code_screenshots,
+                    homework_screenshots=body.homework_screenshots,
+                    create_vocabulary=body.create_vocabulary,
+                    skip_homework_gen=bool(body.homework_screenshots),
+                    existing_content=body.existing_content,
+                )
+            else:
+                shared = await orchestrator.generate_shared(
+                    project_meta,
+                    default_student_read,
+                    teacher_observation=body.teacher_observation,
+                    code_screenshots=body.code_screenshots,
+                    homework_screenshots=body.homework_screenshots,
+                    create_vocabulary=body.create_vocabulary,
+                    skip_code_analysis=bool(body.code_screenshots),
+                    skip_homework_gen=bool(body.homework_screenshots),
+                    existing_content=body.existing_content,
+                )
         except Exception as e:
             log.exception("共享内容生成失败: %s", e)
             shared_error = str(e)
@@ -823,13 +838,14 @@ async def batch_generate_reports(
                 project_meta, student_reads, shared,
                 teacher_observation=body.teacher_observation,
                 observations=body.observations,
+                course_description=body.course_description,
             )
         except Exception as e:
             log.exception("批量评价生成失败: %s", e)
             evaluations = [e] * len(students)
     elif scan_error:
         evaluations = [f"项目扫描失败: {scan_error}"] * len(students)
-    elif not body.project_folder:
+    elif not body.project_folder and not body.is_no_code:
         evaluations = [""] * len(students)
     elif shared_error:
         evaluations = [f"AI 内容生成失败: {shared_error}"] * len(students)
@@ -874,6 +890,7 @@ async def batch_generate_reports(
             "class_name": klass.name,
             "course_date": course_date,
             "course_topic": course_topic,
+            "course_description": body.course_description or "",
             "project_folder": body.project_folder or "",
             "template_id": body.template_id,
             "knowledge_points": json.dumps(shared.get("knowledge_points", []), ensure_ascii=False),

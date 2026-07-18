@@ -11,6 +11,8 @@ class BatchGenerateRequest(BaseModel):
     class_id: int
     course_date: str = ""
     course_topic: str = ""
+    course_description: str = ""       # 纯图文模式的课程详细描述
+    is_no_code: bool = False            # 是否为纯图文课程（无代码文件）
     project_folder: str = ""
     teacher_observation: str = ""  # 全局观察（兜底）
     observations: dict[int, str] = {}  # 逐学生观察，key=student_id
@@ -57,6 +59,7 @@ class BatchReportRead(BaseModel):
     class_name: str
     course_date: str
     course_topic: str
+    course_description: str = ""
     project_folder: str
     template_id: str
     knowledge_points: list[str] = Field(default_factory=list)
@@ -82,6 +85,7 @@ class BatchReportUpdate(BaseModel):
     """BatchReport 更新请求（所有字段可选）。"""
     evaluations: dict | None = None  # 更新 evaluations（批量保存评价时使用）
     status: str | None = None
+    course_description: str | None = None
     # 共享内容（用户手动编辑后保存）
     knowledge_points: list[str] | None = None
     ability_improvement: str | None = None

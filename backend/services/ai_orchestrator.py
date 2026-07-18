@@ -260,6 +260,10 @@ class AIOrchestrator:
         # Step 0: 读代码
         if skip_code_analysis:
             log.info("跳过代码 AI 解析（使用代码截图 %d 张）", len(code_screenshots or []))
+            # 即使跳过 AI 解析，也要提取代码中的实际函数/API 名，用于约束后续步骤不编造
+            code_snippet = code_content[:10000]
+            conv._code_refs = AIConversation._extract_code_refs(code_snippet)
+            log.debug("提取的代码引用清单（跳过模式）:\n%s", conv._code_refs)
             analysis = {
                 "course_topic": course_topic,
                 "main_objectives": [],
@@ -332,6 +336,99 @@ class AIOrchestrator:
             "homework_screenshots": list(homework_screenshots or []),
         }
 
+    # =========================
+    # 纯图文/无代码模式共享生成
+    # =========================
+
+    async def _generate_no_code_shared(
+        self,
+        course_topic: str,
+        course_description: str,
+        default_student: StudentRead,
+        code_screenshots: list[str] | None = None,
+        homework_screenshots: list[str] | None = None,
+        create_vocabulary: bool = True,
+        skip_homework_gen: bool = False,
+        existing_content: dict | None = None,
+    ) -> dict:
+        """纯图文模式的共享内容生成（无代码分析，基于课程描述）。"""
+        log.info(
+            "纯图文共享生成: topic=%s desc_len=%d code_imgs=%d hw_imgs=%d",
+            course_topic,
+            len(course_description),
+            len(code_screenshots or []),
+            len(homework_screenshots or []),
+        )
+        existing_content = existing_content or {}
+
+        conv = AIConversation(self.provider)
+
+        # Step 1: 知识点（用户已填则跳过 AI）
+        if existing_content.get("knowledge_points"):
+            kp = existing_content["knowledge_points"]
+            log.info("知识点: 使用用户已填内容 (%d 条)", len(kp))
+        else:
+            kp = await conv.step_knowledge_points_no_code(course_topic, course_description)
+            log.info("纯图文知识点: %d 条", len(kp))
+
+        # Step 2: 内容概述（用户已填则跳过 AI）
+        if existing_content.get("content_items"):
+            items = existing_content["content_items"]
+            ability = existing_content.get("ability_improvement", "")
+            log.info("内容概述: 使用用户已填内容 (%d 条)", len(items))
+        else:
+            items, ability = await conv.step_content_summary_no_code(
+                kp, course_topic, course_description,
+            )
+            log.info("纯图文内容概述: %d 条", len(items))
+
+        # Step 3: 作业 + 单词（用户已填则跳过 AI）
+        if existing_content.get("homework"):
+            hw = existing_content["homework"]
+            vocab = existing_content.get("vocabulary", {})
+            log.info("作业/单词: 使用用户已填内容")
+        elif skip_homework_gen:
+            log.info("跳过作业 AI 生成（使用作业截图 %d 张）", len(homework_screenshots or []))
+            hw = {
+                "goal": "（基于作业截图，详见下方图片）",
+                "hints": [], "criteria": [],
+                "questions": [],
+                "screenshots": list(homework_screenshots or []),
+                "skipped": True,
+            }
+            vocab = {"word": "", "phonetic": "", "meaning": "", "example": ""} if create_vocabulary else {}
+        else:
+            hw, vocab = await conv.step_homework_vocab_no_code(
+                kp, default_student.base_level, course_topic, course_description,
+            )
+            if not create_vocabulary:
+                vocab = {"word": "", "phonetic": "", "meaning": "", "example": ""}
+
+        log.info("纯图文作业/单词完成 (vocab=%s)", "是" if create_vocabulary else "否")
+
+        self._shared_conv = conv
+
+        analysis = {
+            "course_topic": course_topic,
+            "main_objectives": [],
+            "key_functions": [],
+            "python_techniques": [],
+            "code_screenshots": list(code_screenshots or []),
+            "skipped": True,
+            "no_code": True,
+        }
+
+        return {
+            "knowledge_points": kp,
+            "content_items": items,
+            "ability_improvement": ability,
+            "homework": hw,
+            "vocabulary": vocab,
+            "code_analysis": analysis,
+            "code_screenshots": list(code_screenshots or []),
+            "homework_screenshots": list(homework_screenshots or []),
+        }
+
     async def generate_evaluations(
         self,
         project: ProjectMetaSchema,
@@ -339,14 +436,20 @@ class AIOrchestrator:
         shared_content: dict,
         teacher_observation: str = "",
         observations: dict[int, str] | None = None,
+        course_description: str = "",
     ) -> list:
         """批量模式：为每个学生生成个性化评价（基于共享会话的记忆）。
 
+        无代码模式（course_description 非空）时使用 step_evaluation_no_code。
         observations: 逐学生观察 dict（key=student_id）。未填则用 teacher_observation 全局值。
         """
         log.info("批量评价: %d 名学生 (含 %d 条逐学生观察)", len(students), len(observations or {}))
         kp = shared_content.get("knowledge_points", [])
-        entry_comment = self._get_entry_comment(project)
+        is_no_code = bool(course_description)
+        if not is_no_code:
+            entry_comment = self._get_entry_comment(project)
+        else:
+            entry_comment = ""
         observations = observations or {}
 
         # 构造课程内容/作业上下文供评价参考
@@ -369,6 +472,20 @@ class AIOrchestrator:
             per_student_obs = observations.get(student.id) or teacher_observation
             # 从共享会话创建子会话（复制全部记忆，不重复调用 LLM）
             conv = AIConversation.from_shared(self.provider, self._shared_conv)
+            if is_no_code:
+                return await conv.step_evaluation_no_code(
+                    student_name=student.name,
+                    student_age=student.age or "未知",
+                    student_gender=student.gender or "未知",
+                    student_level=student.base_level,
+                    student_characteristics="、".join(student.characteristics) or "无特别记录",
+                    knowledge_points=kp,
+                    teacher_observation=per_student_obs,
+                    course_topic=project.course_title or "未指定",
+                    course_description=course_description,
+                    homework_context=_hw_str,
+                    course_content_context=_content_str,
+                )
             return await conv.step_evaluation(
                 student_name=student.name,
                 student_age=student.age or "未知",

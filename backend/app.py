@@ -15,7 +15,10 @@ from fastapi.staticfiles import StaticFiles
 from backend.api import api_router
 from backend.config import PROJECT_ROOT, get_settings
 from backend.db import dispose_engine, init_db
-from backend.utils.logger import get_logger
+from backend.utils.logger import get_logger, setup_logging
+
+# uvicorn 多进程 worker 不经过 main.py，在此确保日志初始化
+setup_logging()
 
 log = get_logger(__name__)
 

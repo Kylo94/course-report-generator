@@ -109,6 +109,86 @@ class AIConversation:
         self.provider = provider
         self.messages: list = []
         self.outputs: dict[str, Any] = {}
+        self._code_refs: str = ""
+
+    @staticmethod
+    def _extract_code_refs(code: str) -> str:
+        """从源码中提取实际调用的函数、API、方法和属性，用于约束 AI 后续步骤不编造。
+
+        提取三类内容：
+        1. 函数/API 调用：xxx(
+        2. 方法调用和属性赋值：.yyy(  / .zzz =
+        3. def 函数定义和 class 类定义
+        """
+        # 函数调用名 — 一个 ASCII word 后接左括号（排除 Python 关键字和内建函数）
+        KEYWORDS_BUILTINS = {
+            'if', 'elif', 'else', 'while', 'for', 'def', 'class',
+            'return', 'import', 'from', 'as', 'in', 'not', 'and',
+            'or', 'is', 'with', 'try', 'except', 'finally', 'raise',
+            'print', 'range', 'len', 'int', 'str', 'float', 'list',
+            'dict', 'set', 'tuple', 'bool', 'max', 'min', 'abs', 'sum',
+            'super', 'isinstance', 'hasattr', 'getattr', 'setattr',
+            'open', 'read', 'write', 'input', 'type', 'id', 'dir',
+            'sorted', 'reversed', 'enumerate', 'zip', 'map', 'filter',
+            'any', 'all', 'True', 'False', 'None',
+            'self', 'cls', 'time', 'random', 'os', 'sys', 'math',
+            'json', 're', 'Path', 'object', 'property', 'staticmethod',
+            'classmethod', 'ValueError', 'TypeError', 'KeyError',
+            'Exception', 'BaseException', 'AssertionError',
+            'append', 'extend', 'insert', 'pop', 'remove', 'clear',
+            'copy', 'count', 'index', 'sort', 'reverse',
+            'keys', 'values', 'items', 'get', 'update', 'setdefault',
+            'split', 'join', 'strip', 'replace', 'find', 'format',
+            'startswith', 'endswith', 'upper', 'lower',
+            'format', 'isdigit', 'isalpha', 'isalnum',
+        }
+        calls = set()
+        for m in re.finditer(r'(?a)(?<!["\'])(\w+)\s*\(', code):
+            name = m.group(1)
+            if name not in KEYWORDS_BUILTINS:
+                calls.add(name)
+
+        # 方法/属性调用：.xxx( 或 .xxx =
+        attrs = set()
+        for m in re.finditer(r'(?a)\.(\w+)\s*\(', code):
+            attrs.add(m.group(1))
+        for m in re.finditer(r'(?a)\.(\w+)\s*=', code):
+            attrs.add(m.group(1))
+
+        # def 函数定义名
+        defs = set()
+        for m in re.finditer(r'(?a)def\s+(\w+)\s*\(', code):
+            defs.add(m.group(1))
+
+        # class 定义名
+        classes = set()
+        for m in re.finditer(r'(?a)class\s+(\w+)', code):
+            classes.add(m.group(1))
+
+        # 从 import 提取的模块/类
+        imports = set()
+        for m in re.finditer(r'(?a)from\s+(\w+(?:\.\w+)*)\s+import', code):
+            imports.add(m.group(1))
+        for m in re.finditer(r'(?a)import\s+(\w+(?:\.\w+)*)', code):
+            imports.add(m.group(1))
+        imports.difference_update(
+            {'os', 'sys', 'json', 're', 'math', 'random', 'time',
+             'Path', 'typing', 'collections', 'dataclass'}
+        )
+
+        parts = []
+        if defs:
+            parts.append("用户自定义函数: " + ", ".join(sorted(defs)))
+        if classes:
+            parts.append("用户自定义类: " + ", ".join(sorted(classes)))
+        if calls:
+            parts.append("实际调用的 API/函数: " + ", ".join(sorted(calls)))
+        if attrs:
+            parts.append("调用的方法/属性: " + ", ".join(sorted(attrs)))
+        if imports:
+            parts.append("导入的模块: " + ", ".join(sorted(imports)))
+
+        return "\n".join(parts)
 
     # ------------ 底层调用 ------------
 
@@ -142,9 +222,13 @@ class AIConversation:
         # 由于入口注释中提到的文件已被优先排列，即使截断也能保证重点文件被 AI 看到
         code = code_content[:10000]
 
+        # 提取代码中实际调用的函数/API/方法名，用于后续步骤约束 AI 不编造
+        self._code_refs = self._extract_code_refs(code)
+        log.debug("提取的代码引用清单:\n%s", self._code_refs)
+
         # 检测代码风格：扫描代码中是否有 def 函数定义或 class 定义
         # 如果有，优先识别为函数；如果没有(或极少)，则将逻辑块/API调用视为函数
-        has_defs = len(re.findall(r'\bdef\s+\w+|class\s+\w+', code)) >= 3
+        has_defs = len(re.findall(r'(?a)\bdef\s+\w+|class\s+\w+', code)) >= 3
 
         if not has_defs:
             func_desc = """注意：本代码是脚本风格（主要使用框架 API 调用如 key_pressed、goto 等），
@@ -223,8 +307,12 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 项目类型：{project_type}
 入口注释：{entry_comment}
 
+【代码中实际存在的函数/API/方法清单（只能引用以下名称，禁止编造）】
+{self._code_refs}
+
 要求：
 - **每个知识点必须对应代码中实际存在的函数、类、方法或 API 调用**
+- **只能引用上方清单中列出的代码元素，禁止编造清单外的函数名或 API**
 - **优先从入口注释中提到的文件中提取知识点**，入口注释中出现的文件（如 tools.py、sun.py）是本课的核心学习文件
 - **禁止编造代码中没有的函数或技术点**
 - 格式「具体技术点 + 训练能力」，如：
@@ -279,12 +367,15 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 项目类型：{project_type}
 入口注释：{entry_comment}
 
+【代码中实际存在的函数/API/方法清单（只能引用以下名称，禁止编造）】
+{self._code_refs}
+
 要求：
 1. 每个知识点写一段 **40-60 字**的描述，格式：
    - 做了什么（引用代码中**实际存在的函数、类、方法或 API 调用**）
    - 核心逻辑
    - 锻炼了什么思维
-2. **禁止引用代码中不存在的内容**。只引用你实际阅读到的代码元素。
+2. **禁止引用代码中不存在的内容**。只引用上方清单中列出的真实代码元素。
 3. 直接陈述技术内容。不要写"家长可以让孩子""家长可以问孩子"等指导语。
 4. 最后写一段 **40-100 字**的"能力提升"，围绕每个知识点逐条展开。
 
@@ -328,11 +419,16 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 学生水平：{student_level}
 项目类型：{project_type}
 入口注释：{entry_comment}{guidance_section}
+
+【代码中实际存在的函数/API/方法清单（只能引用以下名称，禁止编造）】
+{self._code_refs}
+
 【作业——只基于代码中实际出现的函数、类方法或 API 调用出题，生成 1-3 道题】
 - 根据课程内容决定题型：
   · 概念/逻辑类 → 问答题（"请描述 XX() 的执行流程"）
   · 参数/配置类 → 修改题（"请修改 XX() 中的配置"）
   · 代码/模仿类 → 填空题或补全题
+- **只能引用上方清单中实际存在的代码元素，禁止编造**
 - 每题 30-50 字
 - 难度适中
 - 题型在 goal 中明确体现
@@ -426,12 +522,16 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 课堂表现：{teacher_observation}
 入口注释：{entry_comment}{user_content_section}
 
+【代码中实际存在的函数/API/方法清单（只能引用以下名称，禁止编造）】
+{self._code_refs}
+
 【字数——这是最重要的约束】
 全文必须控制在 **180-200 个中文字符**（含标点）。先写好草稿，然后逐字计数，
 如果超过 200 就删减到 200 以内。超过 200 会被系统退回。
 
 【内容要求】
 - 只围绕【知识点】中的函数写，禁止提知识点外的技术点
+- **只能引用上方清单中实际存在的函数/API 名，禁止编造**
 - 自然一段话：学了什么（引用 1 个具体函数名）→ 做得怎么样 → 总结
 - 如果有【课后作业】内容，评价中应提到作业完成情况（"作业中……做得很好/还需要注意……"）
 - 如果有【本节课内容/笔记】，评价中可参考这些内容来描述学习表现
@@ -458,6 +558,9 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
         kp_str = "、".join(knowledge_points)
         prompt = f"""基于你记忆中的代码，为知识点（{kp_str}）提取相关代码片段。
 
+【代码中实际存在的函数/API/方法清单（只能引用以下名称，禁止编造）】
+{self._code_refs}
+
 要求：
 - 每个知识点对应一段代码
 - 从记忆中找到原始代码的 file_path、start_line、end_line
@@ -478,12 +581,253 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
         self._output("code_excerpt", result)
         return result
 
+    # ------------ 纯图文/无代码模式步骤（基于课程描述而非代码） ------------
+
+    async def step_knowledge_points_no_code(
+        self,
+        course_topic: str,
+        course_description: str,
+    ) -> list[str]:
+        """纯图文模式：基于课程主题和描述生成知识点（无代码上下文）。"""
+        prompt = f"""你是一名少儿课程助教。请为以下课程生成恰好 5 个本节课的知识点。
+
+课程主题：{course_topic}
+
+【课程详细描述】
+{course_description}
+
+要求：
+- **每个知识点必须对应课程描述中实际提到的内容**
+- **禁止编造课程描述中没有的内容**
+- 格式「具体技术点 + 训练能力」，如：
+  "音符识别训练听力感知"
+  "节奏训练培养音乐感"
+  "色彩搭配训练审美能力"
+- 每条 ≤15 个中文字符
+- 输出严格 JSON 列表，如：
+["音符识别训练听力感知", "节奏训练培养音乐感", "色彩搭配训练审美能力"]
+- 只输出 JSON，不要解释"""
+
+        result_text = await self._call(prompt, TEMPS["knowledge_points"])
+        result = _extract_json(result_text)
+        if isinstance(result, dict):
+            for key in ("knowledge_points", "items", "list", "data"):
+                if key in result and isinstance(result[key], list):
+                    result = result[key]
+                    break
+            else:
+                result = []
+        if not isinstance(result, list):
+            result = []
+        result = [str(x).strip() for x in result if str(x).strip()][:5]
+        fallbacks = [
+            "概念认知建立基础思维",
+            "观察比较训练分析能力",
+            "动手操作培养实践能力",
+            "创意表达激发想象力",
+            "逻辑推理提升思考深度",
+        ]
+        while len(result) < 5:
+            result.append(fallbacks[len(result)])
+        self._output("knowledge_points", result)
+        return result
+
+    async def step_content_summary_no_code(
+        self,
+        knowledge_points: list[str],
+        course_topic: str,
+        course_description: str,
+    ) -> tuple[list[dict], str]:
+        """纯图文模式：基于课程描述生成内容概述和能力提升。"""
+        kp_str = "、".join(knowledge_points)
+
+        prompt = f"""根据以下课程信息生成内容概述。
+
+课程主题：{course_topic}
+
+【课程详细描述】
+{course_description}
+
+知识点：{kp_str}
+
+要求：
+1. 每个知识点写一段 **40-60 字**的描述，格式：
+   - 这节课做了什么（引用课程描述中实际提到的内容）
+   - 核心知识点
+   - 锻炼了什么思维
+2. **禁止编造课程描述中没有的内容**
+3. 直接陈述技术内容。不要写"家长可以让孩子""家长可以问孩子"等指导语。
+4. 最后写一段 **40-100 字**的"能力提升"，围绕每个知识点逐条展开。
+
+输出 JSON：
+{{
+  "content_items": [
+    {{"kp": "知识点1", "text": "40-60字描述（引用课程实际内容）"}},
+    {{"kp": "知识点2", "text": "40-60字描述（引用课程实际内容）"}}
+  ],
+  "ability_improvement": "40-100字能力提升总结，逐条展开"
+}}
+只输出 JSON，不要解释。"""
+
+        result_text = await self._call(prompt, TEMPS["content_summary"])
+        result = _extract_json(result_text)
+        items = result.get("content_items", []) if isinstance(result, dict) else []
+        ability = result.get("ability_improvement", "") if isinstance(result, dict) else ""
+        self._output("content_items", items)
+        self._output("ability_improvement", ability)
+        return items, ability
+
+    async def step_homework_vocab_no_code(
+        self,
+        knowledge_points: list[str],
+        student_level: str,
+        course_topic: str,
+        course_description: str,
+        homework_guidance: str = "",
+    ) -> tuple[dict, dict]:
+        """纯图文模式：基于课程描述生成作业和单词。"""
+        kp_str = "、".join(knowledge_points)
+        guidance_section = (
+            f"\n【作业引导——如果上方有作业引导，请严格按此出题】\n{homework_guidance}\n"
+            if homework_guidance
+            else ""
+        )
+
+        prompt = f"""根据以下课程信息，生成课后作业（多题）和英文单词。
+
+课程主题：{course_topic}
+学生水平：{student_level}
+
+【课程详细描述】
+{course_description}
+
+知识点：{kp_str}{guidance_section}
+
+【作业——只基于课程描述中实际出现的内容出题，生成 1-3 道题】
+- 根据课程内容决定题型：
+  · 概念/逻辑类 → 问答题
+  · 操作类 → 实践题
+  · 模仿类 → 填空题或补全题
+- **只能引用课程描述中实际存在的内容，禁止编造**
+- 每题 30-50 字
+- 难度适中
+- 题型在 goal 中明确体现
+- 提示 2-3 条
+
+【单词——来自课程中涉及的术语或英文关键词】
+- 音标、中文释义、语境例句
+
+输出 JSON：
+{{
+  "homework": {{
+    "questions": [
+      {{
+        "goal": "题1（含题型动词，引用课程中的实际内容）",
+        "hints": ["提示1", "提示2"]
+      }},
+      {{
+        "goal": "题2...",
+        "hints": [...]
+      }}
+    ]
+  }},
+  "vocabulary": {{
+    "word": "课程中的术语或英文关键词",
+    "phonetic": "/音标/",
+    "meaning": "中文释义",
+    "example": "课程中的使用示例"
+  }}
+}}
+只输出 JSON，不要解释。"""
+
+        result_text = await self._call(prompt, TEMPS["homework_vocab"])
+        result = _extract_json(result_text)
+        hw = result.get("homework", {}) if isinstance(result, dict) else {}
+        vocab = result.get("vocabulary", {}) if isinstance(result, dict) else {}
+        if "questions" not in hw and hw.get("goal"):
+            hw = {
+                "questions": [{
+                    "goal": hw.get("goal", ""),
+                    "hints": hw.get("hints", []),
+                }],
+                "goal": hw.get("goal", ""),
+                "hints": hw.get("hints", []),
+            }
+        if hw.get("questions"):
+            first = hw["questions"][0]
+            hw.setdefault("goal", first.get("goal", ""))
+            hw.setdefault("hints", first.get("hints", []))
+        self._output("homework", hw)
+        self._output("vocabulary", vocab)
+        return hw, vocab
+
+    async def step_evaluation_no_code(
+        self,
+        student_name: str,
+        student_age: str,
+        student_gender: str,
+        student_level: str,
+        student_characteristics: str,
+        knowledge_points: list[str],
+        teacher_observation: str,
+        course_topic: str,
+        course_description: str,
+        homework_context: str = "",
+        course_content_context: str = "",
+    ) -> str:
+        """纯图文模式：基于课程描述生成个性化学生评价。"""
+        kp_str = "、".join(knowledge_points)
+        pronoun = "他" if student_gender == "男" else "她"
+
+        user_content_section = ""
+        if course_content_context:
+            user_content_section += f"\n【本节课内容/笔记——教师在报告中填写，评价时请参考】\n{course_content_context}\n"
+        if homework_context:
+            user_content_section += f"\n【课后作业——教师布置的作业，评价时请参考学生的完成情况】\n{homework_context}\n"
+
+        prompt = f"""根据以下课程信息，为该学生写学习评价。
+
+【课程主题】
+{course_topic}
+
+【课程详细描述】
+{course_description}
+
+【学生信息】
+姓名：{student_name}，{student_age}岁，{student_level}水平
+性格：{student_characteristics}
+知识点：{kp_str}
+课堂表现：{teacher_observation}{user_content_section}
+
+【字数——这是最重要的约束】
+全文必须控制在 **180-200 个中文字符**（含标点）。先写好草稿，然后逐字计数，
+如果超过 200 就删减到 200 以内。超过 200 会被系统退回。
+
+【内容要求】
+- 只围绕【知识点】中的内容写，禁止提知识点外的内容
+- **只能引用课程描述中实际出现的内容，禁止编造**
+- 自然一段话：学了什么 → 做得怎么样 → 总结
+- 如果有【课后作业】内容，评价中应提到作业完成情况
+- 如果有【本节课内容/笔记】，评价中可参考这些内容来描述学习表现
+- 用「{pronoun}」指代学生
+- 语气亲切自然、内容具体
+- 避免"上课认真""积极举手""表现良好"等空话
+- 不要以"家长您好"开头
+- **只输出评价文本本身**，不要 JSON，不要用 {{}} 包裹，不要加 evaluation 字段
+"""
+
+        result_text = await self._call(prompt, TEMPS["evaluation"])
+        result = _strip_think_blocks(result_text).strip()
+        self._output("evaluation", result)
+        return result
+
     # ------------ 缓存重放 ------------
 
     def copy_from(self, other: AIConversation) -> None:
         """从另一个会话复制消息历史和输出缓存（用于批量模式子会话）。"""
         self.messages = other.messages.copy()
         self.outputs = other.outputs.copy()
+        self._code_refs = other._code_refs
 
     @classmethod
     def from_shared(cls, provider: LLMProvider, shared: AIConversation) -> AIConversation:

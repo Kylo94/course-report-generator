@@ -25,6 +25,9 @@ class BatchReport(Base):
     class_name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     course_date: Mapped[str] = mapped_column(String(10), nullable=False, default="")
     course_topic: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    course_description: Mapped[str] = mapped_column(
+        String(2000), nullable=False, default="", server_default=""
+    )
     project_folder: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
     # AI 共享内容（JSON 字符串）

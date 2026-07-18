@@ -221,6 +221,8 @@ async def update_batch_report(
         update_dict["run_screenshots"] = _to_json(data.run_screenshots)
     if data.code_screenshots is not None:
         update_dict["code_screenshots"] = _to_json(data.code_screenshots)
+    if data.course_description is not None:
+        update_dict["course_description"] = data.course_description
     if data.homework_screenshots is not None:
         update_dict["homework_screenshots"] = _to_json(data.homework_screenshots)
     if data.screenshot_paths is not None:
