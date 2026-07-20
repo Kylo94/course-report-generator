@@ -50,6 +50,21 @@ assets_router = APIRouter(prefix="/api/assets", tags=["assets"])
 # 辅助：ORM → Read Schema
 # =========================
 
+def _apply_overrides_to_record(record, overrides: dict) -> None:
+    """将 overrides（来自前端预览/导出请求）应用到 record 对象上。
+
+    CourseRecord 的共享字段以 JSON 字符串存储（如 homework、knowledge_points），
+    前端传来的 dict/list 需要先序列化再 setattr，否则 _load_json 会报 TypeError。
+    """
+    json_fields = {"knowledge_points", "content_items", "homework", "vocabulary", "evaluations", "observations"}
+    for key, value in overrides.items():
+        if hasattr(record, key):
+            if key in json_fields and isinstance(value, (dict, list)):
+                setattr(record, key, json.dumps(value, ensure_ascii=False))
+            else:
+                setattr(record, key, value)
+
+
 def _record_to_read(record) -> CourseRecordRead:
     """将 ORM 记录转为 Read schema（反序列化 JSON 字段）。"""
     from backend.services.course_records import _deserialize_from_record
@@ -419,6 +434,12 @@ async def export_report(
     except RecordNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+    # 应用临时 overrides（不写库，仅本次导出生效）
+    overrides = body.get("overrides") or {}
+    if overrides:
+        _apply_overrides_to_record(record, overrides)
+        log.info("PDF导出: 应用 overrides 字段: %s", list(overrides.keys()))
+
     # 如果没有传 layout_config，尝试从数据库记录加载
     if layout_config is None:
         from backend.services.course_records import _load_json
@@ -576,6 +597,12 @@ async def export_report_word(
     except RecordNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+    # 应用临时 overrides（不写库，仅本次导出生效）
+    overrides = body.get("overrides") or {}
+    if overrides:
+        _apply_overrides_to_record(record, overrides)
+        log.info("Word导出: 应用 overrides 字段: %s", list(overrides.keys()))
+
     # 获取学生姓名
     student_name = ""
     if record.student_id:
@@ -724,9 +751,17 @@ async def batch_generate_reports(
     # 2. 获取班级所有学生
     stmt = select(StudentModel).where(StudentModel.class_id == body.class_id)
     result = await session.execute(stmt)
-    students = list(result.scalars().all())
-    if not students:
+    all_students = list(result.scalars().all())
+    if not all_students:
         raise HTTPException(status_code=400, detail="该班级没有学生")
+
+    # 过滤未到课学生（不生成报告）
+    excluded = set(body.excluded_student_ids or [])
+    students = [s for s in all_students if s.id not in excluded]
+    if not students:
+        raise HTTPException(status_code=400, detail="没有可生成报告的学生（全部被排除）")
+    if excluded:
+        log.info("已排除 %d 名未到课学生: %s", len(excluded), excluded)
 
     # 3. 构建 ProjectMeta
     project_meta: ProjectMetaSchema | None = None
@@ -767,8 +802,22 @@ async def batch_generate_reports(
             log.warning("项目扫描失败: %s", e)
             scan_error = str(e)
 
-    # 补充 course_topic
-    course_topic = body.course_topic or (project_meta.course_title if project_meta else "") or "课程报告"
+    # 补充 course_topic（优先前端传入 → 项目元信息 → 文件夹名 → 默认）
+    _folder_name = ""
+    if body.project_folder and not body.course_topic:
+        import re as _re
+        _name = body.project_folder.rstrip("/").rsplit("/", 1)[-1] or ""
+        # 去掉前导序号 "28." 和括号序号 "(1)"
+        _name = _re.sub(r"^\d+(-?\d+)?[.、]\s*", "", _name)
+        _name = _re.sub(r"\s*\(\d+\)\s*$", "", _name)
+        if _name:
+            _folder_name = _name
+    course_topic = (
+        body.course_topic
+        or (project_meta.course_title if project_meta else None)
+        or _folder_name
+        or "课程报告"
+    )
     course_date = body.course_date or date.today().isoformat()
 
     # 4. 生成共享内容（Steps 1-3）
@@ -1039,6 +1088,12 @@ async def preview_report(
         record = await record_svc.get_record(session, record_id)
     except RecordNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+    # 应用临时 overrides（不写库，仅本次预览/导出生效）
+    overrides = body.get("overrides") or {}
+    if overrides:
+        _apply_overrides_to_record(record, overrides)
+        log.info("预览: 应用 overrides 字段: %s", list(overrides.keys()))
 
     # 如果请求中传了截图路径，覆盖数据库中的
     if body_screenshots is not None:

@@ -70,7 +70,7 @@ const API = {
     delete(id) { return API.delete(`/api/reports/${id}`); },
     batchDelete(ids) { return API.post('/api/reports/batch-delete', { ids }); },
     updateStatus(id, status) { return API.patch(`/api/reports/${id}/status`, { status }); },
-    export(id, templateId = 'classic', layoutConfig = null, outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null) {
+    export(id, templateId = 'classic', layoutConfig = null, outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null, overrides = null) {
       const body = { template_id: templateId };
       if (layoutConfig) body.layout_config = layoutConfig;
       if (outputDir) body.output_dir = outputDir;
@@ -78,9 +78,10 @@ const API = {
       if (runScreenshots && runScreenshots.length > 0) body.run_screenshots = runScreenshots;
       if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
       if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
+      if (overrides && Object.keys(overrides).length > 0) body.overrides = overrides;
       return API.post(`/api/reports/${id}/export`, body);
     },
-    exportWord(id, templateId = 'classic', layoutConfig = null, outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null) {
+    exportWord(id, templateId = 'classic', layoutConfig = null, outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null, overrides = null) {
       const body = { template_id: templateId };
       if (layoutConfig) body.layout_config = layoutConfig;
       if (outputDir) body.output_dir = outputDir;
@@ -88,11 +89,12 @@ const API = {
       if (runScreenshots && runScreenshots.length > 0) body.run_screenshots = runScreenshots;
       if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
       if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
+      if (overrides && Object.keys(overrides).length > 0) body.overrides = overrides;
       return API.post(`/api/reports/${id}/export-word`, body);
     },
     batchGenerate(data) { return API.post('/api/reports/batch', data); },
 
-    preview(id, templateId = 'classic', layoutConfig = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null) {
+    preview(id, templateId = 'classic', layoutConfig = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null, overrides = null) {
       // 预览接口返回 HTML（非 JSON），需要用 fetch 直接获取文本
       const body = { template_id: templateId };
       if (layoutConfig) body.layout_config = layoutConfig;
@@ -100,6 +102,7 @@ const API = {
       if (runScreenshots && runScreenshots.length > 0) body.run_screenshots = runScreenshots;
       if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
       if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
+      if (overrides && Object.keys(overrides).length > 0) body.overrides = overrides;
       return fetch(API.baseURL + `/api/reports/${id}/preview`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -223,7 +226,7 @@ const API = {
       if (runScreenshots && runScreenshots.length > 0) body.run_screenshots = runScreenshots;
       if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
       if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
-      if (overrides) Object.assign(body, overrides);
+      if (overrides && Object.keys(overrides).length > 0) body.overrides = overrides;
       return API.post(`/api/batch-reports/${id}/export/${studentId}`, body);
     },
     exportWord(id, studentId, templateId = 'classic', outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null, overrides = null) {
@@ -233,7 +236,7 @@ const API = {
       if (runScreenshots && runScreenshots.length > 0) body.run_screenshots = runScreenshots;
       if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
       if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
-      if (overrides) Object.assign(body, overrides);
+      if (overrides && Object.keys(overrides).length > 0) body.overrides = overrides;
       return API.post(`/api/batch-reports/${id}/export-word/${studentId}`, body);
     },
     preview(id, studentId, templateId = 'classic', screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null, overrides = null) {
@@ -242,7 +245,7 @@ const API = {
       if (runScreenshots && runScreenshots.length > 0) body.run_screenshots = runScreenshots;
       if (codeScreenshots && codeScreenshots.length > 0) body.code_screenshots = codeScreenshots;
       if (homeworkScreenshots && homeworkScreenshots.length > 0) body.homework_screenshots = homeworkScreenshots;
-      if (overrides) Object.assign(body, overrides);
+      if (overrides && Object.keys(overrides).length > 0) body.overrides = overrides;
       return fetch(API.baseURL + `/api/batch-reports/${id}/preview/${studentId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

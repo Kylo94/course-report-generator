@@ -40,7 +40,8 @@ const ReportEditorView = {
               </el-form-item>
               <el-form-item label="上课时间">
                 <el-date-picker v-model="form.course_date" type="date" placeholder="选择日期"
-                  value-format="YYYY-MM-DD" style="width:200px" />
+                  value-format="YYYY-MM-DD" style="width:200px"
+                  @change="markDirty" @blur="autoSaveIfDirty" />
               </el-form-item>
               <el-form-item label="课程名称">
                 <el-input v-model="form.course_topic" maxlength="10" show-word-limit style="width:300px"
@@ -1183,6 +1184,10 @@ const ReportEditorView = {
       }
       this.wordExporting = true;
       try {
+        // 先保存当前未保存的改动，保证 DB 是最新的
+        if (this.dirty) {
+          await this.saveDraft();
+        }
         const ss = this.form && this.form.screenshot_paths;
         const rss = this.form && this.form.run_screenshots;
         const css = this.form && this.form.code_screenshots;
@@ -1266,6 +1271,28 @@ const ReportEditorView = {
         this.$message.success('已保存');
       } catch (e) {
         this.$message.error('保存失败: ' + e.message);
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    /**
+     * 失焦时若有未保存改动，自动静默保存（不弹成功提示，避免频繁打扰）。
+     * 用于日期/项目路径等不会触发 @input 的控件。
+     */
+    async autoSaveIfDirty() {
+      if (!this.dirty || !this.recordId || this.saving) return;
+      this.saving = true;
+      try {
+        const payload = { ...this.form };
+        delete payload.project_meta;
+        await API.reports.patch(this.recordId, payload);
+        this.dirty = false;
+        this.saveState = 'saved';
+      } catch (e) {
+        // 自动保存失败不弹错误框，等用户主动保存时再提示
+        console.warn('自动保存失败:', e);
+        this.saveState = 'saving';
       } finally {
         this.saving = false;
       }
@@ -1391,7 +1418,10 @@ const ReportEditorView = {
         const rss = this.form && this.form.run_screenshots;
         const css = this.form && this.form.code_screenshots;
         const hss = this.form && this.form.homework_screenshots;
-        const html = await API.reports.preview(this.recordId, this.selectedTemplate, null, ss, css, hss, rss);
+        // 把当前表单里所有可编辑字段作为 overrides 传给后端预览，
+        // 这样修改课程时间/名称/评价后无需先保存即可预览。
+        const overrides = this._buildPreviewOverrides();
+        const html = await API.reports.preview(this.recordId, this.selectedTemplate, null, ss, css, hss, rss, overrides);
         this.previewHtml = html;
       } catch (e) {
         this.previewError = '预览生成失败: ' + e.message;
@@ -1399,6 +1429,26 @@ const ReportEditorView = {
       } finally {
         this.previewLoading = false;
       }
+    },
+
+    /**
+     * 构建预览/导出时的 overrides（临时覆盖 DB 中字段，不入库）。
+     * 这样修改课程时间/名称/评价等内容后无需先保存即可预览。
+     */
+    _buildPreviewOverrides() {
+      const f = this.form || {};
+      return {
+        course_date: f.course_date,
+        course_topic: f.course_topic,
+        project_folder: f.project_folder,
+        evaluation: f.evaluation,
+        ability_improvement: f.ability_improvement,
+        knowledge_points: f.knowledge_points,
+        content_items: f.content_items,
+        homework: f.homework,
+        vocabulary: f.vocabulary,
+        teacher_observation: this.teacherObservation,
+      };
     },
 
     openPreviewDialog() {

@@ -147,11 +147,7 @@ def analyze_project(folder: str | Path) -> ProjectMeta:
     if not py_files:
         raise ValueError(f"未找到任何 .py 文件: {folder}")
 
-    # 2. 识别启动文件
-    entry_path = _find_entry_file(folder, py_files)
-    log.info("启动文件: %s", entry_path)
-
-    # 3. 解析每个 .py 文件
+    # 2. 先解析所有 .py 文件（AST 分析），让入口选择器能基于代码内容做决策
     structures: list[PyStructure] = []
     for f in py_files:
         abs_path = folder / f.path
@@ -166,6 +162,10 @@ def analyze_project(folder: str | Path) -> ProjectMeta:
                 line_count=0,
                 top_comment="",
             ))
+
+    # 3. 识别启动文件（基于 AST 分析结果：有函数/类/import 的小文件优先）
+    entry_path = _find_entry_file(folder, py_files, structures)
+    log.info("启动文件: %s", entry_path)
 
     # 4. 提取启动文件的课程主题
     entry_structure = next(
@@ -234,17 +234,52 @@ def _scan_files(folder: Path) -> list[FileInfo]:
     return files
 
 
-def _find_entry_file(folder: Path, py_files: list[FileInfo]) -> str:
-    """识别启动文件路径。"""
-    # 1. 优先 main.py
-    for f in py_files:
-        if f.name == "main.py" and "/" not in f.path:
-            return f.path
-    # 2. 根目录下首个 .py
+def _get_line_count(f: FileInfo, structs: dict[str, PyStructure]) -> int:
+    """获取文件行数：优先从 PyStructure 取，其次从大小估算。"""
+    s = structs.get(f.path)
+    if s and s.line_count:
+        return s.line_count
+    # 粗略估算：每行约 50 字节
+    return max(1, f.size_bytes // 50)
+
+
+def _find_entry_file(
+    folder: Path, py_files: list[FileInfo], structures: list[PyStructure] | None = None
+) -> str:
+    """识别启动文件路径。
+
+    策略：
+    1. 优先 main.py
+    2. 找根目录下包含实际 Python 逻辑（函数/类/import）的最小 .py 文件
+       — 排除纯数据文件如 HTML.py（只是一大段字符串赋值，无逻辑）
+    3. 回退到根目录下最小的 .py 文件
+    """
     root_pys = [f for f in py_files if "/" not in f.path]
+    name_to_struct = {s.path: s for s in (structures or [])}
+
+    # 1. main.py 优先
+    for f in root_pys:
+        if f.name == "main.py":
+            return f.path
+
+    # 2. 找有实际 Python 逻辑的最小文件
+    candidates = []
+    for f in root_pys:
+        s = name_to_struct.get(f.path)
+        has_logic = s and (s.function_names or s.class_names or s.imports)
+        line_cnt = _get_line_count(f, name_to_struct)
+        # 排除纯数据文件（无逻辑且行数极大，如 HTML.py 50K+）
+        is_pure_data = line_cnt > 500 and not has_logic
+        if has_logic:
+            candidates.append((f.path, line_cnt))
+    if candidates:
+        return min(candidates, key=lambda x: x[1])[0]
+
+    # 3. 回退：根目录下最小文件
     if root_pys:
-        return root_pys[0].path
-    # 3. 任意首个
+        return min(root_pys, key=lambda x: _get_line_count(x, name_to_struct)).path
+
+    # 4. 兜底
     return py_files[0].path
 
 

@@ -55,7 +55,10 @@ class PDFGenerator:
                 browser = await pw.chromium.launch(**launch_kwargs)
                 try:
                     page = await browser.new_page()
-                    await page.set_content(html, wait_until="networkidle")
+                    # 使用 domcontentloaded 避免 networkidle 在字体/资源缺失时长时间等待
+                    await page.set_content(html, wait_until="domcontentloaded", timeout=30000)
+                    # 再额外等一下图片解码（图片以 base64 data URI 内联，无网络等待）
+                    await page.wait_for_load_state("load", timeout=10000)
                     pdf_bytes = await page.pdf(
                         format="A4",
                         print_background=True,

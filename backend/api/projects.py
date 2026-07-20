@@ -5,6 +5,8 @@ import shutil
 import uuid
 from pathlib import Path
 
+import re as _re
+
 from fastapi import APIRouter, Body, HTTPException
 
 from backend.config import get_settings
@@ -70,8 +72,13 @@ async def list_directory(
             "is_root": False,
         })
 
+    # 自然排序：提取前导数字按数值排序，"1." < "2." < "10."
+    def _nat_key(p: Path) -> tuple[bool, int, str]:
+        m = _re.match(r"(\d+)", p.name)
+        return (not p.is_dir(), int(m.group(1)) if m else 999999, p.name)
+
     try:
-        for child in sorted(target.iterdir(), key=lambda x: (not x.is_dir(), x.name)):
+        for child in sorted(target.iterdir(), key=_nat_key):
             if child.is_dir() and not child.name.startswith("."):
                 items.append({
                     "name": "📁 " + child.name,

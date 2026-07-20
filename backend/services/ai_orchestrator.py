@@ -309,7 +309,20 @@ class AIOrchestrator:
                 "screenshots": list(homework_screenshots or []),
                 "skipped": True,
             }
-            vocab = {"word": "", "phonetic": "", "meaning": "", "example": ""} if create_vocabulary else {}
+            # 即使跳过作业，如果用户需要单词卡则让 AI 单独生成单词
+            if create_vocabulary:
+                try:
+                    homework_guidance = self._get_homework_guidance(project)
+                    _hw_discard, vocab = await conv.step_homework_vocab(
+                        kp, default_student.base_level, entry_comment, project_type,
+                        homework_guidance,
+                    )
+                    log.info("单词已单独生成（作业已跳过）")
+                except Exception as e:
+                    log.warning("跳过模式单词生成失败: %s", e)
+                    vocab = {"word": "", "phonetic": "", "meaning": "", "example": ""}
+            else:
+                vocab = {"word": "", "phonetic": "", "meaning": "", "example": ""}
         else:
             homework_guidance = self._get_homework_guidance(project)
             hw, vocab = await conv.step_homework_vocab(
@@ -396,7 +409,17 @@ class AIOrchestrator:
                 "screenshots": list(homework_screenshots or []),
                 "skipped": True,
             }
-            vocab = {"word": "", "phonetic": "", "meaning": "", "example": ""} if create_vocabulary else {}
+            if create_vocabulary:
+                try:
+                    _hw_discard, vocab = await conv.step_homework_vocab_no_code(
+                        kp, default_student.base_level, course_topic, course_description,
+                    )
+                    log.info("无代码模式单词已单独生成（作业已跳过）")
+                except Exception as e:
+                    log.warning("无代码跳过模式单词生成失败: %s", e)
+                    vocab = {"word": "", "phonetic": "", "meaning": "", "example": ""}
+            else:
+                vocab = {"word": "", "phonetic": "", "meaning": "", "example": ""}
         else:
             hw, vocab = await conv.step_homework_vocab_no_code(
                 kp, default_student.base_level, course_topic, course_description,

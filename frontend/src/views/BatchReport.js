@@ -30,11 +30,11 @@ const BatchReportView = {
             <el-form label-width="100px" size="small">
               <el-form-item label="上课日期">
                 <el-date-picker v-model="config.course_date" type="date" placeholder="选择日期"
-                  value-format="YYYY-MM-DD" style="width:200px" />
+                  value-format="YYYY-MM-DD" style="width:200px" @change="autoSaveShared" />
               </el-form-item>
               <el-form-item label="课程名称">
                 <el-input v-model="config.course_topic" maxlength="10" show-word-limit style="width:300px"
-                  placeholder="≤10 字" />
+                  placeholder="≤10 字" @blur="autoSaveShared" />
               </el-form-item>
               <el-form-item>
                 <el-checkbox v-model="isNoCode" style="margin-left:100px;">
@@ -59,13 +59,18 @@ const BatchReportView = {
                   maxlength="300" show-word-limit
                   placeholder="输入对班级整体的课堂观察，AI 评价将参考此信息" style="width:400px" @blur="autoSaveShared" />
               </el-form-item>
-              <el-form-item v-if="studentList.length > 0" label="逐学生观察">
+              <el-form-item v-if="studentList.length > 0" label="学生出勤">
                 <div style="width:100%;">
                   <div style="font-size:12px;color:#909399;margin-bottom:8px;">
-                    为个别学生填写个性化观察（选填），留空则使用上方全局观察
+                    勾选表示该学生已到课（生成报告），未勾选的学员跳过
                   </div>
+                  <el-checkbox v-model="selectAllAttended" :indeterminate="attendedIndeterminate"
+                    @change="onSelectAllAttended" style="margin-bottom:6px;font-weight:600;">
+                    全部到课
+                  </el-checkbox>
                   <div v-for="s in studentList" :key="s.id"
                     style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;padding:6px 8px;border:1px solid #e4e7ed;border-radius:4px;">
+                    <el-checkbox v-model="attended[s.id]" @change="onAttendedChange" style="min-width:80px;" />
                     <div style="min-width:60px;font-weight:500;padding-top:4px;font-size:13px;">{{ s.name }}</div>
                     <el-input v-model="observations[s.id]" type="textarea" :rows="1"
                       maxlength="200" show-word-limit
@@ -448,6 +453,10 @@ const BatchReportView = {
 
       // 逐学生观察 { student_id: observation_text }
       observations: {},
+      // 出勤管理：attended[student_id] = true/false
+      attended: {},
+      selectAllAttended: true,
+      attendedIndeterminate: false,
       createVocabulary: true,
 
       config: {
@@ -563,11 +572,15 @@ const BatchReportView = {
         const students = result.items || [];
         this.studentList = students.filter(s => s.class_id === classId);
         this.firstStudentId = this.studentList.length > 0 ? this.studentList[0].id : null;
-        // 初始化逐学生观察字典
+        // 初始化逐学生观察字典 + 出勤（默认全部到课）
         this.observations = {};
+        this.attended = {};
         for (const s of this.studentList) {
           this.observations[s.id] = '';
+          this.attended[s.id] = true;
         }
+        this.selectAllAttended = true;
+        this.attendedIndeterminate = false;
         if (!this.firstStudentId) {
           this.$message.warning('该班级暂无学生，请先添加学生');
         }
@@ -594,8 +607,32 @@ const BatchReportView = {
       };
       this.isNoCode = false;
       this.config.course_description = '';
+      this.attended = {};
+      this.selectAllAttended = true;
+      this.attendedIndeterminate = false;
     },
 
+    // ===== 出勤管理 =====
+    onAttendedChange() {
+      const vals = Object.values(this.attended);
+      const checked = vals.filter(v => v).length;
+      if (checked === 0) {
+        this.selectAllAttended = false;
+        this.attendedIndeterminate = false;
+      } else if (checked === vals.length) {
+        this.selectAllAttended = true;
+        this.attendedIndeterminate = false;
+      } else {
+        this.selectAllAttended = false;
+        this.attendedIndeterminate = true;
+      }
+    },
+    onSelectAllAttended(val) {
+      for (const id of Object.keys(this.attended)) {
+        this.attended[id] = val;
+      }
+      this.attendedIndeterminate = false;
+    },
     // ===== 知识点 =====
     showKpInput() {
       this.kpInputVisible = true;
@@ -741,7 +778,9 @@ const BatchReportView = {
       let name = folderPath.replace(/\/+$/, '').split(/[/\\]/).pop() || '';
       // 去掉前导序号，如 "1."、"21-24."、"33-36."
       name = name.replace(/^\d+(-?\d+)?[.、]\s*/, '');
-      if (name && name.length <= 10) {
+      // 去掉末尾的括号数字，如 (1) → 豆瓣电影TOP250
+      name = name.replace(/\s*\(\d+\)\s*$/, '');
+      if (name && name.length <= 20) {
         this.config.course_topic = name;
       }
     },
@@ -900,6 +939,14 @@ const BatchReportView = {
           }
         }, 2000);
 
+        // 找出未到课学生（不生成报告）
+        const excludedIds = Object.entries(this.attended)
+          .filter(([_, val]) => !val)
+          .map(([id]) => parseInt(id));
+        if (excludedIds.length > 0) {
+          console.log('未到课跳过学生: %d 人', excludedIds.length);
+        }
+
         const result = await API.reports.batchGenerate({
           class_id: this.config.class_id,
           course_date: this.config.course_date,
@@ -909,6 +956,7 @@ const BatchReportView = {
           project_folder: this.isNoCode ? '' : this.config.project_folder,
           teacher_observation: this.config.teacher_observation || '',
           observations: this.observations,
+          excluded_student_ids: excludedIds,
           create_vocabulary: this.createVocabulary,
           template_id: this.config.template_id,
           output_dir: this.config.output_dir || null,
@@ -966,6 +1014,8 @@ const BatchReportView = {
         // 同时保存共享内容和截图
         const updateData = {
           evaluations,
+          course_date: this.config.course_date,
+          course_topic: this.config.course_topic,
           course_description: this.config.course_description,
           knowledge_points: this.sharedContent.knowledge_points,
           ability_improvement: this.sharedContent.ability_improvement,
@@ -997,6 +1047,8 @@ const BatchReportView = {
       console.log('[autoSaveShared] 准备保存 homework.goal =', hwGoal);
       try {
         await API.batchReports.update(this.batchId, {
+          course_date: this.config.course_date,
+          course_topic: this.config.course_topic,
           course_description: this.config.course_description,
           knowledge_points: this.sharedContent.knowledge_points,
           ability_improvement: this.sharedContent.ability_improvement,
@@ -1027,6 +1079,24 @@ const BatchReportView = {
       }
     },
 
+    /**
+     * 构建批量报告预览/导出时的 overrides。
+     * 把当前 config + sharedContent 全部传给后端，临时覆盖 DB 字段。
+     */
+    _buildBatchPreviewOverrides() {
+      return {
+        course_date: this.config.course_date,
+        course_topic: this.config.course_topic,
+        course_description: this.config.course_description,
+        teacher_observation: this.config.teacher_observation,
+        knowledge_points: this.sharedContent.knowledge_points,
+        ability_improvement: this.sharedContent.ability_improvement,
+        content_items: this.sharedContent.content_items,
+        homework: this.sharedContent.homework,
+        vocabulary: this.sharedContent.vocabulary,
+      };
+    },
+
     // ===== 预览 =====
     async previewReport(row) {
       if (!this.batchId) return;
@@ -1041,7 +1111,14 @@ const BatchReportView = {
       this.previewLoading = true;
       try {
         console.log('[previewReport] 开始调用预览 API, batchId=%s studentId=%s', this.batchId, row.student_id);
-        const html = await API.batchReports.preview(this.batchId, row.student_id, this.config.template_id, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots, this.config.run_screenshots);
+        // 把当前 config + sharedContent 作为 overrides 传过去，确保预览即时生效
+        const overrides = this._buildBatchPreviewOverrides();
+        const html = await API.batchReports.preview(
+          this.batchId, row.student_id, this.config.template_id,
+          this.config.screenshot_paths, this.config.code_screenshots,
+          this.config.homework_screenshots, this.config.run_screenshots,
+          overrides,
+        );
         this.previewHtml = html;
       } catch (e) {
         this.previewError = '预览生成失败: ' + e.message;

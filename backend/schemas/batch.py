@@ -16,6 +16,7 @@ class BatchGenerateRequest(BaseModel):
     project_folder: str = ""
     teacher_observation: str = ""  # 全局观察（兜底）
     observations: dict[int, str] = {}  # 逐学生观察，key=student_id
+    excluded_student_ids: list[int] = []  # 未到课学生 ID，不生成这些学生的报告
     template_id: str = "classic"
     output_dir: str | None = None
     auto_export: bool = False
@@ -85,6 +86,8 @@ class BatchReportUpdate(BaseModel):
     """BatchReport 更新请求（所有字段可选）。"""
     evaluations: dict | None = None  # 更新 evaluations（批量保存评价时使用）
     status: str | None = None
+    course_date: str | None = None
+    course_topic: str | None = None
     course_description: str | None = None
     # 共享内容（用户手动编辑后保存）
     knowledge_points: list[str] | None = None

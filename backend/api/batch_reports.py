@@ -221,6 +221,10 @@ async def update_batch_report(
         update_dict["run_screenshots"] = _to_json(data.run_screenshots)
     if data.code_screenshots is not None:
         update_dict["code_screenshots"] = _to_json(data.code_screenshots)
+    if data.course_date is not None:
+        update_dict["course_date"] = data.course_date
+    if data.course_topic is not None:
+        update_dict["course_topic"] = data.course_topic
     if data.course_description is not None:
         update_dict["course_description"] = data.course_description
     if data.homework_screenshots is not None:
@@ -317,6 +321,7 @@ async def preview_batch_report(
 
     POST body 可选字段:
       - template_id (str): 默认使用 batch 的 template_id
+      - overrides (dict): 临时覆盖 batch 字段（不写库），如 course_date
       - screenshot_paths, run_screenshots, code_screenshots, homework_screenshots
     """
     template_id = body.get("template_id")
@@ -325,6 +330,19 @@ async def preview_batch_report(
         batch = await batch_svc.get_batch_report(session, batch_id)
     except BatchReportNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+    # 应用临时 overrides（不写库，仅本次预览生效）
+    # 注意：batch 的共享字段以 JSON 字符串存储（如 homework、knowledge_points），
+    # 因此传入的 dict/list 需要先序列化。
+    overrides = body.get("overrides") or {}
+    if overrides:
+        json_fields = {"knowledge_points", "content_items", "homework", "vocabulary", "evaluations", "observations"}
+        for key, value in overrides.items():
+            if hasattr(batch, key):
+                if key in json_fields and isinstance(value, (dict, list)):
+                    setattr(batch, key, _json.dumps(value, ensure_ascii=False))
+                else:
+                    setattr(batch, key, value)
 
     template_id = template_id or batch.template_id or "classic"
     layout_config = body.get("layout_config")
@@ -570,6 +588,14 @@ async def export_batch_report(
         except Exception as e:
             log.warning("批量报告默认 PDF 转长图失败: %s", e)
 
+    # 导出成功后更新状态为 finalized
+    if batch.status == "draft":
+        try:
+            await batch_svc.update_batch_report(session, batch_id, {"status": "finalized"})
+            log.info("批量报告状态已更新为 finalized: id=%s", batch_id)
+        except Exception as e:
+            log.warning("批量报告状态更新失败: %s", e)
+
     resp = {
         "pdf_path": f"/api/reports/pdf/{filename}",
         "filename": filename,
@@ -698,6 +724,14 @@ async def export_batch_word(
             log.info("批量报告 Word 已同步到自定义路径: %s", docx_path)
         except Exception as e:
             log.warning("批量报告 Word 自定义路径保存失败: %s", e)
+
+    # 导出成功后更新状态为 finalized
+    if batch.status == "draft":
+        try:
+            await batch_svc.update_batch_report(session, batch_id, {"status": "finalized"})
+            log.info("批量报告 Word 状态已更新为 finalized: id=%s", batch_id)
+        except Exception as e:
+            log.warning("批量报告 Word 状态更新失败: %s", e)
 
     log.info("批量报告 Word 导出成功: batch_id=%s student_id=%s", batch_id, student_id)
     resp = {
