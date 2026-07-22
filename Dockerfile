@@ -22,6 +22,7 @@ RUN pip install --no-cache-dir uv
 # Playwright Chromium 运行所需动态库 + 中文字体（否则 PDF 中文会变方框）
 # + poppler-utils（pdf2image 转长图依赖）
 # 分两步：先装基础依赖，再装字体和 poppler（避免字体包与 poppler 触发顺序问题）
+# 分三步安装：先基础库，再字体+poppler，最后做字体缓存
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libnss3 \
     libnspr4 \
@@ -40,12 +41,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2t64 \
     libatspi2.0-0t64 \
     fontconfig \
-    && apt-get install -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-cjk \
-    fonts-noto-cjk-extra \
     poppler-utils \
-    && rm -rf /var/lib/apt/lists/* \
-    && fc-cache -fv
+    && rm -rf /var/lib/apt/lists/*
+
+RUN fc-cache -fv
 
 # ------------------------------------------------------------------
 # 应用代码
