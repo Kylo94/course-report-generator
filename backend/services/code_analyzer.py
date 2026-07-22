@@ -42,11 +42,13 @@ COURSE_PATTERNS: list[re.Pattern[str]] = [
 ]
 
 # 作业引导识别模式（已去除 # 前缀，因为 _extract_top_comment 已剥掉）
+# 注意：三个 pattern 必须按此顺序（精确→模糊），且不能以 $ 结尾，
+# 因为要兼容"作业：画五角星"（同一行有内容）和"作业："（独占一行）两种格式。
 HOMEWORK_GUIDANCE_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(r"^\s*作业引导\s*[:：]\s*$"),
-    re.compile(r"^\s*作业指导\s*[:：]\s*$"),
-    re.compile(r"^\s*作业\s*[:：]\s*$"),                    # "作业:"（Walimaker 风格）
-    re.compile(r"^\s*HomeworkGuidance\s*[:：]\s*$", re.IGNORECASE),
+    re.compile(r"^\s*作业引导\s*[:：]"),                    # "作业引导：xxx"
+    re.compile(r"^\s*作业指导\s*[:：]"),                    # "作业指导：xxx"
+    re.compile(r"^\s*作业\s*[:：]"),                        # "作业：画五角星" 或 "作业："
+    re.compile(r"^\s*HomeworkGuidance\s*[:：]", re.IGNORECASE),
 ]
 
 # 项目类型识别
@@ -435,8 +437,16 @@ def _parse_course_title(comment: str | None) -> str | None:
 def _parse_homework_guidance(comment: str | None) -> str | None:
     """从注释中解析作业引导。
 
-    在入口注释中查找作业引导标记（如 作业引导: / HomeworkGuidance:），
+    在入口注释中查找作业引导标记（如 作业引导: / 作业: / HomeworkGuidance:），
     将其后的内容（到注释末尾）提取为作业引导文本。
+
+    支持两种格式：
+    1. 标记独占一行，后续行为内容：
+        作业：
+        画一个五角星
+        使用 circle 函数
+    2. 标记和内容在同一行：
+        作业：画一个五角星，使用 circle 函数
     """
     if not comment:
         return None
@@ -446,12 +456,25 @@ def _parse_homework_guidance(comment: str | None) -> str | None:
     for line in lines:
         if not capture:
             # 检查是否是引导标记行
+            matched = False
+            matched_inline = False
             for pattern in HOMEWORK_GUIDANCE_PATTERNS:
                 if pattern.match(line):
-                    capture = True
+                    # 去掉标记后的行内内容（格式2：作业：画五角星）
+                    remainder = pattern.sub("", line).strip()
+                    if remainder:
+                        guidance.append(remainder)
+                        matched_inline = True
+                    else:
+                        matched = True
+                    # 匹配到一个就不再继续
                     break
+            if matched:
+                capture = True
+            elif matched_inline:
+                break  # 格式2 一行搞定，直接结束
         else:
-            # 收集标记后的内容行
+            # 收集标记后的内容行（格式1：标记后跟内容行）
             stripped = line.strip()
             if stripped:
                 guidance.append(line)

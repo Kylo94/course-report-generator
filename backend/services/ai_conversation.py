@@ -407,14 +407,66 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
         project_type: str,
         homework_guidance: str = "",
     ) -> tuple[dict, dict]:
-        """基于记忆生成作业和英文单词。"""
+        """基于记忆生成作业和英文单词。
+
+        优先使用用户写在入口注释中的作业描述，AI 应该将其直接作为作业内容。
+        只有当入口注释和作业引导均为空时，才由 AI 自行生成作业。
+        """
         kp_str = "、".join(knowledge_points)
         guidance_section = (
-            f"\n【作业引导——如果上方有作业引导，请严格按此出题】\n{homework_guidance}\n"
+            f"\n【作业引导——这是用户写的作业描述，请将其内容直接作为作业出题，不要自己编造新的】\n{homework_guidance}\n"
             if homework_guidance
             else ""
         )
-        prompt = f"""根据你阅读的代码和知识点（{kp_str}），生成课后作业（多题）和英文单词。
+
+        # 判断入口注释是否包含作业描述（行内包含"作业"字样的都会被识别）
+        has_hw_in_entry = any("作业" in line for line in entry_comment.splitlines()) if entry_comment else False
+
+        if homework_guidance or has_hw_in_entry:
+            # 用户有写作业描述 → AI 直接使用，不做修改
+            prompt = f"""根据下方"入口注释"或"作业引导"中的作业描述，直接将其作为课后作业内容输出。
+如果作业描述已经足够完整，原样输出即可，不需要修改或增删。
+如果作业描述过于简略（只有一句话），可以适当补充为完整的题目格式。
+
+学生水平：{student_level}
+项目类型：{project_type}
+入口注释：{entry_comment}{guidance_section}
+
+【代码中实际存在的函数/API/方法清单（供作业引用的代码元素）】
+{self._code_refs}
+
+【作业——优先使用上方入口注释或作业引导中的描述，直接作为作业内容】
+- 如果入口注释或作业引导中已有作业描述，直接使用，**不要自行编造新的作业**
+- 如果描述中提到的代码元素不存在于上方清单中，可以保留但标注"（参考题）"
+- 每题 30-50 字
+- 提示 2-3 条
+- 即使作业描述很短，也要保持学生的语言水平合适（{student_level}）
+
+输出 JSON：
+{{
+  "homework": {{
+    "questions": [
+      {{
+        "goal": "直接使用用户作业描述中的第1题",
+        "hints": ["提示1", "提示2"]
+      }},
+      {{
+        "goal": "直接使用用户作业描述中的第2题...",
+        "hints": [...]
+      }}
+    ]
+  }},
+  "vocabulary": {{
+    "word": "代码中的术语或函数名",
+    "phonetic": "/音标/",
+    "meaning": "中文释义",
+    "example": "代码中的使用示例"
+  }}
+}}
+只输出 JSON，不要解释。"""
+        else:
+            # 用户没写作业描述 → AI 自行基于代码生成
+            prompt = f"""根据你阅读的代码和知识点（{kp_str}），生成课后作业（多题）和英文单词。
 
 学生水平：{student_level}
 项目类型：{project_type}
@@ -685,15 +737,58 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
         course_description: str,
         homework_guidance: str = "",
     ) -> tuple[dict, dict]:
-        """纯图文模式：基于课程描述生成作业和单词。"""
+        """纯图文模式：基于课程描述生成作业和单词。
+
+        优先使用课程描述中的作业要求，AI 应将作业要求直接作为作业内容。
+        只有当课程描述中不含作业要求时，才由 AI 自行生成。
+        """
         kp_str = "、".join(knowledge_points)
         guidance_section = (
-            f"\n【作业引导——如果上方有作业引导，请严格按此出题】\n{homework_guidance}\n"
+            f"\n【作业引导——这是用户写的作业描述，请将其内容直接作为作业出题，不要自己编造新的】\n{homework_guidance}\n"
             if homework_guidance
             else ""
         )
 
-        prompt = f"""根据以下课程信息，生成课后作业（多题）和英文单词。
+        has_hw_in_desc = any("作业" in line for line in course_description.splitlines()) if course_description else False
+
+        if homework_guidance or has_hw_in_desc:
+            prompt = f"""根据下方课程描述中的作业要求，直接将其作为课后作业内容输出。
+如果作业要求已经足够完整，原样输出即可，不需要修改或增删。
+
+课程主题：{course_topic}
+学生水平：{student_level}
+
+【课程详细描述（关注其中含"作业"字样的内容）】
+{course_description}
+
+知识点：{kp_str}{guidance_section}
+
+【作业——优先使用课程描述中的作业要求，直接作为作业内容】
+- 如果课程描述中已有作业要求，直接使用，**不要自行编造新的作业**
+- 如果描述过于简略，可以适当补充为完整题目格式
+- 每题 30-50 字
+- 提示 2-3 条
+
+输出 JSON：
+{{
+  "homework": {{
+    "questions": [
+      {{
+        "goal": "直接使用课程描述中的作业要求",
+        "hints": ["提示1", "提示2"]
+      }}
+    ]
+  }},
+  "vocabulary": {{
+    "word": "课程中的术语或英文关键词",
+    "phonetic": "/音标/",
+    "meaning": "中文释义",
+    "example": "语境例句"
+  }}
+}}
+只输出 JSON，不要解释。"""
+        else:
+            prompt = f"""根据以下课程信息，生成课后作业（多题）和英文单词。
 
 课程主题：{course_topic}
 学生水平：{student_level}
