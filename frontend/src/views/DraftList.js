@@ -10,6 +10,13 @@ const DraftListView = {
       <!-- 筛选栏 -->
       <el-card style="margin-bottom: 16px;">
         <el-form :inline="true" :model="filters" size="small">
+          <el-form-item label="班级">
+            <el-select v-model="filters.class_id" placeholder="全部班级" clearable style="width:150px"
+              @change="search">
+              <el-option v-for="c in classList" :key="c.id"
+                :label="c.name" :value="c.id" />
+            </el-select>
+          </el-form-item>
           <el-form-item label="状态">
             <el-select v-model="filters.status" placeholder="全部" clearable style="width:120px">
               <el-option label="草稿" value="draft" />
@@ -136,23 +143,35 @@ const DraftListView = {
       page: 1,
       pageSize: 20,
       loading: false,
-      filters: { status: '', keyword: '', type: '' },
+      filters: { class_id: null, status: '', keyword: '', type: '' },
       selectedIds: [],
       selectAll: false,
       isIndeterminate: false,
       batchDeleting: false,
+      classList: [],
     };
   },
 
   mounted() {
+    this.loadClassList();
     this.loadList();
   },
 
   methods: {
+    async loadClassList() {
+      try {
+        const result = await API.classes.list();
+        this.classList = result.items || [];
+      } catch (e) {
+        console.warn('加载班级列表失败:', e);
+      }
+    },
+
     async loadList() {
       this.loading = true;
       try {
         const params = { page: this.page, page_size: this.pageSize };
+        if (this.filters.class_id) params.class_id = this.filters.class_id;
         if (this.filters.status) params.status = this.filters.status;
         if (this.filters.keyword) params.keyword = this.filters.keyword;
 
@@ -209,7 +228,7 @@ const DraftListView = {
     },
 
     resetFilters() {
-      this.filters = { status: '', keyword: '', type: '' };
+      this.filters = { class_id: null, status: '', keyword: '', type: '' };
       this.page = 1;
       this.loadList();
     },

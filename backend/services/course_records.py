@@ -137,14 +137,27 @@ async def list_records(
     session: AsyncSession,
     *,
     student_id: int | None = None,
+    class_id: int | None = None,
     status: str | None = None,
     keyword: str | None = None,
     page: int = 1,
     page_size: int = 50,
 ) -> tuple[Sequence[CourseRecord], int]:
-    """获取课程记录列表（分页 + 过滤）。"""
+    """获取课程记录列表（分页 + 过滤）。
+
+    支持 class_id 过滤（通过 CourseRecord.student → Student.class_id 关联）。
+    """
+    from backend.models import Student as StudentModel
+
     stmt = select(CourseRecord)
     count_stmt = select(func.count()).select_from(CourseRecord)
+
+    if class_id is not None:
+        # 通过 student 关联过滤班级
+        stmt = stmt.join(StudentModel, CourseRecord.student_id == StudentModel.id)
+        stmt = stmt.where(StudentModel.class_id == class_id)
+        count_stmt = count_stmt.join(StudentModel, CourseRecord.student_id == StudentModel.id)
+        count_stmt = count_stmt.where(StudentModel.class_id == class_id)
 
     if student_id is not None:
         stmt = stmt.where(CourseRecord.student_id == student_id)

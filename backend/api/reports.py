@@ -265,6 +265,7 @@ async def create_record(
 )
 async def list_records(
     student_id: int | None = Query(None, description="按学生过滤"),
+    class_id: int | None = Query(None, description="按班级过滤（通过学生关联）"),
     status: str | None = Query(None, description="按状态过滤"),
     keyword: str | None = Query(None, description="按课程名模糊搜索"),
     page: int = Query(1, ge=1, description="页码"),
@@ -274,6 +275,7 @@ async def list_records(
     items, total = await record_svc.list_records(
         session,
         student_id=student_id,
+        class_id=class_id,
         status=status,
         keyword=keyword,
         page=page,

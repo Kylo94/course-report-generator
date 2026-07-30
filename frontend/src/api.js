@@ -56,6 +56,7 @@ const API = {
     create(data) { return API.post('/api/reports', data); },
     list(params = {}) {
       const q = new URLSearchParams();
+      if (params.class_id) q.set('class_id', params.class_id);
       if (params.student_id) q.set('student_id', params.student_id);
       if (params.status) q.set('status', params.status);
       if (params.keyword) q.set('keyword', params.keyword);
@@ -208,6 +209,7 @@ const API = {
     },
     listAll(params = {}) {
       const q = new URLSearchParams();
+      if (params.class_id) q.set('class_id', params.class_id);
       if (params.keyword) q.set('keyword', params.keyword);
       if (params.status) q.set('status', params.status);
       if (params.page) q.set('page', params.page);
