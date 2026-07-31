@@ -16,8 +16,8 @@ WORKDIR /app
 # ------------------------------------------------------------------
 # 系统依赖
 # ------------------------------------------------------------------
-# uv — 快速 Python 包管理器
-RUN pip install --no-cache-dir uv
+# uv — 快速 Python 包管理器（使用官方安装脚本，避免 PyPI hash 校验问题）
+RUN pip install --no-cache-dir --trusted-host pypi.org --trusted-host files.pythonhosted.org uv
 
 # Playwright Chromium 运行所需动态库 + 中文字体（否则 PDF 中文会变方框）
 # + poppler-utils（pdf2image 转长图依赖）

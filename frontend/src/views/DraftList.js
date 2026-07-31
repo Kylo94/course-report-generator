@@ -174,47 +174,13 @@ const DraftListView = {
         if (this.filters.class_id) params.class_id = this.filters.class_id;
         if (this.filters.status) params.status = this.filters.status;
         if (this.filters.keyword) params.keyword = this.filters.keyword;
+        if (this.filters.type) params.type = this.filters.type;
 
-        // —— 同步加载 CourseRecord 和 BatchReport ——
-        const [recordResult, batchResult] = await Promise.all([
-          API.reports.list(params),
-          API.batchReports.listAll(params),
-        ]);
+        // —— 统一接口：后端合并个人报告 + 批量报告，全局排序分页 ——
+        const result = await API.reports.drafts(params);
 
-        // 添加类型标记和唯一行键
-        const records = (recordResult.items || []).map(r => ({
-          ...r,
-          _type: 'record',
-          rowKey: 'record_' + r.id,
-        }));
-        const batches = (batchResult.items || []).map(b => ({
-          ...b,
-          _type: 'batch',
-          rowKey: 'batch_' + b.id,
-        }));
-
-        // 类型筛选（前端过滤）
-        let merged = [...records, ...batches];
-        if (this.filters.type === 'record') {
-          merged = merged.filter(i => i._type === 'record');
-        } else if (this.filters.type === 'batch') {
-          merged = merged.filter(i => i._type === 'batch');
-        }
-
-        // 按创建时间倒序
-        merged.sort((a, b) => {
-          const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-          return tb - ta;
-        });
-
-        // 分页本地（两边的分页独立，合并后总数 = 两边之和）
-        this.total = merged.length;
-        // 服务端已经各自分了页，但合并后总数是两边的 sum
-        // 注意：当筛选状态或关键词时，两边各自独立分页，合并结果可能不准
-        // 简单处理：作为本地分页合并
-        const start = (this.page - 1) * this.pageSize;
-        this.items = merged.slice(start, start + this.pageSize);
+        this.items = result.items || [];
+        this.total = result.total || this.items.length;
       } catch (e) {
         this.$message.error('加载失败: ' + e.message);
       } finally {

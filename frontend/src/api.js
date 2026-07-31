@@ -69,6 +69,17 @@ const API = {
     update(id, data) { return API.put(`/api/reports/${id}`, data); },
     patch(id, data) { return API.patch(`/api/reports/${id}`, data); },
     delete(id) { return API.delete(`/api/reports/${id}`); },
+    drafts(params = {}) {
+      const q = new URLSearchParams();
+      if (params.class_id) q.set('class_id', params.class_id);
+      if (params.status) q.set('status', params.status);
+      if (params.keyword) q.set('keyword', params.keyword);
+      if (params.type) q.set('type', params.type);
+      if (params.page) q.set('page', params.page);
+      if (params.page_size) q.set('page_size', params.page_size);
+      const qs = q.toString();
+      return API.get(`/api/drafts${qs ? '?' + qs : ''}`);
+    },
     batchDelete(ids) { return API.post('/api/reports/batch-delete', { ids }); },
     updateStatus(id, status) { return API.patch(`/api/reports/${id}/status`, { status }); },
     export(id, templateId = 'classic', layoutConfig = null, outputDir = null, screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null, overrides = null) {

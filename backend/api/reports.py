@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import PROJECT_ROOT, get_settings
@@ -1296,3 +1296,107 @@ def _guess_extension(mime_type: str) -> str:
         "image/png": ".png",
         "image/webp": ".webp",
     }.get(mime_type, ".bin")
+
+
+# =========================
+# 草稿管理统一列表（合并 CourseRecord + BatchReport，全局分页）
+# =========================
+
+@router.get(
+    "/api/drafts",
+    response_model=dict,
+    summary="草稿列表（合并个人报告 + 批量报告，统一分页）",
+)
+async def list_drafts(
+    class_id: int | None = Query(None, description="按班级过滤"),
+    status: str | None = Query(None, description="按状态过滤"),
+    keyword: str | None = Query(None, description="按课程名搜索"),
+    type: str | None = Query(None, description="按类型过滤: record 个人 / batch 批量"),
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=200, description="每页数量"),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """合并批量报告与个人报告，按 updated_at 倒序全局分页。
+
+    解决前端双重分页问题：之前前端同时调两个接口（各自分页）再本地合并，
+    导致第 2 页起没有数据。此接口在服务端统一排序分页。
+    """
+    from backend.models import BatchReport, CourseRecord, Student as StudentModel
+    from backend.services import batch_reports as _batch_svc
+
+    # ---- 1. 查询 BatchReport（支持 class_id/status/keyword/type）----
+    bq = select(BatchReport)
+    if class_id is not None:
+        bq = bq.where(BatchReport.class_id == class_id)
+    if status:
+        bq = bq.where(BatchReport.status == status)
+    if keyword:
+        kw = f"%{keyword}%"
+        bq = bq.where(
+            BatchReport.course_topic.ilike(kw)
+            | BatchReport.class_name.ilike(kw)
+        )
+    if type in (None, "", "batch"):
+        batch_result = await session.execute(bq)
+        batches = list(batch_result.scalars().all())
+    else:
+        batches = []
+
+    # ---- 2. 查询 CourseRecord（支持 class_id/status/keyword/type）----
+    rq = select(CourseRecord)
+    if class_id is not None:
+        rq = rq.join(StudentModel, CourseRecord.student_id == StudentModel.id)
+        rq = rq.where(StudentModel.class_id == class_id)
+    if status:
+        rq = rq.where(CourseRecord.status == status)
+    if keyword:
+        kw = f"%{keyword}%"
+        rq = rq.where(CourseRecord.course_topic.ilike(kw))
+    if type in (None, "", "record"):
+        record_result = await session.execute(rq)
+        records = list(record_result.scalars().all())
+    else:
+        records = []
+
+    batch_dicts = [_batch_svc.to_list_dict(b) for b in batches]
+    for d in batch_dicts:
+        d["rowKey"] = "batch_" + str(d["id"])
+
+    record_dicts = [_record_to_list_item(r).model_dump() for r in records]
+    for d in record_dicts:
+        d["_type"] = "record"
+        d["rowKey"] = "record_" + str(d["id"])
+        d["class_name"] = "-"
+
+    # 个人报告补充班级名（通过 student → klass）
+    if records:
+        student_ids = {r.student_id for r in records}
+        students = (await session.execute(
+            select(StudentModel).where(StudentModel.id.in_(student_ids))
+        )).scalars().all()
+        from backend.models import Class as ClassModel
+        class_ids = {s.class_id for s in students if s.class_id}
+        classes = (await session.execute(
+            select(ClassModel).where(ClassModel.id.in_(class_ids))
+        )).scalars().all()
+        class_map = {c.id: c.name for c in classes}
+        stu_map = {s.id: s.class_id for s in students}
+        for d, r in zip(record_dicts, records):
+            cid = stu_map.get(r.student_id)
+            if cid:
+                d["class_name"] = class_map.get(cid, "-")
+
+    # ---- 3. 合并 + 全局排序 + 分页 ----
+    merged = batch_dicts + record_dicts
+    merged.sort(key=lambda x: x.get("updated_at") or 0, reverse=True)
+
+    total = len(merged)
+    offset = (page - 1) * page_size
+    items = merged[offset:offset + page_size]
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
