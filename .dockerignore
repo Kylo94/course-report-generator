@@ -101,3 +101,9 @@ docker-compose.yml
 # Node / frontend build
 # =========================
 node_modules/
+
+# =========================
+# Secrets（本地敏感配置，禁止打进镜像构建上下文）
+# =========================
+config/llm.yaml
+config/app.yaml.local
