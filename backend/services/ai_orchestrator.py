@@ -179,15 +179,7 @@ class AIOrchestrator:
 
         # Step 4: 评价（始终生成，基于用户已填内容或 AI 生成内容）
         try:
-            # 构造课程内容/作业上下文供评价参考
-            _hw = result.homework or {}
-            _hw_str_lines = []
-            if _hw.get("goal"):
-                _hw_str_lines.append(f"目标：{_hw['goal']}")
-            for q in (_hw.get("questions") or []):
-                _hw_str_lines.append(f"题目：{q.get('goal', '')}")
-            _hw_str = "\n".join(_hw_str_lines)
-
+            # 构造课程内容上下文供评价参考（不包含作业——作业课后才完成，评价时不评价作业）
             _content_str_lines = []
             for item in (result.content_items or []):
                 if isinstance(item, dict):
@@ -203,7 +195,6 @@ class AIOrchestrator:
                 knowledge_points=result.knowledge_points,
                 teacher_observation=teacher_observation,
                 entry_comment=entry_comment,
-                homework_context=_hw_str,
                 course_content_context=_content_str,
             )
             log.info("评价完成: %d 字", len(result.evaluation))
@@ -475,15 +466,7 @@ class AIOrchestrator:
             entry_comment = ""
         observations = observations or {}
 
-        # 构造课程内容/作业上下文供评价参考
-        _hw = shared_content.get("homework", {}) or {}
-        _hw_str_lines = []
-        if _hw.get("goal"):
-            _hw_str_lines.append(f"目标：{_hw['goal']}")
-        for q in (_hw.get("questions") or []):
-            _hw_str_lines.append(f"题目：{q.get('goal', '')}")
-        _hw_str = "\n".join(_hw_str_lines)
-
+        # 构造课程内容上下文供评价参考（不包含作业——作业课后才完成，评价时不评价作业）
         _content_str_lines = []
         for item in (shared_content.get("content_items") or []):
             if isinstance(item, dict):
@@ -506,7 +489,6 @@ class AIOrchestrator:
                     teacher_observation=per_student_obs,
                     course_topic=project.course_title or "未指定",
                     course_description=course_description,
-                    homework_context=_hw_str,
                     course_content_context=_content_str,
                 )
             return await conv.step_evaluation(
@@ -518,7 +500,6 @@ class AIOrchestrator:
                 knowledge_points=kp,
                 teacher_observation=per_student_obs,
                 entry_comment=entry_comment,
-                homework_context=_hw_str,
                 course_content_context=_content_str,
             )
 

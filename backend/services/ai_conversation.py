@@ -22,6 +22,10 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage
 
 from backend.llm.base import LLMProvider
+from backend.services.code_analyzer import (
+    HOMEWORK_GUIDANCE_PATTERNS,
+    SECTION_START_PATTERNS,
+)
 from backend.utils.logger import get_logger
 
 log = get_logger(__name__)
@@ -30,6 +34,45 @@ log = get_logger(__name__)
 def _strip_think_blocks(text: str) -> str:
     """去掉推理模型输出的 <think>...</think> 块，返回剩余文本。"""
     return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
+
+def _strip_homework_from_comment(comment: str | None) -> str:
+    """去掉入口注释中的作业段落（评价不引用课后作业）。
+
+    识别逻辑与 code_analyzer._parse_homework_guidance 一致：
+    - 作业：xxx（同行为内容）→ 只去掉该行
+    - 作业：（独占一行）→ 去掉该行及后续内容行，直到空行或新的段落标题
+      （笔记/目标/总结等），保证作业之后的段落（如笔记）不受影响。
+    """
+    if not comment:
+        return ""
+    lines = comment.splitlines()
+    keep: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        matched: re.Pattern[str] | None = None
+        for pattern in HOMEWORK_GUIDANCE_PATTERNS:
+            if pattern.match(line):
+                matched = pattern
+                break
+        if matched is None:
+            keep.append(line)
+            i += 1
+            continue
+        if matched.sub("", line).strip():
+            i += 1  # 作业：xxx（内容在同一行），只去掉这一行
+            continue
+        # 作业：独占一行 → 去掉后续内容行，直到空行或段落标题
+        i += 1
+        while i < len(lines):
+            if not lines[i].strip():
+                i += 1
+                break
+            if any(p.match(lines[i]) for p in SECTION_START_PATTERNS):
+                break  # 新的段落标题，从此处保留
+            i += 1
+    return "\n".join(keep).strip()
 
 
 def _extract_json(text: str) -> Any:
@@ -547,23 +590,23 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
         knowledge_points: list[str],
         teacher_observation: str,
         entry_comment: str,
-        homework_context: str = "",
         course_content_context: str = "",
     ) -> str:
         """基于记忆生成个性化学生评价。
 
-        homework_context: 用户编写的课后作业内容，AI 应在评价中引用学生的完成情况。
         course_content_context: 用户编写的课程内容/笔记/目标，AI 应在评价中参考。
+        评价不涉及课后作业：作业课后才完成，生成评价时无法知道完成情况。
         """
         kp_str = "、".join(knowledge_points)
         pronoun = "他" if student_gender == "男" else "她"
+
+        # 入口注释去掉作业段落，避免 AI 在评价中引用作业
+        entry_comment = _strip_homework_from_comment(entry_comment)
 
         # 构建用户编写内容的上下文
         user_content_section = ""
         if course_content_context:
             user_content_section += f"\n【本节课内容/笔记——教师在报告中填写，评价时请参考】\n{course_content_context}\n"
-        if homework_context:
-            user_content_section += f"\n【课后作业——教师布置的作业，评价时请参考学生的完成情况】\n{homework_context}\n"
 
         prompt = f"""根据你阅读的代码和知识点，为该学生写学习评价。
 
@@ -584,15 +627,15 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 【内容要求】
 - 只围绕【知识点】中的函数写，禁止提知识点外的技术点
 - **只能引用上方清单中实际存在的函数/API 名，禁止编造**
-- 自然一段话：学了什么（引用 1 个具体函数名）→ 做得怎么样 → 总结
-- 如果有【课后作业】内容，评价中应提到作业完成情况（"作业中……做得很好/还需要注意……"）
+- 自然一段话：学了什么（引用 1 个具体函数名）→ 怎么学的 → 课堂练习做得怎么样 → 总结
+- **不评价课后作业**：作业是课后完成的，评价时还不知道完成情况，不要提及作业
 - 如果有【本节课内容/笔记】，评价中可参考这些内容来描述学习表现
 - 用「{pronoun}」指代学生
 - 语气亲切自然、内容具体
 - 避免"上课认真""积极举手""表现良好"等空话
-        - 不要以"家长您好"开头
-        - **只输出评价文本本身**，不要 JSON，不要用 {{}} 包裹，不要加 evaluation 字段
-        """
+- 不要以"家长您好"开头
+- **只输出评价文本本身**，不要 JSON，不要用 {{}} 包裹，不要加 evaluation 字段
+"""
 
         result_text = await self._call(prompt, TEMPS["evaluation"])
         # 推理模型会输出 <think>...</think> 块，需要剥掉再返回
@@ -867,18 +910,15 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
         teacher_observation: str,
         course_topic: str,
         course_description: str,
-        homework_context: str = "",
         course_content_context: str = "",
     ) -> str:
-        """纯图文模式：基于课程描述生成个性化学生评价。"""
+        """纯图文模式：基于课程描述生成个性化学生评价。不涉及课后作业。"""
         kp_str = "、".join(knowledge_points)
         pronoun = "他" if student_gender == "男" else "她"
 
         user_content_section = ""
         if course_content_context:
             user_content_section += f"\n【本节课内容/笔记——教师在报告中填写，评价时请参考】\n{course_content_context}\n"
-        if homework_context:
-            user_content_section += f"\n【课后作业——教师布置的作业，评价时请参考学生的完成情况】\n{homework_context}\n"
 
         prompt = f"""根据以下课程信息，为该学生写学习评价。
 
@@ -901,8 +941,8 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 【内容要求】
 - 只围绕【知识点】中的内容写，禁止提知识点外的内容
 - **只能引用课程描述中实际出现的内容，禁止编造**
-- 自然一段话：学了什么 → 做得怎么样 → 总结
-- 如果有【课后作业】内容，评价中应提到作业完成情况
+- 自然一段话：学了什么 → 怎么学的 → 课堂练习做得怎么样 → 总结
+- **不评价课后作业**：作业是课后完成的，评价时还不知道完成情况，不要提及作业
 - 如果有【本节课内容/笔记】，评价中可参考这些内容来描述学习表现
 - 用「{pronoun}」指代学生
 - 语气亲切自然、内容具体

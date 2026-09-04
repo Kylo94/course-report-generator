@@ -51,6 +51,19 @@ HOMEWORK_GUIDANCE_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"^\s*HomeworkGuidance\s*[:：]", re.IGNORECASE),
 ]
 
+# 入口注释中的常见段落标题（作业段之后出现这些行时，说明作业段已结束）
+SECTION_START_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"^\s*笔记\s*[:：]?\s*$"),
+    re.compile(r"^\s*目标\s*[:：]?\s*$"),
+    re.compile(r"^\s*总结\s*[:：]?\s*$"),
+    re.compile(r"^\s*内容\s*[:：]?\s*$"),
+    re.compile(r"^\s*知识点\s*[:：]?\s*$"),
+    re.compile(r"^\s*课堂表现\s*[:：]?\s*$"),
+    re.compile(r"^\s*课程名?\s*[:：]"),
+    re.compile(r"^\s*主题\s*[:：]"),
+    re.compile(r"^\s*Course\s*[:：]", re.IGNORECASE),
+]
+
 # 项目类型识别
 PROJECT_TYPE_RULES: list[tuple[str, str]] = [
     # (import 关键字, 项目类型)
@@ -476,11 +489,13 @@ def _parse_homework_guidance(comment: str | None) -> str | None:
         else:
             # 收集标记后的内容行（格式1：标记后跟内容行）
             stripped = line.strip()
-            if stripped:
-                guidance.append(line)
-            else:
+            if not stripped:
                 # 空行表示引导结束
                 break
+            # 出现新的段落标题（笔记/目标/总结…）说明作业段已结束
+            if any(p.match(line) for p in SECTION_START_PATTERNS):
+                break
+            guidance.append(line)
     return "\n".join(guidance).strip() or None
 
 
