@@ -85,6 +85,7 @@ const StudentsView = {
           </el-form-item>
           <el-form-item label="所属班级">
             <el-select v-model="form.class_id" placeholder="不分配" clearable style="width:200px">
+              <el-option label="无班级" :value="null" />
               <el-option v-for="c in classList" :key="c.id" :label="c.name" :value="c.id" />
             </el-select>
           </el-form-item>
@@ -135,6 +136,7 @@ const StudentsView = {
           <el-form size="small" label-width="90px">
             <el-form-item label="所属班级">
               <el-select v-model="importDefaults.class_id" placeholder="不分配" style="width:200px" clearable>
+                <el-option label="无班级" :value="null" />
                 <el-option v-for="c in classList" :key="c.id" :label="c.name" :value="c.id" />
               </el-select>
             </el-form-item>
@@ -291,11 +293,13 @@ const StudentsView = {
       }
       this.saving = true;
       try {
+        // class_id 归一化：清空（undefined/空串）时显式传 null，后端才能移除班级
+        const payload = { ...this.form, class_id: this.form.class_id || null };
         if (this.isEditing) {
-          await API.students.update(this.editingId, this.form);
+          await API.students.update(this.editingId, payload);
           this.$message.success('学生已更新');
         } else {
-          await API.students.create(this.form);
+          await API.students.create(payload);
           this.$message.success('学生已创建');
         }
         this.dialogVisible = false;
