@@ -6,26 +6,45 @@
 #   2) 端口：CRG_HOST_PORT（默认 8767）
 #
 # 常用命令：
-#   docker compose up -d       启动
-#   docker compose restart     改完配置重启
-#   docker compose logs -f     查看日志
-#   docker compose down        停止
+#   docker compose up -d --build  本地构建并启动
+#   docker compose restart         改完配置重启
+#   docker compose logs -f         查看日志
+#   docker compose down            停止
 
 services:
   course-report-generator:
-    image: ghcr.io/${GITHUB_REPOSITORY:-your-username/course-report-generator}:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: course-report-generator:local
     container_name: course-report
     restart: unless-stopped
 
+    # 宿主机 8765 端口（局域网访问 kylo.local:8765 / 手机/同事访问）
+    # 宿主机 8767 端口（本地开发用，避免和开发模式的 8765 冲突）
+    # 两个端口都转发到容器内的 8765
+    # 注意：
+    #   - 如果 8765 已被占（如宿主机装了别的服务），就把这条删掉，只留 8767
+    #   - 第一次启用 8765 时，macOS 可能弹防火墙授权，务必点"允许"
     ports:
+      - "8765:8765"
       - "${CRG_HOST_PORT:-8767}:8765"
 
     volumes:
-      - crg_data:/app/data
+      - ./data:/app/data
       - ./config/llm.yaml:/app/config/llm.yaml:ro
       - /Users/kylo/Documents/Workspace:/Users/kylo/Documents/Workspace
       - /Users/kylo/Desktop:/Users/kylo/Desktop
       - /Users/kylo/Documents:/Users/kylo/Documents
+
+# 注释掉的命名卷（保留作为备选写法）：
+#   - crg_data:/app/data
+#
+# 两者的区别：
+#   命名卷（crg_data）— 数据存放在 Docker 管理目录（~/Library/Containers/...），
+#                     适合纯容器场景，但本地看不到、不便直接备份/编辑。
+#   bind mount       — 直接用宿主机 ./data 目录，方便备份、查看、跨容器复用。
+#                     macOS 上首次启动会略慢（virtiofs），但对 SQLite + 静态文件无感。
 
 volumes:
   crg_data:
