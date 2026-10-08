@@ -117,6 +117,7 @@ async def regenerate_field(
             student_read,
             knowledge_points=req.knowledge_points,
             teacher_observation=req.teacher_observation,
+            homework_type=req.homework_type or "auto",
         )
         return {"field": req.field, "value": result}
     except student_svc.StudentNotFoundError as e:

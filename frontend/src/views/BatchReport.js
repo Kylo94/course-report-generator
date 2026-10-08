@@ -171,7 +171,21 @@ const BatchReportView = {
                 {{ regeneratingFields['homework_vocab'] ? '生成中...' : '重新生成' }}
               </el-button>
             </template>
-            <!-- 多题模式 -->
+            <!-- 题型选择（PR1：固定 1 题 + 题型可指定） -->
+            <el-form label-width="100px" size="small" style="margin-bottom:12px;">
+              <el-form-item label="作业题型">
+                <el-radio-group v-model="config.homework_type" size="small" @change="autoSaveShared">
+                  <el-radio-button value="auto">🤖 自动</el-radio-button>
+                  <el-radio-button value="qa">❓ 问答题</el-radio-button>
+                  <el-radio-button value="fill">📝 填空题</el-radio-button>
+                  <el-radio-button value="fix">🔧 纠错题</el-radio-button>
+                </el-radio-group>
+                <span style="margin-left:12px;color:#909399;font-size:12px;">
+                  AI 每次只生成 1 道题，提示为方向性思路提示（不直接给出答案）
+                </span>
+              </el-form-item>
+            </el-form>
+            <!-- 多题模式（兼容老数据：questions 数组） -->
             <div v-if="sharedContent.homework.questions && sharedContent.homework.questions.length > 0">
               <div v-for="(q, qi) in sharedContent.homework.questions" :key="qi"
                 style="margin-bottom:16px;padding:12px;border:1px solid #e4e7ed;border-radius:6px;">
@@ -181,38 +195,26 @@ const BatchReportView = {
                 </div>
                 <el-form label-width="80px" size="small">
                   <el-form-item label="题目">
-                    <el-input v-model="q.goal" type="textarea" :rows="2" style="width:400px" />
+                    <el-input v-model="q.goal" type="textarea" :rows="2" style="width:400px" @blur="autoSaveShared" />
                   </el-form-item>
-                  <el-form-item label="提示">
-                    <div v-for="(h, hi) in q.hints" :key="'qh'+hi" style="margin-bottom:4px">
-                      <el-input v-model="q.hints[hi]" style="width:300px" placeholder="提示内容">
-                        <template #prefix>#{{ hi+1 }}</template>
-                        <template #suffix>
-                          <el-button link type="danger" size="small" @click="removeQuestionHint(qi, hi)">×</el-button>
-                        </template>
-                      </el-input>
-                    </div>
-                    <el-button size="small" @click="addQuestionHint(qi)">+ 添加提示</el-button>
+                  <el-form-item label="思路提示">
+                    <el-input v-model="q.hint" type="textarea" :rows="2" maxlength="100" show-word-limit
+                      placeholder="1 句话方向性提示（不直接给出答案），留空则不显示"
+                      style="width:400px" @blur="autoSaveShared" />
                   </el-form-item>
                 </el-form>
               </div>
               <el-button size="small" @click="addQuestion">+ 添加题目</el-button>
             </div>
-            <!-- 单题兼容模式 -->
+            <!-- 单题兼容模式（questions 为空时回退） -->
             <el-form v-else label-width="100px" size="small">
               <el-form-item label="作业目标">
                 <el-input v-model="sharedContent.homework.goal" type="textarea" :rows="2" style="width:400px" @blur="autoSaveShared" />
               </el-form-item>
-              <el-form-item label="提示">
-                <div v-for="(h, i) in sharedContent.homework.hints" :key="'h'+i" style="margin-bottom:4px">
-                  <el-input v-model="sharedContent.homework.hints[i]" style="width:300px" placeholder="提示内容">
-                    <template #prefix>#{{ i+1 }}</template>
-                    <template #suffix>
-                      <el-button link type="danger" size="small" @click="removeHint(i)">×</el-button>
-                    </template>
-                  </el-input>
-                </div>
-                <el-button size="small" @click="addHint">+ 添加提示</el-button>
+              <el-form-item label="思路提示">
+                <el-input v-model="sharedContent.homework.hint" type="textarea" :rows="2" maxlength="100" show-word-limit
+                  placeholder="1 句话方向性提示（不直接给出答案），留空则不显示"
+                  style="width:400px" @blur="autoSaveShared" />
               </el-form-item>
             </el-form>
           </el-card>
@@ -240,6 +242,26 @@ const BatchReportView = {
                     @click="exportSinglePdf(r)">导出PDF</el-button>
                   <el-button v-if="batchId" size="small" link type="info"
                     @click="previewReport(r)">预览</el-button>
+                  <!-- PR3: 展示图上传 -->
+                  <el-upload
+                    v-if="batchId"
+                    :http-request="(opts) => handleShowcaseUpload(opts, r)"
+                    :show-file-list="false" accept="image/jpeg,image/png,image/webp"
+                  >
+                    <el-button size="small" link type="warning">
+                      {{ showcasePhotos[r.student_id] ? '🖼️ 替换展示图' : '📷 上传展示图' }}
+                    </el-button>
+                  </el-upload>
+                  <el-button v-if="showcasePhotos[r.student_id]" size="small" link type="danger"
+                    @click="handleShowcaseDelete(r)">删除展示图</el-button>
+                </span>
+              </div>
+              <!-- PR3: 已上传的展示图缩略图 -->
+              <div v-if="showcasePhotos[r.student_id]" style="margin-bottom:6px;">
+                <img :src="showcasePhotos[r.student_id]"
+                  style="max-width:200px;max-height:120px;border-radius:4px;border:1px solid #ebeef5;" />
+                <span v-if="uploadingShowcase[r.student_id]" style="color:#409eff;font-size:12px;margin-left:8px;">
+                  上传中...
                 </span>
               </div>
               <el-input v-model="r.evaluation" type="textarea" :rows="3"
@@ -465,6 +487,7 @@ const BatchReportView = {
         course_topic: '',
         course_description: '',
         project_folder: '',
+        homework_type: 'auto',  // PR1：作业题型 (qa/fill/fix/auto)
         teacher_observation: '',
         template_id: 'classic',
         output_dir: '',
@@ -494,6 +517,11 @@ const BatchReportView = {
       previewHtml: '',
       previewLoading: false,
       previewError: '',
+      // PR3: 学生展示图（每学生独有）
+      // 结构: { [studentId]: { path, uploading } }
+      showcasePhotos: {},
+      // PR3: 各学生上传中标记
+      uploadingShowcase: {},
     };
   },
 
@@ -603,7 +631,8 @@ const BatchReportView = {
         ability_improvement: '',
         content_items: [],
         vocabulary: { word: '', phonetic: '', meaning: '', example: '' },
-        homework: { goal: '', hints: [], questions: [] },
+        // PR1：hint（单数字符串）是新字段，hints/goal 保留以兼容老数据
+        homework: { goal: '', hint: '', hints: [], questions: [] },
       };
       this.isNoCode = false;
       this.config.course_description = '';
@@ -669,7 +698,7 @@ const BatchReportView = {
     // ===== 多题模式 =====
     addQuestion() {
       if (!this.sharedContent.homework.questions) this.sharedContent.homework.questions = [];
-      this.sharedContent.homework.questions.push({ goal: '', hints: [] });
+      this.sharedContent.homework.questions.push({ goal: '', hint: '' });
     },
     removeQuestion(qi) {
       if (!this.sharedContent.homework.questions) return;
@@ -871,6 +900,8 @@ const BatchReportView = {
           field: field,
           teacher_observation: this.config.teacher_observation || '',
           knowledge_points: this.sharedContent.knowledge_points,
+          // PR1：仅在重新生成作业时携带题型
+          ...(field === 'homework_vocab' ? { homework_type: this.config.homework_type || 'auto' } : {}),
         });
         // 后端返回 { field, value }
         const value = result.value;
@@ -958,6 +989,7 @@ const BatchReportView = {
           observations: this.observations,
           excluded_student_ids: excludedIds,
           create_vocabulary: this.createVocabulary,
+          homework_type: this.config.homework_type || 'auto',  // PR1
           template_id: this.config.template_id,
           output_dir: this.config.output_dir || null,
           auto_export: false,
@@ -1064,6 +1096,66 @@ const BatchReportView = {
         console.log('[autoSaveShared] 保存成功 homework.goal =', hwGoal);
       } catch (e) {
         console.warn('自动保存共享内容失败:', e);
+      }
+    },
+
+    // ===== PR3: 学生展示图 =====
+    async handleShowcaseUpload(opts, row) {
+      if (!this.batchId || !row) return;
+      const file = opts.file;
+      if (!file) return;
+
+      const sid = row.student_id;
+      this.uploadingShowcase = { ...this.uploadingShowcase, [sid]: true };
+      try {
+        // 1) 上传文件到 /api/assets/showcase/upload
+        const fd = new FormData();
+        fd.append('file', file);
+        const upResp = await fetch(
+          API.baseURL + `/api/assets/showcase/upload?batch_id=${this.batchId}&student_id=${sid}`,
+          { method: 'POST', body: fd }
+        );
+        if (!upResp.ok) {
+          const t = await upResp.text();
+          throw new Error('上传失败: ' + t);
+        }
+        const upData = await upResp.json();
+        const path = upData.path;
+
+        // 2) 写库
+        await fetch(API.baseURL + `/api/batch-reports/${this.batchId}/showcase`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ student_id: sid, path }),
+        }).then(r => {
+          if (!r.ok) throw new Error('保存失败');
+          return r.json();
+        });
+
+        this.showcasePhotos = { ...this.showcasePhotos, [sid]: path };
+        this.$message.success(`${row.student_name} 展示图已上传`);
+      } catch (e) {
+        console.error('展示图上传失败', e);
+        this.$message.error(`展示图上传失败: ${e.message || e}`);
+      } finally {
+        this.uploadingShowcase = { ...this.uploadingShowcase, [sid]: false };
+      }
+    },
+
+    async handleShowcaseDelete(row) {
+      if (!this.batchId || !row) return;
+      const sid = row.student_id;
+      try {
+        await fetch(
+          API.baseURL + `/api/batch-reports/${this.batchId}/showcase/${sid}`,
+          { method: 'DELETE' }
+        );
+        const newPhotos = { ...this.showcasePhotos };
+        delete newPhotos[sid];
+        this.showcasePhotos = newPhotos;
+        this.$message.success(`${row.student_name} 展示图已删除`);
+      } catch (e) {
+        this.$message.error('删除失败: ' + e.message);
       }
     },
 
@@ -1260,6 +1352,11 @@ const BatchReportView = {
               error: null,
             };
           });
+        }
+
+        // PR3: 恢复每学生展示图
+        if (batch.student_showcase_photos && typeof batch.student_showcase_photos === 'object') {
+          this.showcasePhotos = { ...batch.student_showcase_photos };
         }
 
         this.$message.success('已加载批量报告');

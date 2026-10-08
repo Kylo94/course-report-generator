@@ -121,6 +121,27 @@ def _empty_analysis(course_topic: str = "") -> dict:
 
 
 # =========================
+# 作业题型配置（PR1：固定 1 题 + 题型可指定）
+# =========================
+HOMEWORK_TYPE_GUIDE = {
+    "qa":   "问答题：让学生口头解释或画流程图（如'请用文字描述 check_attack() 的执行流程'）",
+    "fill": "填空题：给半截代码让学生补全（如'请补全下方代码中的 if 条件'）",
+    "fix":  "纠错题：给一段有 bug 的代码让学生找错（如'下面这段代码运行时飞船不会动，请找出错误'）",
+    "auto": "根据课程内容自动选择最合适的题型",
+}
+
+HOMEWORK_TYPE_DEFAULT = "auto"
+
+
+def _format_homework_type(homework_type: str) -> str:
+    """把 homework_type 渲染成 prompt 片段（不在允许范围内时回退到 auto）。"""
+    ht = (homework_type or HOMEWORK_TYPE_DEFAULT).lower()
+    if ht not in HOMEWORK_TYPE_GUIDE:
+        ht = HOMEWORK_TYPE_DEFAULT
+    return HOMEWORK_TYPE_GUIDE[ht]
+
+
+# =========================
 # 各步骤的温度配置
 # =========================
 TEMPS = {
@@ -449,11 +470,17 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
         entry_comment: str,
         project_type: str,
         homework_guidance: str = "",
+        homework_type: str = HOMEWORK_TYPE_DEFAULT,
     ) -> tuple[dict, dict]:
         """基于记忆生成作业和英文单词。
 
         优先使用用户写在入口注释中的作业描述，AI 应该将其直接作为作业内容。
         只有当入口注释和作业引导均为空时，才由 AI 自行生成作业。
+
+        PR1 改造：
+        - 固定只生成 1 道题
+        - homework_type 指定题型（qa/fill/fix/auto）
+        - 提示改为"思路提示"，单字符串 hint，不再泄露具体解法
         """
         kp_str = "、".join(knowledge_points)
         guidance_section = (
@@ -461,6 +488,7 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
             if homework_guidance
             else ""
         )
+        type_section = _format_homework_type(homework_type)
 
         # 判断入口注释是否包含作业描述（行内包含"作业"字样的都会被识别）
         has_hw_in_entry = any("作业" in line for line in entry_comment.splitlines()) if entry_comment else False
@@ -478,24 +506,27 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 【代码中实际存在的函数/API/方法清单（供作业引用的代码元素）】
 {self._code_refs}
 
-【作业——优先使用上方入口注释或作业引导中的描述，直接作为作业内容】
-- 如果入口注释或作业引导中已有作业描述，直接使用，**不要自行编造新的作业**
-- 如果描述中提到的代码元素不存在于上方清单中，可以保留但标注"（参考题）"
-- 每题 30-50 字
-- 提示 2-3 条
-- 即使作业描述很短，也要保持学生的语言水平合适（{student_level}）
+【题目要求】
+- 题目数量：**只生成 1 道题**，即使原始描述包含多道也只保留 1 道最具代表性的
+- 题型：{type_section}
+- goal 长度 30-50 字
+
+【思路提示（hint）要求——必须遵守，避免泄露答案】
+- 只写 1 句话，10-25 个汉字
+- **只给方向性启发，不给具体解法**
+- **不能出现**：函数名、API 名、代码片段、答案关键词
+- **可以出现**：可参考的已学概念、需要思考的方向
+- 好的示例：'想想本节课学过的判断语句该怎么用'
+- 不好的示例：'使用 if status==1 判断'（这是答案）
+- 字段名为 hint（**单数**字符串），不是 hints（列表）
 
 输出 JSON：
 {{
   "homework": {{
     "questions": [
       {{
-        "goal": "直接使用用户作业描述中的第1题",
-        "hints": ["提示1", "提示2"]
-      }},
-      {{
-        "goal": "直接使用用户作业描述中的第2题...",
-        "hints": [...]
+        "goal": "原样使用用户作业描述中的题目（或合并为 1 道）",
+        "hint": "1 句方向性提示"
       }}
     ]
   }},
@@ -509,7 +540,7 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 只输出 JSON，不要解释。"""
         else:
             # 用户没写作业描述 → AI 自行基于代码生成
-            prompt = f"""根据你阅读的代码和知识点（{kp_str}），生成课后作业（多题）和英文单词。
+            prompt = f"""根据你阅读的代码和知识点（{kp_str}），生成 1 道课后作业和英文单词。
 
 学生水平：{student_level}
 项目类型：{project_type}
@@ -518,16 +549,22 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 【代码中实际存在的函数/API/方法清单（只能引用以下名称，禁止编造）】
 {self._code_refs}
 
-【作业——只基于代码中实际出现的函数、类方法或 API 调用出题，生成 1-3 道题】
-- 根据课程内容决定题型：
-  · 概念/逻辑类 → 问答题（"请描述 XX() 的执行流程"）
-  · 参数/配置类 → 修改题（"请修改 XX() 中的配置"）
-  · 代码/模仿类 → 填空题或补全题
+【题目要求】
+- 题目数量：**只生成 1 道题**，不要多题
+- 题型：{type_section}
 - **只能引用上方清单中实际存在的代码元素，禁止编造**
-- 每题 30-50 字
-- 难度适中
-- 题型在 goal 中明确体现
-- 提示 2-3 条
+- goal 长度 30-50 字
+- 难度适中（{student_level} 水平）
+- 字段名为 questions（数组）→ goal（字符串）
+
+【思路提示（hint）要求——必须遵守，避免泄露答案】
+- 只写 1 句话，10-25 个汉字
+- **只给方向性启发，不给具体解法**
+- **不能出现**：函数名、API 名、代码片段、答案关键词
+- **可以出现**：可参考的已学概念、需要思考的方向
+- 好的示例：'想想本节课学过的判断语句该怎么用'
+- 不好的示例：'使用 if status==1 判断'（这是答案）
+- 字段名为 hint（**单数**字符串），不是 hints（列表）
 
 【单词——来自代码中实际出现的术语、函数名或 API 函数名】
 - 音标、中文释义、代码语境例句
@@ -537,12 +574,8 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
   "homework": {{
     "questions": [
       {{
-        "goal": "题1（含题型动词，引用代码中的函数名或 API）",
-        "hints": ["提示1", "提示2"]
-      }},
-      {{
-        "goal": "题2...",
-        "hints": [...]
+        "goal": "1 道题（含题型动词，引用代码中的函数名或 API）",
+        "hint": "1 句方向性提示"
       }}
     ]
   }},
@@ -569,11 +602,18 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
                 "goal": hw.get("goal", ""),
                 "hints": hw.get("hints", []),
             }
-        # 顶层 goal/hints 保留为 questions[0] 的同步，方便老渲染逻辑
+        # 顶层 goal/hint 保留为 questions[0] 的同步，方便老渲染逻辑 + 兼容老 hints 列表
         if hw.get("questions"):
             first = hw["questions"][0]
             hw.setdefault("goal", first.get("goal", ""))
-            hw.setdefault("hints", first.get("hints", []))
+            # 优先用 hint（PR1 新字段），否则从 hints 列表回退（旧数据）
+            hint_value = first.get("hint")
+            if not hint_value and first.get("hints"):
+                hint_value = first["hints"][0] if isinstance(first["hints"], list) else str(first["hints"])
+            hw.setdefault("hint", hint_value or "")
+            # 同步一份到 questions[0].hint，方便新模板直接读 q.hint
+            if "hint" not in first:
+                first["hint"] = hint_value or ""
         self._output("homework", hw)
         self._output("vocabulary", vocab)
         return hw, vocab
@@ -779,11 +819,14 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
         course_topic: str,
         course_description: str,
         homework_guidance: str = "",
+        homework_type: str = HOMEWORK_TYPE_DEFAULT,
     ) -> tuple[dict, dict]:
         """纯图文模式：基于课程描述生成作业和单词。
 
         优先使用课程描述中的作业要求，AI 应将作业要求直接作为作业内容。
         只有当课程描述中不含作业要求时，才由 AI 自行生成。
+
+        PR1 改造：固定 1 题 + 题型可指定 + 提示改为"思路提示"（hint 单数）。
         """
         kp_str = "、".join(knowledge_points)
         guidance_section = (
@@ -791,6 +834,7 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
             if homework_guidance
             else ""
         )
+        type_section = _format_homework_type(homework_type)
 
         has_hw_in_desc = any("作业" in line for line in course_description.splitlines()) if course_description else False
 
@@ -806,19 +850,26 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 
 知识点：{kp_str}{guidance_section}
 
-【作业——优先使用课程描述中的作业要求，直接作为作业内容】
-- 如果课程描述中已有作业要求，直接使用，**不要自行编造新的作业**
-- 如果描述过于简略，可以适当补充为完整题目格式
-- 每题 30-50 字
-- 提示 2-3 条
+【题目要求】
+- 题目数量：**只生成 1 道题**，即使原始描述包含多道也只保留 1 道
+- 题型：{type_section}
+- goal 长度 30-50 字
+
+【思路提示（hint）要求——必须遵守，避免泄露答案】
+- 只写 1 句话，10-25 个汉字
+- **只给方向性启发，不给具体解法**
+- **不能出现**：具体步骤、答案关键词、完整操作流程
+- 好的示例：'结合这节课学过的概念想一想'
+- 不好的示例：'按从左到右的顺序读出每个音'（这是答案）
+- 字段名为 hint（**单数**字符串），不是 hints（列表）
 
 输出 JSON：
 {{
   "homework": {{
     "questions": [
       {{
-        "goal": "直接使用课程描述中的作业要求",
-        "hints": ["提示1", "提示2"]
+        "goal": "原样使用课程描述中的作业要求（或合并为 1 道）",
+        "hint": "1 句方向性提示"
       }}
     ]
   }},
@@ -831,7 +882,7 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 }}
 只输出 JSON，不要解释。"""
         else:
-            prompt = f"""根据以下课程信息，生成课后作业（多题）和英文单词。
+            prompt = f"""根据以下课程信息，生成 1 道课后作业和英文单词。
 
 课程主题：{course_topic}
 学生水平：{student_level}
@@ -841,16 +892,21 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 
 知识点：{kp_str}{guidance_section}
 
-【作业——只基于课程描述中实际出现的内容出题，生成 1-3 道题】
-- 根据课程内容决定题型：
-  · 概念/逻辑类 → 问答题
-  · 操作类 → 实践题
-  · 模仿类 → 填空题或补全题
+【题目要求】
+- 题目数量：**只生成 1 道题**
+- 题型：{type_section}
 - **只能引用课程描述中实际存在的内容，禁止编造**
-- 每题 30-50 字
-- 难度适中
-- 题型在 goal 中明确体现
-- 提示 2-3 条
+- goal 长度 30-50 字
+- 难度适中（{student_level} 水平）
+- 字段名为 questions（数组）→ goal（字符串）
+
+【思路提示（hint）要求——必须遵守，避免泄露答案】
+- 只写 1 句话，10-25 个汉字
+- **只给方向性启发，不给具体解法**
+- **不能出现**：具体步骤、答案关键词、完整操作流程
+- 好的示例：'结合这节课学过的概念想一想'
+- 不好的示例：'按从左到右的顺序读出每个音'（这是答案）
+- 字段名为 hint（**单数**字符串），不是 hints（列表）
 
 【单词——来自课程中涉及的术语或英文关键词】
 - 音标、中文释义、语境例句
@@ -860,12 +916,8 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
   "homework": {{
     "questions": [
       {{
-        "goal": "题1（含题型动词，引用课程中的实际内容）",
-        "hints": ["提示1", "提示2"]
-      }},
-      {{
-        "goal": "题2...",
-        "hints": [...]
+        "goal": "1 道题（含题型动词，引用课程中的实际内容）",
+        "hint": "1 句方向性提示"
       }}
     ]
   }},
@@ -894,7 +946,13 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
         if hw.get("questions"):
             first = hw["questions"][0]
             hw.setdefault("goal", first.get("goal", ""))
-            hw.setdefault("hints", first.get("hints", []))
+            # 优先用 hint（PR1 新字段），回退到 hints[0]（老数据）
+            hint_value = first.get("hint")
+            if not hint_value and first.get("hints"):
+                hint_value = first["hints"][0] if isinstance(first["hints"], list) else str(first["hints"])
+            hw.setdefault("hint", hint_value or "")
+            if "hint" not in first:
+                first["hint"] = hint_value or ""
         self._output("homework", hw)
         self._output("vocabulary", vocab)
         return hw, vocab

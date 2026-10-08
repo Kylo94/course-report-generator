@@ -52,6 +52,14 @@
     <div class="placeholder-text">运行截图位置</div>
   </div>
   {% endif %}
+
+  <!-- PR3: 学生作品展示（每学生独有） -->
+  {% if showcase_photo %}
+  <div class="section-title">📷 学生作品展示</div>
+  <div class="showcase-photo">
+    <img src="{{ showcase_photo }}" alt="学生作品展示">
+  </div>
+  {% endif %}
 </div>
 
 <!-- ===== 第 2 页：内容详解 ===== -->
@@ -141,18 +149,15 @@
   <div class="homework-section">
     {% if homework.questions and homework.questions|length > 0 %}
     {% for q in homework.questions %}
+    {% set _q_hint = q.hint if q.hint else (q.hints[0] if (q.hints and q.hints|length > 0) else '') %}
     <div class="homework-question"{% if not loop.first %} style="margin-top:3mm;padding-top:3mm;border-top:1px dashed #ccc;"{% endif %}>
       <div class="homework-goal">
         <strong>第 {{ loop.index }} 题：</strong>{{ q.goal }}
       </div>
-      {% if q.hints %}
+      {% if _q_hint %}
       <div class="homework-subsection">
-        <div class="homework-subtitle">💡 提示</div>
-        <ul class="homework-list">
-          {% for h in q.hints %}
-          <li>{{ h }}</li>
-          {% endfor %}
-        </ul>
+        <div class="homework-subtitle">💡 思路提示</div>
+        <div class="homework-hint-text">{{ _q_hint }}</div>
       </div>
       {% endif %}
     </div>
@@ -174,15 +179,15 @@
     </div>
     {% endif %}
 
-    {% if homework.hints and (not homework.questions or homework.questions|length == 0) %}
-    <div class="homework-subsection">
-      <div class="homework-subtitle">💡 提示</div>
-      <ul class="homework-list">
-        {% for h in homework.hints %}
-        <li>{{ h }}</li>
-        {% endfor %}
-      </ul>
-    </div>
+    {# PR1：单题模式下也展示思路提示（兼容老 homework.hints 列表） #}
+    {% if not homework.questions or homework.questions|length == 0 %}
+      {% set _hw_hint = homework.hint if homework.hint else (homework.hints[0] if (homework.hints and homework.hints|length > 0) else '') %}
+      {% if _hw_hint %}
+      <div class="homework-subsection">
+        <div class="homework-subtitle">💡 思路提示</div>
+        <div class="homework-hint-text">{{ _hw_hint }}</div>
+      </div>
+      {% endif %}
     {% endif %}
   </div>
   {% endif %}

@@ -26,7 +26,7 @@ from typing import Any
 from backend.llm.base import LLMProvider, get_provider
 from backend.schemas.project import ProjectMetaSchema
 from backend.schemas.student import StudentRead
-from backend.services.ai_conversation import AIConversation
+from backend.services.ai_conversation import AIConversation, HOMEWORK_TYPE_DEFAULT
 from backend.utils.logger import get_logger
 
 log = get_logger(__name__)
@@ -97,11 +97,13 @@ class AIOrchestrator:
         student: StudentRead,
         teacher_observation: str = "",
         existing_content: dict | None = None,
+        homework_type: str = HOMEWORK_TYPE_DEFAULT,
     ) -> GenerationResult:
         """完整生成：读代码 → 知识点 → 内容概述 → 作业/单词 → 评价。
 
         existing_content: 用户已填写的字段（如 homework/knowledge_points 等），
                           AI 跳过这些字段的生成，直接使用用户提供的值。
+        homework_type: 作业题型（qa/fill/fix/auto），PR1 引入。
         """
         log.info("开始生成报告: course=%s student=%s", project.course_title, student.name)
         existing_content = existing_content or {}
@@ -169,6 +171,7 @@ class AIOrchestrator:
                 hw, vocab = await conv.step_homework_vocab(
                     result.knowledge_points, student.base_level,
                     entry_comment, project_type, homework_guidance,
+                    homework_type=homework_type,
                 )
                 result.homework = hw
                 result.vocabulary = vocab
@@ -219,6 +222,7 @@ class AIOrchestrator:
         skip_code_analysis: bool = False,
         skip_homework_gen: bool = False,
         existing_content: dict | None = None,
+        homework_type: str = HOMEWORK_TYPE_DEFAULT,
     ) -> dict:
         """批量模式：所有学生共享的内容（Steps 0-3）。
 
@@ -230,15 +234,17 @@ class AIOrchestrator:
         - skip_homework_gen: 是否有作业截图，跳过作业 AI 生成
         - existing_content: 用户已填写的共享字段（如 homework/knowledge_points 等），
                             AI 跳过这些字段的生成，直接使用用户提供的值
+        - homework_type: 作业题型（qa/fill/fix/auto），PR1 引入
         """
         log.info(
-            "批量共享生成: course=%s code_imgs=%d hw_imgs=%d vocab=%s skip_code=%s skip_hw=%s",
+            "批量共享生成: course=%s code_imgs=%d hw_imgs=%d vocab=%s skip_code=%s skip_hw=%s type=%s",
             project.course_title,
             len(code_screenshots or []),
             len(homework_screenshots or []),
             create_vocabulary,
             skip_code_analysis,
             skip_homework_gen,
+            homework_type,
         )
         existing_content = existing_content or {}
 
@@ -307,6 +313,7 @@ class AIOrchestrator:
                     _hw_discard, vocab = await conv.step_homework_vocab(
                         kp, default_student.base_level, entry_comment, project_type,
                         homework_guidance,
+                        homework_type=homework_type,
                     )
                     log.info("单词已单独生成（作业已跳过）")
                 except Exception as e:
@@ -319,6 +326,7 @@ class AIOrchestrator:
             hw, vocab = await conv.step_homework_vocab(
                 kp, default_student.base_level, entry_comment, project_type,
                 homework_guidance,
+                homework_type=homework_type,
             )
             # 如果不需要单词，清空
             if not create_vocabulary:
@@ -354,14 +362,19 @@ class AIOrchestrator:
         create_vocabulary: bool = True,
         skip_homework_gen: bool = False,
         existing_content: dict | None = None,
+        homework_type: str = HOMEWORK_TYPE_DEFAULT,
     ) -> dict:
-        """纯图文模式的共享内容生成（无代码分析，基于课程描述）。"""
+        """纯图文模式的共享内容生成（无代码分析，基于课程描述）。
+
+        homework_type: 作业题型（qa/fill/fix/auto），PR1 引入。
+        """
         log.info(
-            "纯图文共享生成: topic=%s desc_len=%d code_imgs=%d hw_imgs=%d",
+            "纯图文共享生成: topic=%s desc_len=%d code_imgs=%d hw_imgs=%d type=%s",
             course_topic,
             len(course_description),
             len(code_screenshots or []),
             len(homework_screenshots or []),
+            homework_type,
         )
         existing_content = existing_content or {}
 
@@ -404,6 +417,7 @@ class AIOrchestrator:
                 try:
                     _hw_discard, vocab = await conv.step_homework_vocab_no_code(
                         kp, default_student.base_level, course_topic, course_description,
+                        homework_type=homework_type,
                     )
                     log.info("无代码模式单词已单独生成（作业已跳过）")
                 except Exception as e:
@@ -414,6 +428,7 @@ class AIOrchestrator:
         else:
             hw, vocab = await conv.step_homework_vocab_no_code(
                 kp, default_student.base_level, course_topic, course_description,
+                homework_type=homework_type,
             )
             if not create_vocabulary:
                 vocab = {"word": "", "phonetic": "", "meaning": "", "example": ""}
@@ -518,12 +533,16 @@ class AIOrchestrator:
         student: StudentRead,
         knowledge_points: list[str] | None = None,
         teacher_observation: str = "",
+        homework_type: str = HOMEWORK_TYPE_DEFAULT,
     ) -> Any:
-        """重新生成单个字段（基于新的对话，但读代码阶段用缓存避免重复 LLM）。"""
+        """重新生成单个字段（基于新的对话，但读代码阶段用缓存避免重复 LLM）。
+
+        homework_type: 仅在 field_name == "homework_vocab" 时生效（PR1 引入）。
+        """
         if field_name not in STEP_FIELDS:
             raise ValueError(f"未知字段: {field_name}")
 
-        log.info("重生成字段: %s", field_name)
+        log.info("重生成字段: %s type=%s", field_name, homework_type if field_name == "homework_vocab" else "-")
 
         conv = AIConversation(self.provider)
         code_content = self._build_code_content(project)
@@ -553,6 +572,7 @@ class AIOrchestrator:
             hw, vocab = await conv.step_homework_vocab(
                 kp, student.base_level, entry_comment, project_type,
                 homework_guidance,
+                homework_type=homework_type,
             )
             return {"homework": hw, "vocabulary": vocab}
 

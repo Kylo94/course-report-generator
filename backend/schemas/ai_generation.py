@@ -68,3 +68,8 @@ class AIRegenerateRequest(BaseModel):
     field: str = Field(..., description="字段名：knowledge_points 等")
     teacher_observation: str = ""
     knowledge_points: list[str] | None = None
+    # PR1：仅 field == "homework_vocab" 时生效（qa/fill/fix/auto）
+    homework_type: str | None = Field(
+        default=None,
+        description="作业题型（qa 问答题/fill 填空题/fix 纠错题/auto 自动），仅 homework_vocab 字段使用",
+    )

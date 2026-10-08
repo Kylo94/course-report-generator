@@ -250,6 +250,18 @@ body {
   color: #B8944E;
 }
 
+/* PR1：思路提示（hint 单数字符串）样式 */
+.homework-hint-text {
+  font-size: var(--fs-body, 11pt);
+  line-height: 1.7;
+  color: #4A5568;
+  padding: 3mm 5mm;
+  background: #FFFBEB;
+  border-left: 3px solid #B8944E;
+  border-radius: 4px;
+  font-style: italic;
+}
+
 /* ===== 评价 ===== */
 .evaluation {
   font-size: var(--fs-body, 11pt);
@@ -345,3 +357,16 @@ body {
 }
 .placeholder-icon { font-size: 24pt; }
 .placeholder-text { font-size: 11pt; }
+/* PR3: 学生作品展示 */
+.showcase-photo {
+  margin: 3mm 0;
+  text-align: center;
+  page-break-inside: avoid;
+}
+.showcase-photo img {
+  max-width: 100%;
+  max-height: 80mm;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
