@@ -31,6 +31,8 @@ class BatchGenerateRequest(BaseModel):
     create_vocabulary: bool = True  # 是否生成单词卡
     skip_code_analysis: bool = False  # 是否有代码截图 → 跳过程序解析
     skip_homework_gen: bool = False  # 是否有作业截图 → 跳过作业生成
+    # PR1：作业题型（qa 问答题 / fill 填空题 / fix 纠错题 / auto 自动）
+    homework_type: str = "auto"
 
 
 class BatchStudentResult(BaseModel):
@@ -77,6 +79,8 @@ class BatchReportRead(BaseModel):
     teacher_observation: str = ""
     observations: dict = Field(default_factory=dict)
     ai_meta: dict = Field(default_factory=dict)
+    # PR3: 每学生展示图
+    student_showcase_photos: dict = Field(default_factory=dict)
     status: str = "draft"
     created_at: datetime | None = None
     updated_at: datetime | None = None

@@ -852,6 +852,7 @@ async def batch_generate_reports(
                     create_vocabulary=body.create_vocabulary,
                     skip_homework_gen=bool(body.homework_screenshots),
                     existing_content=body.existing_content,
+                    homework_type=body.homework_type,
                 )
             else:
                 shared = await orchestrator.generate_shared(
@@ -864,6 +865,7 @@ async def batch_generate_reports(
                     skip_code_analysis=bool(body.code_screenshots),
                     skip_homework_gen=bool(body.homework_screenshots),
                     existing_content=body.existing_content,
+                    homework_type=body.homework_type,
                 )
         except Exception as e:
             log.exception("共享内容生成失败: %s", e)
@@ -1400,3 +1402,175 @@ async def list_drafts(
         "page": page,
         "page_size": page_size,
     }
+
+
+# =========================
+# PR3: 学生展示图（每学生独有）
+# =========================
+#
+# 设计：
+# - 上传：POST /api/assets/showcase/upload (form: batch_id, student_id, file)
+#   → 保存到 data/showcase/batch{batch_id}_stu{student_id}_{hash}.{ext}
+#   → 返回 {"path": "/api/assets/showcase/xxx.jpg", "url": "..."}
+# - 写库：POST /api/batch-reports/{batch_id}/showcase  body: {student_id, path}
+#   → 更新 batch_reports.student_showcase_photos JSON
+# - 删除：DELETE /api/batch-reports/{batch_id}/showcase/{student_id}
+#   → 从 JSON 移除并删除磁盘文件
+
+
+_ALLOWED_SHOWCASE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+_MAX_SHOWCASE_BYTES = 10 * 1024 * 1024  # 10MB
+
+
+@router.post(
+    "/api/assets/showcase/upload",
+    summary="上传学生展示图（PR3）",
+)
+async def upload_showcase(
+    batch_id: int,
+    student_id: int,
+    file: UploadFile = ...,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """上传某学生在某批量报告中的展示图。
+
+    - 接受 jpg/png/webp，最大 10MB
+    - 保存到 data/showcase/
+    - 不写库；调用方需再用 POST /api/batch-reports/{id}/showcase 把路径写入 batch
+    """
+    settings = get_settings()
+    screenshot_dir = Path(settings.report.screenshot_dir)
+    showcase_dir = screenshot_dir.parent / "showcase"
+    showcase_dir.mkdir(parents=True, exist_ok=True)
+
+    # 校验扩展名
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in _ALLOWED_SHOWCASE_EXTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的图片格式: {ext}（仅允许 jpg/png/webp）",
+        )
+
+    # 校验大小
+    content = await file.read()
+    if len(content) > _MAX_SHOWCASE_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"图片过大: {len(content)} bytes（最大 {_MAX_SHOWCASE_BYTES // 1024 // 1024}MB）",
+        )
+
+    fname = f"batch{batch_id}_stu{student_id}_{uuid.uuid4().hex[:8]}{ext}"
+    out = showcase_dir / fname
+    out.write_bytes(content)
+    log.info("展示图已保存: %s (%d bytes)", out, len(content))
+
+    return {
+        "path": f"/api/assets/showcase/{fname}",
+        "filename": fname,
+        "size": len(content),
+    }
+
+
+@router.post(
+    "/api/batch-reports/{batch_id}/showcase",
+    summary="把展示图路径写入批量报告（PR3）",
+)
+async def set_student_showcase(
+    batch_id: int,
+    body: dict = Body(...),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """设置某学生在某批量报告中的展示图路径。"""
+    from backend.services import batch_reports as batch_svc
+    from backend.models import BatchReport
+
+    student_id = body.get("student_id")
+    path = body.get("path")
+    if student_id is None or not path:
+        raise HTTPException(status_code=400, detail="student_id 和 path 必填")
+
+    try:
+        batch = await batch_svc.get_batch_report(session, batch_id)
+    except batch_svc.BatchReportNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # 读旧值
+    import json as _json
+    photos: dict[str, str] = {}
+    if batch.student_showcase_photos:
+        try:
+            photos = _json.loads(batch.student_showcase_photos)
+        except (_json.JSONDecodeError, TypeError):
+            photos = {}
+
+    sid_str = str(student_id)
+    old_path = photos.get(sid_str)
+    photos[sid_str] = path
+    batch.student_showcase_photos = _json.dumps(photos, ensure_ascii=False)
+    batch.updated_at = datetime.now(timezone.utc)
+    await session.commit()
+    log.info("批量报告 %d 学生 %d 展示图已更新: %s", batch_id, student_id, path)
+
+    # 清理旧文件（如果旧路径在 showcase/ 目录内）
+    if old_path and old_path != path and old_path.startswith("/api/assets/showcase/"):
+        try:
+            settings = get_settings()
+            screenshot_dir = Path(settings.report.screenshot_dir)
+            showcase_dir = screenshot_dir.parent / "showcase"
+            old_filename = old_path[len("/api/assets/showcase/"):]
+            old_file = showcase_dir / old_filename
+            if old_file.exists():
+                old_file.unlink()
+                log.info("已删除旧展示图: %s", old_file)
+        except Exception as e:
+            log.warning("删除旧展示图失败: %s", e)
+
+    return {"batch_id": batch_id, "student_id": student_id, "path": path, "total": len(photos)}
+
+
+@router.delete(
+    "/api/batch-reports/{batch_id}/showcase/{student_id}",
+    summary="删除某学生的展示图（PR3）",
+)
+async def delete_student_showcase(
+    batch_id: int,
+    student_id: int,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """从批量报告中删除某学生的展示图（同时删除磁盘文件）。"""
+    from backend.services import batch_reports as batch_svc
+    import json as _json
+
+    try:
+        batch = await batch_svc.get_batch_report(session, batch_id)
+    except batch_svc.BatchReportNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    if not batch.student_showcase_photos:
+        return {"batch_id": batch_id, "student_id": student_id, "removed": False}
+
+    photos: dict[str, str] = {}
+    try:
+        photos = _json.loads(batch.student_showcase_photos)
+    except (_json.JSONDecodeError, TypeError):
+        photos = {}
+
+    sid_str = str(student_id)
+    old_path = photos.pop(sid_str, None)
+    batch.student_showcase_photos = _json.dumps(photos, ensure_ascii=False) if photos else None
+    batch.updated_at = datetime.now(timezone.utc)
+    await session.commit()
+
+    if old_path and old_path.startswith("/api/assets/showcase/"):
+        try:
+            settings = get_settings()
+            screenshot_dir = Path(settings.report.screenshot_dir)
+            showcase_dir = screenshot_dir.parent / "showcase"
+            old_filename = old_path[len("/api/assets/showcase/"):]
+            old_file = showcase_dir / old_filename
+            if old_file.exists():
+                old_file.unlink()
+        except Exception as e:
+            log.warning("删除展示图文件失败: %s", e)
+
+    return {"batch_id": batch_id, "student_id": student_id, "removed": bool(old_path)}

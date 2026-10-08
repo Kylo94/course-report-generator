@@ -79,6 +79,12 @@ class BatchReport(Base):
         Text, nullable=True, default=None
     )  # JSON {provider, model, ...}
 
+    # PR3: 每学生独有的展示图（报告"作品展示"区域使用）
+    # JSON dict: {str(student_id): "/api/assets/showcase/batch{bid}_stu{sid}_{hash}.jpg"}
+    student_showcase_photos: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None
+    )
+
     # 状态
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="draft", index=True

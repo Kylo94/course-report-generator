@@ -53,6 +53,15 @@ def _mount_static(app: FastAPI) -> None:
         name="screenshots",
     )
 
+    # PR3: 学生展示图（每学生独有，报告"作品展示"区域用）
+    showcase_dir = screenshot_dir.parent / "showcase"
+    showcase_dir.mkdir(parents=True, exist_ok=True)
+    app.mount(
+        "/api/assets/showcase",
+        StaticFiles(directory=str(showcase_dir)),
+        name="showcase",
+    )
+
     # 资产文件（Logo、背景图）：
     #   data/assets/  → 用户上传（优先，不入 git）
     #   static/assets/ → 内置默认（入库，Docker 镜像自带）

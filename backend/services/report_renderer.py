@@ -46,6 +46,12 @@ def _url_to_fs_path(url_path: str) -> str | None:
         full = Path(settings.report.screenshot_dir) / filename
         if full.exists():
             return str(full.resolve())
+    elif url_path.startswith("/api/assets/showcase/"):
+        # PR3: 学生展示图目录
+        filename = url_path[len("/api/assets/showcase/"):]
+        full = Path(settings.report.screenshot_dir).parent / "showcase" / filename
+        if full.exists():
+            return str(full.resolve())
     elif url_path.startswith("/api/assets/"):
         # 通用 assets 路径：/api/assets/bg2.png → data/assets/bg2.png
         # 优先 data/assets/（用户上传），回退 static/assets/（内置默认）
@@ -196,12 +202,15 @@ class ReportRenderer:
         run_screenshots: list[str] | None = None,
         code_screenshots: list[str] | None = None,
         homework_screenshots: list[str] | None = None,
+        showcase_photo: str | None = None,
     ) -> str:
         """渲染完整报告 HTML。
 
         run_screenshots: 运行效果/项目截图 URL 列表，模板中在运行效果区域展示图片。
         code_screenshots: 代码截图 URL 列表，模板中优先显示图片而非 code_excerpt 文本。
         homework_screenshots: 作业截图 URL 列表，模板中在作业区域展示图片。
+        showcase_photo: PR3 每学生独有的展示图 URL（/api/assets/showcase/xxx.jpg），
+                        模板中在"学生作品展示"区域展示。None/空字符串则不展示。
         """
 
         # 合并布局覆盖与主题
@@ -417,6 +426,16 @@ class ReportRenderer:
                 else:
                     resolved_run_screenshots.append(s)
 
+        # PR3: 展示图（单张）URL → data URI
+        resolved_showcase_photo: str | None = None
+        if showcase_photo and isinstance(showcase_photo, str):
+            fs_path = _url_to_fs_path(showcase_photo)
+            if fs_path:
+                data_uri = _image_to_data_uri(fs_path)
+                resolved_showcase_photo = data_uri or fs_path
+            else:
+                resolved_showcase_photo = showcase_photo
+
         # 模板上下文
         ctx = {
             "css_content": self.css_content,
@@ -436,6 +455,8 @@ class ReportRenderer:
             "run_screenshots": resolved_run_screenshots,
             "code_screenshots": resolved_code_screenshots,
             "homework_screenshots": resolved_homework_screenshots,
+            # PR3: 学生独有展示图
+            "showcase_photo": resolved_showcase_photo,
         }
 
         # 使用 Jinja2 渲染

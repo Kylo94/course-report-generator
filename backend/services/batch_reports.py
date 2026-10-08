@@ -166,6 +166,7 @@ def to_list_dict(record: BatchReport) -> dict[str, Any]:
     # 计算学生数量
     evals = _load_json(record.evaluations, {})
     student_count = len(evals) if isinstance(evals, dict) else 0
+    showcase = _load_json(record.student_showcase_photos, {}) or {}
     return {
         "id": record.id,
         "class_id": record.class_id,
@@ -176,6 +177,7 @@ def to_list_dict(record: BatchReport) -> dict[str, Any]:
         "template_id": record.template_id,
         "status": record.status,
         "student_count": student_count,
+        "showcase_count": len(showcase) if isinstance(showcase, dict) else 0,
         "created_at": record.created_at,
         "updated_at": record.updated_at,
         "_type": "batch",  # 前端区分报告类型
@@ -207,6 +209,8 @@ def to_read_dict(record: BatchReport) -> dict[str, Any]:
         "teacher_observation": record.teacher_observation or "",
         "observations": _load_json(record.observations, {}),
         "ai_meta": _load_json(record.ai_meta, {}),
+        # PR3: 每学生展示图 dict（sid → url）
+        "student_showcase_photos": _load_json(record.student_showcase_photos, {}) or {},
         "status": record.status,
         "created_at": record.created_at,
         "updated_at": record.updated_at,

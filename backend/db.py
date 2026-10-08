@@ -135,6 +135,13 @@ async def _migrate_schema() -> None:
                 sa.text("ALTER TABLE batch_reports ADD COLUMN course_description VARCHAR(2000) NOT NULL DEFAULT ''")
             )
 
+        # PR3: 检查 batch_reports 是否已有 student_showcase_photos 列
+        if not await conn.run_sync(_has_column, "batch_reports", "student_showcase_photos"):
+            _log.info("迁移数据库: 添加 batch_reports.student_showcase_photos 列")
+            await conn.execute(
+                sa.text("ALTER TABLE batch_reports ADD COLUMN student_showcase_photos TEXT")
+            )
+
 
 async def init_db(echo: bool = False) -> None:
     """
