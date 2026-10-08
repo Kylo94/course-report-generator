@@ -60,12 +60,23 @@ const DraftListView = {
             </el-checkbox>
             <span style="color:#909399;font-size:13px;">已选 {{ selectedIds.length }} 项</span>
             <el-button
+              size="small" type="primary" :disabled="!canBatchExport"
+              @click="showBatchExportDialog"
+              :loading="batchExporting"
+            >
+              📤 批量导出
+            </el-button>
+            <el-button
               size="small" type="danger" :disabled="selectedIds.length === 0"
               @click="confirmBatchDelete"
               :loading="batchDeleting"
             >
               批量删除
             </el-button>
+            <span v-if="selectedRecordIds.length > 0 && selectedBatchIds.length > 0"
+              style="color:#E6A23C;font-size:12px;">
+              提示：批量导出仅支持「批量报告」，个人报告请单独操作
+            </span>
           </div>
           <el-table
             ref="tableRef"
@@ -134,6 +145,112 @@ const DraftListView = {
         </div>
       </el-card>
     </div>
+
+    <!-- PR2: 批量导出弹窗 -->
+    <el-dialog
+      v-model="batchExportDialog"
+      title="📤 批量导出"
+      width="640px"
+      :close-on-click-modal="false"
+      @close="onBatchExportDialogClose"
+    >
+      <div v-if="batchStudentsLoading" style="text-align:center;padding:24px;">
+        <el-icon class="is-loading"><Loading /></el-icon>
+        加载学生列表中...
+      </div>
+      <template v-else-if="selectedBatchItems.length > 0">
+        <el-form label-width="100px" size="small">
+          <el-form-item label="已选批量报告">
+            <div style="line-height:1.8;">
+              <div v-for="b in selectedBatchItems" :key="b.id" style="margin-bottom:4px;">
+                <el-tag size="small" type="success">#{{ b.id }}</el-tag>
+                <strong style="margin-left:6px;">{{ b.course_topic || '(无课程名)' }}</strong>
+                <span style="color:#909399;margin-left:6px;">
+                  {{ b.class_name || '-' }} · {{ b.course_date || '-' }} · {{ b.student_count || 0 }} 人
+                </span>
+              </div>
+            </div>
+          </el-form-item>
+
+          <el-form-item label="学生选择">
+            <div
+              v-for="b in selectedBatchItems"
+              :key="'stu-' + b.id"
+              style="margin-bottom:8px;padding:8px;border:1px solid #ebeef5;border-radius:4px;"
+            >
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <strong>#{{ b.id }} {{ b.course_topic || '' }}</strong>
+                <el-button
+                  size="small" type="text"
+                  @click="selectAllStudentsInBatch(b.id)"
+                >全选</el-button>
+                <el-button
+                  size="small" type="text"
+                  @click="deselectAllStudentsInBatch(b.id)"
+                >清空</el-button>
+                <span style="color:#909399;font-size:12px;">
+                  已选 {{ (batchStudentSelection[b.id] || []).length }} / {{ (batchStudents[b.id] || []).length }}
+                </span>
+              </div>
+              <el-checkbox-group v-model="batchStudentSelection[b.id]">
+                <el-checkbox
+                  v-for="s in (batchStudents[b.id] || [])"
+                  :key="s.id"
+                  :value="s.id"
+                >{{ s.name }}</el-checkbox>
+              </el-checkbox-group>
+              <div v-if="(batchStudents[b.id] || []).length === 0" style="color:#909399;font-size:12px;">
+                该批量报告暂无学生
+              </div>
+            </div>
+          </el-form-item>
+
+          <el-form-item label="导出格式">
+            <el-radio-group v-model="batchExportFormat">
+              <el-radio value="pdf">PDF</el-radio>
+              <el-radio value="word">Word</el-radio>
+              <el-radio value="both">PDF + Word</el-radio>
+            </el-radio-group>
+          </el-form-item>
+        </el-form>
+
+        <!-- 导出结果展示 -->
+        <div v-if="batchExportResults" style="margin-top:12px;padding:12px;border:1px solid #ebeef5;border-radius:4px;">
+          <div style="margin-bottom:8px;">
+            <el-tag type="success" size="small">成功 {{ batchExportResults.success }}</el-tag>
+            <el-tag v-if="batchExportResults.failed > 0" type="danger" size="small" style="margin-left:6px;">
+              失败 {{ batchExportResults.failed }}
+            </el-tag>
+          </div>
+          <div v-if="batchExportResults.results.length > 0" style="max-height:180px;overflow:auto;font-size:12px;">
+            <div v-for="r in batchExportResults.results" :key="r.batch_id + '-' + r.student_id" style="padding:2px 0;">
+              <span style="color:#67C23A;">✓</span>
+              #{{ r.batch_id }} {{ r.name }}
+              <a v-if="r.pdf_path" :href="r.pdf_path" target="_blank" style="margin-left:6px;">PDF</a>
+              <a v-if="r.docx_path" :href="r.docx_path" target="_blank" style="margin-left:6px;">Word</a>
+              <span v-if="r.custom_path" style="color:#909399;margin-left:6px;">已存 {{ r.custom_path }}</span>
+            </div>
+          </div>
+          <div v-if="batchExportResults.errors.length > 0" style="max-height:120px;overflow:auto;font-size:12px;margin-top:6px;">
+            <div v-for="(e, idx) in batchExportResults.errors" :key="'err-' + idx" style="color:#F56C6C;padding:2px 0;">
+              ✗ #{{ e.batch_id }} 学生{{ e.student_id || '-' }}: {{ e.error }}
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template #footer>
+        <el-button @click="batchExportDialog = false">关闭</el-button>
+        <el-button
+          v-if="!batchExportResults"
+          type="primary" :loading="batchExporting"
+          :disabled="totalSelectedStudents === 0"
+          @click="executeBatchExport"
+        >
+          开始导出（合计 {{ totalSelectedStudents }} 份）
+        </el-button>
+      </template>
+    </el-dialog>
   `,
 
   data() {
@@ -149,7 +266,48 @@ const DraftListView = {
       isIndeterminate: false,
       batchDeleting: false,
       classList: [],
+      // PR2: 报告中心批量导出
+      batchExportDialog: false,
+      batchExporting: false,
+      batchExportFormat: 'pdf',  // pdf | word | both
+      batchExportResults: null,  // {success, failed, results, errors}
+      // 每个选中批量报告的学生列表（弹窗内多选用）
+      // 结构: {batchId: [{id, name}], ...}
+      batchStudents: {},
+      batchStudentsLoading: false,
+      // 弹窗里每个批量报告勾选了哪些学生
+      // 结构: {batchId: [student_id, ...]}
+      batchStudentSelection: {},
     };
+  },
+
+  computed: {
+    /** 仅批量报告 ID（用于批量导出） */
+    selectedBatchIds() {
+      return this.selectedIds.filter(s => s.type === 'batch').map(s => s.id);
+    },
+    /** 仅个人报告 ID（批量导出暂不支持） */
+    selectedRecordIds() {
+      return this.selectedIds.filter(s => s.type === 'record').map(s => s.id);
+    },
+    /** 是否可启用"批量导出"：至少选 1 个批量报告，且不混着个人报告 */
+    canBatchExport() {
+      return this.selectedBatchIds.length >= 1 && this.selectedRecordIds.length === 0;
+    },
+    /** 弹窗里展示的批量报告条目（带 class_name / topic / date）。
+     *  用 items 里的详情补全；若选中项已不在当前页（跨页勾选），
+     *  仍保留只带 id 的占位对象，让弹窗不会空白。 */
+    selectedBatchItems() {
+      const map = new Map(this.items.map(it => [it.rowKey, it]));
+      return this.selectedIds
+        .filter(s => s.type === 'batch')
+        .map(s => map.get(s.rowKey) || { id: s.id, course_topic: '（请回到对应页查看详情）' });
+    },
+    /** 弹窗里所有批量报告合计选了的学生数 */
+    totalSelectedStudents() {
+      return Object.values(this.batchStudentSelection)
+        .reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
+    },
   },
 
   mounted() {
@@ -304,6 +462,109 @@ const DraftListView = {
     formatDate(d) {
       if (!d) return '-';
       return new Date(d).toLocaleString('zh-CN');
+    },
+
+    // =========================
+    // PR2: 报告中心批量导出
+    // =========================
+    async showBatchExportDialog() {
+      this.batchExportDialog = true;
+      this.batchExportResults = null;
+      this.batchExportFormat = 'pdf';
+      this.batchStudents = {};
+      this.batchStudentSelection = {};
+      await this.loadBatchStudents();
+    },
+
+    async loadBatchStudents() {
+      if (this.selectedBatchIds.length === 0) return;
+      this.batchStudentsLoading = true;
+      try {
+        // 并行拉取每个批量报告的详情，从 evaluations JSON 抽学生
+        const results = await Promise.allSettled(
+          this.selectedBatchIds.map(id => API.batchReports.get(id))
+        );
+        for (let i = 0; i < this.selectedBatchIds.length; i++) {
+          const batchId = this.selectedBatchIds[i];
+          const r = results[i];
+          if (r.status !== 'fulfilled' || !r.value) {
+            this.batchStudents[batchId] = [];
+            this.batchStudentSelection[batchId] = [];
+            continue;
+          }
+          const detail = r.value;
+          const evals = detail.evaluations || {};
+          // 兼容 evaluations 是 dict 的情况（{sid: {name, evaluation}}）
+          // 以及 list 的情况（[{student_id, name, evaluation}]）
+          let students = [];
+          if (Array.isArray(evals)) {
+            students = evals.map(e => ({ id: e.student_id, name: e.name })).filter(s => s.id);
+          } else if (typeof evals === 'object' && evals !== null) {
+            students = Object.entries(evals)
+              .map(([sid, v]) => ({
+                id: Number(sid),
+                name: (v && typeof v === 'object' && v.name) || `学生${sid}`,
+              }))
+              .filter(s => s.id);
+          }
+          this.batchStudents[batchId] = students;
+          // 默认全选
+          this.batchStudentSelection[batchId] = students.map(s => s.id);
+        }
+      } catch (e) {
+        console.error('加载学生列表失败', e);
+        this.$message.error('加载学生列表失败: ' + e.message);
+      } finally {
+        this.batchStudentsLoading = false;
+      }
+    },
+
+    selectAllStudentsInBatch(batchId) {
+      const all = (this.batchStudents[batchId] || []).map(s => s.id);
+      this.batchStudentSelection[batchId] = [...all];
+    },
+
+    deselectAllStudentsInBatch(batchId) {
+      this.batchStudentSelection[batchId] = [];
+    },
+
+    async executeBatchExport() {
+      if (this.totalSelectedStudents === 0) {
+        this.$message.warning('请至少选择 1 名学生');
+        return;
+      }
+      this.batchExporting = true;
+      try {
+        const items = this.selectedBatchIds
+          .filter(bid => (this.batchStudentSelection[bid] || []).length > 0)
+          .map(bid => ({
+            batch_id: bid,
+            student_ids: this.batchStudentSelection[bid],
+          }));
+        if (items.length === 0) {
+          this.$message.warning('请至少选择 1 名学生');
+          return;
+        }
+        const result = await API.batchReports.exportMulti(items, this.batchExportFormat);
+        this.batchExportResults = result;
+        if (result.failed === 0) {
+          this.$message.success(`成功导出 ${result.success} 份报告`);
+        } else if (result.success === 0) {
+          this.$message.error(`全部失败（${result.failed}）`);
+        } else {
+          this.$message.warning(`部分成功：${result.success} 成功，${result.failed} 失败`);
+        }
+      } catch (e) {
+        console.error('批量导出失败', e);
+        this.$message.error('批量导出失败: ' + (e.message || e));
+      } finally {
+        this.batchExporting = false;
+      }
+    },
+
+    onBatchExportDialogClose() {
+      // 关闭后清掉结果，下次打开重新加载
+      this.batchExportResults = null;
     },
   },
 };

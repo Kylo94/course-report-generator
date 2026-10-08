@@ -252,6 +252,15 @@ const API = {
       if (overrides && Object.keys(overrides).length > 0) body.overrides = overrides;
       return API.post(`/api/batch-reports/${id}/export-word/${studentId}`, body);
     },
+    // PR2: 报告中心多学生批量导出
+    // items: [{batch_id, student_ids: [], body?: {template_id, output_dir, screenshot_paths, ...}}]
+    // format: "pdf" | "word" | "both"
+    // outputDir: 全局输出目录（可被 item.body.output_dir 覆盖）
+    exportMulti(items, format = 'pdf', outputDir = null) {
+      const body = { items, format };
+      if (outputDir) body.output_dir = outputDir;
+      return API.post('/api/batch-reports/export-multi', body);
+    },
     preview(id, studentId, templateId = 'classic', screenshotPaths = null, codeScreenshots = null, homeworkScreenshots = null, runScreenshots = null, overrides = null) {
       const body = { template_id: templateId };
       if (screenshotPaths && screenshotPaths.length > 0) body.screenshot_paths = screenshotPaths;
