@@ -10,11 +10,26 @@ class ContentItemSchema(BaseModel):
     text: str = Field(..., description="60-100字描述")
 
 
+class HomeworkQuestionSchema(BaseModel):
+    """单道作业题（PR1：固定 1 题 + 题型可指定）。
+
+    hint 为新思路提示字段；hints 为旧数据兼容（列表）。
+    """
+    goal: str = ""
+    hint: str = ""
+    hints: list[str] = Field(default_factory=list)
+    criteria: list[str] = Field(default_factory=list)
+
+
 class HomeworkSchema(BaseModel):
     """课后作业结构。"""
     goal: str = Field(..., description="作业目标")
-    hints: list[str] = Field(default_factory=list, description="提示列表")
+    hint: str = Field("", description="思路提示（PR1：单句方向性启发）")
+    hints: list[str] = Field(default_factory=list, description="提示列表（旧数据兼容）")
     criteria: list[str] = Field(default_factory=list, description="评分点列表")
+    questions: list[HomeworkQuestionSchema] = Field(
+        default_factory=list, description="题目列表（PR1：固定 1 题）"
+    )
 
 
 class VocabularySchema(BaseModel):

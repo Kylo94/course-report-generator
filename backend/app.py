@@ -23,6 +23,20 @@ setup_logging()
 log = get_logger(__name__)
 
 
+class NoCacheStaticFiles(StaticFiles):
+    """禁止强缓存的静态文件服务。
+
+    前端是源码直跑（文件名无 hash），若允许浏览器启发式强缓存，
+    改版后用户会一直看到旧 JS。这里统一返回 no-cache：
+    浏览器每次仍可带 ETag 协商（304），但不会无脑用本地副本。
+    """
+
+    def file_response(self, *args, **kwargs) -> Response:
+        resp = super().file_response(*args, **kwargs)
+        resp.headers["Cache-Control"] = "no-cache"
+        return resp
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期：启动时初始化数据库，关闭时释放资源。"""
@@ -98,10 +112,10 @@ def _mount_static(app: FastAPI) -> None:
     if frontend_dir.exists():
         app.mount(
             "/",
-            StaticFiles(directory=str(frontend_dir), html=True),
+            NoCacheStaticFiles(directory=str(frontend_dir), html=True),
             name="frontend",
         )
-        log.info("前端已挂载: %s", frontend_dir)
+        log.info("前端已挂载(禁用强缓存): %s", frontend_dir)
 
 
 def create_app() -> FastAPI:

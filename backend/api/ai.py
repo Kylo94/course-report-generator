@@ -37,8 +37,10 @@ def _result_to_content(result_dict: dict) -> AIGeneratedContent:
     homework_raw = result_dict.get("homework", {})
     homework = HomeworkSchema(
         goal=homework_raw.get("goal", ""),
+        hint=homework_raw.get("hint", ""),
         hints=homework_raw.get("hints", []),
         criteria=homework_raw.get("criteria", []),
+        questions=homework_raw.get("questions", []),
     )
     vocab_raw = result_dict.get("vocabulary", {})
     vocabulary = VocabularySchema(
