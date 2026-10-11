@@ -568,22 +568,42 @@ body {
 }
 
 /* ==================== 班级选择卡片（报告工作台） ==================== */
+.class-select-page {
+  width: 100%;
+  padding: 36px 32px 48px;
+}
+
+.class-select-hero {
+  margin-bottom: 28px;
+}
+
+.class-select-hero h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1f2d3d;
+  margin: 0 0 8px;
+}
+
+.class-select-hero p {
+  font-size: 14px;
+  color: #909399;
+  margin: 0;
+}
+
 .class-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 16px;
   width: 100%;
-  max-width: 960px;
 }
 
 .class-card {
-  padding: 20px 16px;
-  border: 1px solid #e4e7ed;
-  border-radius: 10px;
+  padding: 18px;
+  border-radius: 12px;
   background: #fff;
+  border: 1px solid #ebeef5;
   cursor: pointer;
-  text-align: center;
-  transition: all 0.25s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
   position: relative;
   overflow: hidden;
 }
@@ -593,47 +613,66 @@ body {
   position: absolute;
   inset: 0 0 auto 0;
   height: 4px;
-  background: linear-gradient(90deg, #409eff, #667eea);
-  opacity: 0;
-  transition: opacity 0.25s ease;
+  background: var(--cc-accent, #409eff);
+  transition: height 0.2s ease;
 }
 
 .class-card:hover {
-  border-color: #409eff;
-  box-shadow: 0 4px 16px rgba(64, 158, 255, 0.15);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(31, 45, 61, 0.12);
 }
 
 .class-card:hover::before {
-  opacity: 1;
+  height: 6px;
 }
 
-.class-card-icon {
-  font-size: 34px;
-  margin-bottom: 10px;
+/* 五色轮换，相邻卡片颜色不同 */
+.class-card--color0 { --cc-accent: #409eff; --cc-bg: rgba(64, 158, 255, 0.10); }
+.class-card--color1 { --cc-accent: #67c23a; --cc-bg: rgba(103, 194, 58, 0.10); }
+.class-card--color2 { --cc-accent: #e6a23c; --cc-bg: rgba(230, 162, 60, 0.12); }
+.class-card--color3 { --cc-accent: #f56c6c; --cc-bg: rgba(245, 108, 108, 0.10); }
+.class-card--color4 { --cc-accent: #9a6fe0; --cc-bg: rgba(154, 111, 224, 0.10); }
+
+.class-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.class-card-badge {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--cc-bg);
+  color: var(--cc-accent);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.class-card-students {
+  font-size: 13px;
+  color: #909399;
+  background: #f4f4f5;
+  padding: 3px 10px;
+  border-radius: 10px;
 }
 
 .class-card-name {
-  font-size: 16px;
-  font-weight: 600;
-  color: #303133;
-  margin-bottom: 4px;
-  word-break: break-all;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2d3d;
+  margin-bottom: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.class-card-count {
+.class-card-enter {
   font-size: 13px;
-  color: #909399;
-  margin-bottom: 12px;
-}
-
-.class-card-action {
-  font-size: 13px;
-  color: #409eff;
-  opacity: 0;
-  transition: opacity 0.25s ease;
-}
-
-.class-card:hover .class-card-action {
-  opacity: 1;
+  color: var(--cc-accent);
+  font-weight: 500;
 }

@@ -7,16 +7,23 @@ const BatchReportView = {
   template: `
     <div>
       <!-- 未选择班级时的选择界面（卡片式） -->
-      <div v-if="!config.class_id" class="empty-state" style="padding:40px 20px;">
-        <h3 style="margin-bottom:6px;">生成报告</h3>
-        <p style="color:#909399;margin-bottom:24px;">请选择班级开始</p>
-        <div v-if="classList.length === 0" style="color:#909399;padding:20px;">暂无班级，请先到「班级管理」创建</div>
+      <div v-if="!config.class_id" class="class-select-page">
+        <div class="class-select-hero">
+          <h2>选择班级，开始生成报告</h2>
+          <p>AI 将为班级每位学生生成专属课程报告</p>
+        </div>
+        <div v-if="classList.length === 0" style="text-align:center;color:#909399;padding:40px 0;">
+          暂无班级，请先到「班级管理」创建
+        </div>
         <div v-else class="class-card-grid">
-          <div v-for="c in classList" :key="c.id" class="class-card" @click="onClassSelected(c.id)">
-            <div class="class-card-icon">🎓</div>
-            <div class="class-card-name">{{ c.name }}</div>
-            <div class="class-card-count">{{ c.student_count || 0 }} 名学生</div>
-            <div class="class-card-action">开始生成 →</div>
+          <div v-for="(c, ci) in classList" :key="c.id" class="class-card"
+            :class="'class-card--color' + (ci % 5)" @click="onClassSelected(c.id)">
+            <div class="class-card-top">
+              <span class="class-card-badge">{{ c.name.slice(0, 1) }}</span>
+              <span class="class-card-students">{{ c.student_count || 0 }} 人</span>
+            </div>
+            <div class="class-card-name" :title="c.name">{{ c.name }}</div>
+            <div class="class-card-enter">开始生成 →</div>
           </div>
         </div>
       </div>
@@ -64,30 +71,11 @@ const BatchReportView = {
                   maxlength="300" show-word-limit
                   placeholder="输入对班级整体的课堂观察，AI 评价将参考此信息" style="width:400px" @blur="autoSaveShared" />
               </el-form-item>
-              <el-form-item v-if="studentList.length > 0" label="学生出勤">
-                <div style="width:100%;">
-                  <div style="font-size:12px;color:#909399;margin-bottom:8px;">
-                    勾选表示该学生已到课（生成报告），未勾选的学员跳过
-                  </div>
-                  <el-checkbox v-model="selectAllAttended" :indeterminate="attendedIndeterminate"
-                    @change="onSelectAllAttended" style="margin-bottom:6px;font-weight:600;">
-                    全部到课
-                  </el-checkbox>
-                  <div v-for="s in studentList" :key="s.id"
-                    style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;padding:6px 8px;border:1px solid #e4e7ed;border-radius:4px;">
-                    <el-checkbox v-model="attended[s.id]" @change="onAttendedChange" style="min-width:80px;" />
-                    <div style="min-width:60px;font-weight:500;padding-top:4px;font-size:13px;">{{ s.name }}</div>
-                    <el-input v-model="observations[s.id]" type="textarea" :rows="1"
-                      maxlength="200" show-word-limit
-                      placeholder="个性化观察（选填）" style="flex:1" />
-                  </div>
-                </div>
-              </el-form-item>
             </el-form>
           </el-card>
 
-          <!-- 知识点概括 -->
-          <el-card class="section-card">
+          <!-- 知识点概括（AI 生成后显示） -->
+          <el-card v-if="sharedGenerated" class="section-card">
             <template #header>
               <span>🎯 知识点概括（≤5条，每条≤15字）</span>
               <el-button size="small" type="warning" link style="float:right"
@@ -110,8 +98,8 @@ const BatchReportView = {
             </div>
           </el-card>
 
-          <!-- 能力提升 -->
-          <el-card class="section-card">
+          <!-- 能力提升（AI 生成后显示） -->
+          <el-card v-if="sharedGenerated" class="section-card">
             <template #header>
               <span>💪 能力提升</span>
               <el-button size="small" type="warning" link style="float:right"
@@ -142,8 +130,8 @@ const BatchReportView = {
             </div>
           </el-card>
 
-          <!-- 单词学习 -->
-          <el-card class="section-card">
+          <!-- 单词学习（AI 生成后显示） -->
+          <el-card v-if="sharedGenerated" class="section-card">
             <template #header>
               <span>📖 单词学习</span>
               <el-button size="small" type="warning" link style="float:right"
@@ -167,8 +155,8 @@ const BatchReportView = {
             </el-form>
           </el-card>
 
-          <!-- 课后作业 -->
-          <el-card class="section-card">
+          <!-- 课后作业（AI 生成后显示） -->
+          <el-card v-if="sharedGenerated" class="section-card">
             <template #header>
               <span>📚 课后作业</span>
               <el-button size="small" type="warning" link style="float:right"
@@ -492,10 +480,6 @@ const BatchReportView = {
 
       // 逐学生观察 { student_id: observation_text }
       observations: {},
-      // 出勤管理：attended[student_id] = true/false
-      attended: {},
-      selectAllAttended: true,
-      attendedIndeterminate: false,
       createVocabulary: true,
 
       config: {
@@ -573,6 +557,15 @@ const BatchReportView = {
         .filter(r => !r.error && this.exportChecked[r.student_id])
         .map(r => r.student_id);
     },
+    /** AI 已生成共享内容（或从历史批量报告加载）后才展示编辑卡片 */
+    sharedGenerated() {
+      const sc = this.sharedContent;
+      return (sc.knowledge_points.length > 0)
+        || !!sc.ability_improvement.trim()
+        || (sc.content_items.length > 0)
+        || !!sc.vocabulary.word
+        || !!(sc.homework.goal || (sc.homework.questions && sc.homework.questions.length > 0));
+    },
   },
 
   async mounted() {
@@ -627,15 +620,11 @@ const BatchReportView = {
         const students = result.items || [];
         this.studentList = students.filter(s => s.class_id === classId);
         this.firstStudentId = this.studentList.length > 0 ? this.studentList[0].id : null;
-        // 初始化逐学生观察字典 + 出勤（默认全部到课）
+        // 初始化逐学生观察字典
         this.observations = {};
-        this.attended = {};
         for (const s of this.studentList) {
           this.observations[s.id] = '';
-          this.attended[s.id] = true;
         }
-        this.selectAllAttended = true;
-        this.attendedIndeterminate = false;
         if (!this.firstStudentId) {
           this.$message.warning('该班级暂无学生，请先添加学生');
         }
@@ -663,32 +652,8 @@ const BatchReportView = {
       };
       this.isNoCode = false;
       this.config.course_description = '';
-      this.attended = {};
-      this.selectAllAttended = true;
-      this.attendedIndeterminate = false;
     },
 
-    // ===== 出勤管理 =====
-    onAttendedChange() {
-      const vals = Object.values(this.attended);
-      const checked = vals.filter(v => v).length;
-      if (checked === 0) {
-        this.selectAllAttended = false;
-        this.attendedIndeterminate = false;
-      } else if (checked === vals.length) {
-        this.selectAllAttended = true;
-        this.attendedIndeterminate = false;
-      } else {
-        this.selectAllAttended = false;
-        this.attendedIndeterminate = true;
-      }
-    },
-    onSelectAllAttended(val) {
-      for (const id of Object.keys(this.attended)) {
-        this.attended[id] = val;
-      }
-      this.attendedIndeterminate = false;
-    },
     // ===== 知识点 =====
     showKpInput() {
       this.kpInputVisible = true;
@@ -997,14 +962,6 @@ const BatchReportView = {
           }
         }, 2000);
 
-        // 找出未到课学生（不生成报告）
-        const excludedIds = Object.entries(this.attended)
-          .filter(([_, val]) => !val)
-          .map(([id]) => parseInt(id));
-        if (excludedIds.length > 0) {
-          console.log('未到课跳过学生: %d 人', excludedIds.length);
-        }
-
         const result = await API.reports.batchGenerate({
           class_id: this.config.class_id,
           course_date: this.config.course_date,
@@ -1014,7 +971,6 @@ const BatchReportView = {
           project_folder: this.isNoCode ? '' : this.config.project_folder,
           teacher_observation: this.config.teacher_observation || '',
           observations: this.observations,
-          excluded_student_ids: excludedIds,
           create_vocabulary: this.createVocabulary,
           homework_type: this.config.homework_type || 'auto',  // PR1
           template_id: this.config.template_id,
