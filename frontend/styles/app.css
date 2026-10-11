@@ -797,3 +797,16 @@ body {
   height: 100px;
   border-radius: 6px;
 }
+
+/* 修复：EP 相邻按钮 margin-left:12px 特异性(0,2,0) 压过单类 .sidebar-btn，
+   导致堆叠中第 2/3 个按钮缩进错位 */
+.editor-sidebar .sidebar-btn,
+.editor-sidebar .sidebar-btn + .sidebar-btn {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* 修复：tpl-option 为 content-box，width:100%+padding+border 超出父容器 */
+.tpl-option {
+  box-sizing: border-box;
+}
