@@ -279,27 +279,23 @@ const BatchReportView = {
           <!-- 操作 + 输出设置 -->
           <el-card class="section-card">
             <template #header>⚙️ 批量操作</template>
-            <div style="display:flex;flex-direction:column;gap:8px;">
-              <el-checkbox v-model="createVocabulary" style="margin-bottom:4px;">生成单词知识点</el-checkbox>
+            <div class="sidebar-stack">
+              <el-checkbox v-model="createVocabulary" class="sidebar-checkbox">生成单词知识点</el-checkbox>
 
               <!-- 输出目录设置 -->
-              <el-form size="small" label-position="top" style="margin-bottom:4px;">
-                <el-form-item label="输出目录">
-                  <div style="display:flex;gap:8px;">
-                    <el-input v-model="config.output_dir" placeholder="留空使用默认路径" style="flex:1" />
-                    <el-button @click="browseOutputDir">📂 浏览</el-button>
-                  </div>
-                  <div style="margin-top:6px;color:#909399;font-size:12px;">
-                    默认路径：<code style="background:#f4f4f5;padding:2px 6px;border-radius:3px;">{{ defaultOutputDir }}</code>
-                    <span style="margin-left:12px;">
-                      导出会创建：
-                      <code style="background:#f4f4f5;padding:2px 6px;border-radius:3px;">{{ outputSubdirHint }}</code>
-                    </span>
-                  </div>
-                </el-form-item>
-              </el-form>
+              <div class="sidebar-field">
+                <div class="sidebar-field-label">输出目录</div>
+                <div style="display:flex;gap:8px;">
+                  <el-input v-model="config.output_dir" placeholder="留空使用默认路径" size="default" style="flex:1" />
+                  <el-button size="default" @click="browseOutputDir">📂 浏览</el-button>
+                </div>
+                <div class="sidebar-hint">
+                  <div class="sidebar-hint-row">默认：<code>{{ defaultOutputDir }}</code></div>
+                  <div class="sidebar-hint-row">导出会创建：<code>{{ outputSubdirHint }}</code></div>
+                </div>
+              </div>
 
-              <el-button type="primary" class="btn-feature" @click="batchGenerate" :loading="batchRunning"
+              <el-button type="primary" class="btn-feature sidebar-btn" @click="batchGenerate" :loading="batchRunning"
                 :disabled="!config.class_id">
                 🚀 批量生成{{ studentCount > 0 ? '（' + studentCount + '人）' : '' }}
               </el-button>
@@ -309,17 +305,20 @@ const BatchReportView = {
               </div>
 
               <!-- 生成后的导出保存按钮（只导出勾选的学生） -->
-              <div v-if="batchResults.length > 0" style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">
-                <div style="font-size:12px;color:#909399;">
+              <div v-if="batchResults.length > 0" class="sidebar-divider"></div>
+              <div v-if="batchResults.length > 0" class="sidebar-stack">
+                <div class="sidebar-hint" style="text-align:center;">
                   将导出勾选的 <strong style="color:#409eff;">{{ selectedExportIds.length }}</strong> / {{ batchResults.length }} 名学生
                 </div>
-                <el-button type="primary" @click="saveAllRecords" :loading="savingAll">
+                <el-button type="primary" class="sidebar-btn" @click="saveAllRecords" :loading="savingAll">
                   💾 保存全部{{ savingAllCount > 0 ? '（已保存' + savingAllCount + '）' : '' }}
                 </el-button>
-                <el-button type="primary" @click="exportPdf" :loading="exporting" :disabled="batchRunning || selectedExportIds.length === 0">
+                <el-button type="primary" class="sidebar-btn" @click="exportPdf" :loading="exporting"
+                  :disabled="batchRunning || selectedExportIds.length === 0">
                   📄 导出勾选（{{ selectedExportIds.length }}）PDF
                 </el-button>
-                <el-button @click="exportWord" :loading="wordExporting" :disabled="batchRunning || selectedExportIds.length === 0">
+                <el-button type="primary" plain class="sidebar-btn" @click="exportWord" :loading="wordExporting"
+                  :disabled="batchRunning || selectedExportIds.length === 0">
                   📝 导出勾选（{{ selectedExportIds.length }}）Word
                 </el-button>
               </div>
@@ -329,8 +328,8 @@ const BatchReportView = {
           <!-- 模板选择 -->
           <el-card class="section-card">
             <template #header>🎨 模板选择</template>
-            <el-radio-group v-model="config.template_id">
-              <el-radio v-for="t in templateList" :key="t.id" :value="t.id" style="display:block;margin-bottom:6px;">
+            <el-radio-group v-model="config.template_id" class="tpl-radio-group">
+              <el-radio v-for="t in templateList" :key="t.id" :value="t.id" class="tpl-option">
                 {{ t.name }}
               </el-radio>
             </el-radio-group>
@@ -341,15 +340,15 @@ const BatchReportView = {
             <template #header>📷 截图上传</template>
 
             <!-- 分类切换 -->
-            <el-radio-group v-model="screenshotCategory" size="small" style="margin-bottom:8px;width:100%;display:flex;">
-              <el-radio-button value="run" style="flex:1;">🚀 运行/效果</el-radio-button>
-              <el-radio-button value="code" style="flex:1;">💻 代码</el-radio-button>
-              <el-radio-button value="homework" style="flex:1;">📝 作业</el-radio-button>
-              <el-radio-button value="general" style="flex:1;">🖼️ 其他</el-radio-button>
+            <el-radio-group v-model="screenshotCategory" size="small" class="shot-category-tabs">
+              <el-radio-button value="run">🚀 运行/效果</el-radio-button>
+              <el-radio-button value="code">💻 代码</el-radio-button>
+              <el-radio-button value="homework">📝 作业</el-radio-button>
+              <el-radio-button value="general">🖼️ 其他</el-radio-button>
             </el-radio-group>
 
             <el-upload :http-request="handleScreenshotUpload" list-type="picture-card"
-              :show-file-list="false" accept="image/jpeg,image/png,image/webp"
+              class="shot-upload" :show-file-list="false" accept="image/jpeg,image/png,image/webp"
               :disabled="screenshotUploading">
               <el-icon><Plus /></el-icon>
             </el-upload>

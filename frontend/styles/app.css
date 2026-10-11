@@ -676,3 +676,124 @@ body {
   color: var(--cc-accent);
   font-weight: 500;
 }
+
+/* ==================== 报告工作台 · 右侧栏统一风格 ==================== */
+/* 纵向堆叠容器：统一间距 */
+.sidebar-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+/* 全宽按钮：右侧栏所有操作按钮统一尺寸 */
+.sidebar-btn {
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* 复选框与表单标签左对齐 */
+.sidebar-checkbox {
+  height: auto;
+  margin-right: 0;
+}
+
+/* 表单字段块（替代 el-form-item 的松散结构） */
+.sidebar-field-label {
+  font-size: 13px;
+  color: #606266;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+/* 提示块：灰底圆角，行独立排布不折行错位 */
+.sidebar-hint {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #f5f7fa;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.8;
+}
+
+.sidebar-hint code {
+  background: #eceef1;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.sidebar-hint-row {
+  display: block;
+}
+
+/* 分隔线 */
+.sidebar-divider {
+  height: 1px;
+  background: #ebeef5;
+  margin: 2px 0;
+}
+
+/* 模板选择：整行可选的选项卡式 radio */
+.tpl-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.tpl-option {
+  width: 100%;
+  height: auto;
+  margin-right: 0;
+  padding: 10px 12px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  background: #fff;
+  transition: all 0.2s ease;
+}
+
+.tpl-option:hover {
+  border-color: #409eff;
+  background: #f5f9ff;
+}
+
+.tpl-option.is-checked {
+  border-color: #409eff;
+  background: #ecf5ff;
+  font-weight: 600;
+}
+
+.tpl-option .el-radio__label {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 截图上传：分类 tabs 等宽 + 上传卡与截图格同尺寸对齐 */
+.shot-category-tabs {
+  display: flex;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.shot-category-tabs .el-radio-button {
+  flex: 1;
+}
+
+.shot-category-tabs .el-radio-button__inner {
+  width: 100%;
+  padding: 8px 4px;
+  font-size: 12px;
+}
+
+/* 上传卡与截图项统一 120px 宽、100px 高 */
+.shot-upload .el-upload--picture-card {
+  width: 120px;
+  height: 100px;
+  border-radius: 6px;
+}
