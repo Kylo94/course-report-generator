@@ -35,7 +35,6 @@ for (const [name, component] of Object.entries(ElementPlusIconsVue)) {
 // 注册视图组件（使动态组件支持字符串引用）
 app.component('view-dashboard', DashboardView);
 app.component('view-drafts', DraftListView);
-app.component('view-editor', ReportEditorView);
 app.component('view-students', StudentsView);
 app.component('view-classes', ClassesView);
 app.component('view-templates', TemplateManagerView);
@@ -43,9 +42,9 @@ app.component('view-batch', BatchReportView);
 app.component('view-settings', SettingsView);
 
 // 路由注册（使用组件名而非对象）
+// 注：单页报告编辑（editor）已下线，统一使用批量报告（报告工作台）
 Router.register('dashboard', 'view-dashboard');
 Router.register('drafts', 'view-drafts');
-Router.register('editor', 'view-editor');
 Router.register('students', 'view-students');
 Router.register('classes', 'view-classes');
 Router.register('templates', 'view-templates');

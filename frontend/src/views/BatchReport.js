@@ -6,14 +6,19 @@
 const BatchReportView = {
   template: `
     <div>
-      <!-- 未选择班级时的选择界面 -->
-      <div v-if="!config.class_id" class="empty-state">
-        <h3 style="margin-bottom:20px;">批量生成报告</h3>
-        <el-select v-model="selectedClassId" filterable placeholder="请选择班级" style="width:300px"
-          @change="onClassSelected">
-          <el-option v-for="c in classList" :key="c.id"
-            :label="c.name + '（' + (c.student_count || 0) + '人）'" :value="c.id" />
-        </el-select>
+      <!-- 未选择班级时的选择界面（卡片式） -->
+      <div v-if="!config.class_id" class="empty-state" style="padding:40px 20px;">
+        <h3 style="margin-bottom:6px;">生成报告</h3>
+        <p style="color:#909399;margin-bottom:24px;">请选择班级开始</p>
+        <div v-if="classList.length === 0" style="color:#909399;padding:20px;">暂无班级，请先到「班级管理」创建</div>
+        <div v-else class="class-card-grid">
+          <div v-for="c in classList" :key="c.id" class="class-card" @click="onClassSelected(c.id)">
+            <div class="class-card-icon">🎓</div>
+            <div class="class-card-name">{{ c.name }}</div>
+            <div class="class-card-count">{{ c.student_count || 0 }} 名学生</div>
+            <div class="class-card-action">开始生成 →</div>
+          </div>
+        </div>
       </div>
 
       <!-- 编辑器主体 -->
@@ -223,17 +228,26 @@ const BatchReportView = {
           <el-card class="section-card" v-if="batchResults.length > 0">
             <template #header>
               <span>⭐ 学生评价（共 {{ batchResults.length }} 人）</span>
-              <el-tag size="small" :type="allEvalSuccess ? 'success' : 'warning'" style="float:right">
-                {{ allEvalSuccess ? '全部成功' : successCount + '/' + batchResults.length + ' 成功' }}
-              </el-tag>
+              <span style="float:right;display:flex;align-items:center;gap:10px;">
+                <el-checkbox v-model="selectAllExport" :indeterminate="exportIndeterminate"
+                  @change="onSelectAllExport" size="small">全选导出</el-checkbox>
+                <el-tag size="small" type="primary" effect="plain">已勾选 {{ selectedExportIds.length }} 人</el-tag>
+                <el-tag size="small" :type="allEvalSuccess ? 'success' : 'warning'">
+                  {{ allEvalSuccess ? '全部成功' : successCount + '/' + batchResults.length + ' 成功' }}
+                </el-tag>
+              </span>
             </template>
             <el-alert v-if="!allEvalSuccess"
               title="部分学生评价生成失败，可手动填写或重新生成"
               type="warning" show-icon style="margin-bottom:12px" />
             <div v-for="(r, i) in batchResults" :key="r.student_id" style="margin-bottom:12px;
-              padding:12px;border:1px solid #e4e7ed;border-radius:6px;">
+              padding:12px;border:1px solid #e4e7ed;border-radius:6px;"
+              :style="exportChecked[r.student_id] ? '' : 'opacity:0.55;'">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-                <strong>{{ r.student_name }}</strong>
+                <span style="display:flex;align-items:center;gap:8px;">
+                  <el-checkbox v-model="exportChecked[r.student_id]" @change="onExportCheckChange" />
+                  <strong>{{ r.student_name }}</strong>
+                </span>
                 <span>
                   <el-tag v-if="r.error" type="danger" size="small" effect="plain">生成失败</el-tag>
                   <el-tag v-else-if="r.evaluation" type="success" size="small" effect="plain">已生成</el-tag>
@@ -306,16 +320,19 @@ const BatchReportView = {
                 <el-progress :percentage="batchProgress" :stroke-width="12" style="margin-top:6px;" />
               </div>
 
-              <!-- 生成后的导出保存按钮 -->
+              <!-- 生成后的导出保存按钮（只导出勾选的学生） -->
               <div v-if="batchResults.length > 0" style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">
+                <div style="font-size:12px;color:#909399;">
+                  将导出勾选的 <strong style="color:#409eff;">{{ selectedExportIds.length }}</strong> / {{ batchResults.length }} 名学生
+                </div>
                 <el-button type="primary" @click="saveAllRecords" :loading="savingAll">
                   💾 保存全部{{ savingAllCount > 0 ? '（已保存' + savingAllCount + '）' : '' }}
                 </el-button>
-                <el-button type="primary" @click="exportPdf" :loading="exporting" :disabled="batchRunning">
-                  📄 导出全部 PDF
+                <el-button type="primary" @click="exportPdf" :loading="exporting" :disabled="batchRunning || selectedExportIds.length === 0">
+                  📄 导出勾选（{{ selectedExportIds.length }}）PDF
                 </el-button>
-                <el-button @click="exportWord" :loading="wordExporting" :disabled="batchRunning">
-                  📝 导出全部 Word
+                <el-button @click="exportWord" :loading="wordExporting" :disabled="batchRunning || selectedExportIds.length === 0">
+                  📝 导出勾选（{{ selectedExportIds.length }}）Word
                 </el-button>
               </div>
             </div>
@@ -522,6 +539,10 @@ const BatchReportView = {
       showcasePhotos: {},
       // PR3: 各学生上传中标记
       uploadingShowcase: {},
+      // 按勾选导出：exportChecked[student_id] = true/false（默认全选）
+      exportChecked: {},
+      selectAllExport: true,
+      exportIndeterminate: false,
     };
   },
 
@@ -545,6 +566,12 @@ const BatchReportView = {
     },
     allEvalSuccess() {
       return this.batchResults.length > 0 && this.successCount === this.batchResults.length;
+    },
+    /** 勾选导出的学生 ID 列表（过滤生成失败的） */
+    selectedExportIds() {
+      return this.batchResults
+        .filter(r => !r.error && this.exportChecked[r.student_id])
+        .map(r => r.student_id);
     },
   },
 
@@ -1004,6 +1031,7 @@ const BatchReportView = {
         this.batchProgress = 100;
         this.batchProgressText = '完成';
         this.batchResults = result.results || [];
+        this.initExportChecked();
         this.batchId = result.batch_id || null;
         this.classInfo = result.class_name || '';
 
@@ -1220,47 +1248,75 @@ const BatchReportView = {
     },
 
     async exportPdf() {
-      const results = this.batchResults.filter(r => !r.error);
-      if (results.length === 0 || !this.batchId) {
-        this.$message.warning('没有可导出的记录');
+      const ids = this.selectedExportIds;
+      if (ids.length === 0 || !this.batchId) {
+        this.$message.warning('没有勾选可导出的学生');
         return;
       }
       await this.autoSaveShared();
       this.exporting = true;
-      this.$message.info('开始导出 PDF（共 ' + results.length + ' 份）...');
+      this.$message.info('开始导出 PDF（共 ' + ids.length + ' 份）...');
       let count = 0;
-      for (const r of results) {
+      for (const sid of ids) {
+        const r = this.batchResults.find(x => x.student_id === sid);
         try {
-          await API.batchReports.exportPdf(this.batchId, r.student_id, this.config.template_id, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots, this.config.run_screenshots);
+          await API.batchReports.exportPdf(this.batchId, sid, this.config.template_id, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots, this.config.run_screenshots);
           count++;
         } catch (e) {
-          console.error('导出失败:', r.student_name, e);
+          console.error('导出失败:', r ? r.student_name : sid, e);
         }
       }
-      this.$message.success(`已完成 ${count}/${results.length} 份 PDF 导出`);
+      this.$message.success(`已完成 ${count}/${ids.length} 份 PDF 导出`);
       this.exporting = false;
     },
 
     async exportWord() {
-      const results = this.batchResults.filter(r => !r.error);
-      if (results.length === 0 || !this.batchId) {
-        this.$message.warning('没有可导出的记录');
+      const ids = this.selectedExportIds;
+      if (ids.length === 0 || !this.batchId) {
+        this.$message.warning('没有勾选可导出的学生');
         return;
       }
       this.wordExporting = true;
       await this.autoSaveShared();
-      this.$message.info('开始导出 Word（共 ' + results.length + ' 份）...');
+      this.$message.info('开始导出 Word（共 ' + ids.length + ' 份）...');
       let count = 0;
-      for (const r of results) {
+      for (const sid of ids) {
+        const r = this.batchResults.find(x => x.student_id === sid);
         try {
-          await API.batchReports.exportWord(this.batchId, r.student_id, this.config.template_id, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots, this.config.run_screenshots);
+          await API.batchReports.exportWord(this.batchId, sid, this.config.template_id, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots, this.config.run_screenshots);
           count++;
         } catch (e) {
-          console.error('导出失败:', r.student_name, e);
+          console.error('导出失败:', r ? r.student_name : sid, e);
         }
       }
-      this.$message.success(`已完成 ${count}/${results.length} 份 Word 导出`);
+      this.$message.success(`已完成 ${count}/${ids.length} 份 Word 导出`);
       this.wordExporting = false;
+    },
+
+    // ===== 按勾选导出：勾选状态管理 =====
+    /** 批量结果生成/加载后初始化勾选（默认全选） */
+    initExportChecked() {
+      const checked = {};
+      for (const r of this.batchResults) {
+        checked[r.student_id] = !r.error;
+      }
+      this.exportChecked = checked;
+      this.syncExportHeaderState();
+    },
+    onExportCheckChange() {
+      this.syncExportHeaderState();
+    },
+    onSelectAllExport(val) {
+      for (const r of this.batchResults) {
+        if (!r.error) this.exportChecked[r.student_id] = val;
+      }
+      this.exportIndeterminate = false;
+    },
+    syncExportHeaderState() {
+      const selectable = this.batchResults.filter(r => !r.error);
+      const checkedCount = selectable.filter(r => this.exportChecked[r.student_id]).length;
+      this.selectAllExport = selectable.length > 0 && checkedCount === selectable.length;
+      this.exportIndeterminate = checkedCount > 0 && checkedCount < selectable.length;
     },
 
     // ===== 从批量报告加载共享内容 =====
@@ -1352,6 +1408,7 @@ const BatchReportView = {
               error: null,
             };
           });
+          this.initExportChecked();
         }
 
         // PR3: 恢复每学生展示图

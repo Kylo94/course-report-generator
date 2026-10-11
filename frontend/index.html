@@ -32,17 +32,13 @@
             <el-icon><HomeFilled /></el-icon>
             <span>首页</span>
           </el-menu-item>
-          <el-menu-item index="editor">
-            <el-icon><Edit /></el-icon>
-            <span>报告编辑</span>
-          </el-menu-item>
           <el-menu-item index="drafts">
             <el-icon><Document /></el-icon>
             <span>草稿管理</span>
           </el-menu-item>
           <el-menu-item index="batch">
             <el-icon><Files /></el-icon>
-            <span>批量生成</span>
+            <span>报告工作台</span>
           </el-menu-item>
           <el-menu-item index="students">
             <el-icon><User /></el-icon>
@@ -70,9 +66,6 @@
             <h3>{{ pageTitle }}</h3>
           </div>
           <div class="header-right">
-            <el-tag v-if="currentRoute === 'editor' && editingRecordId" type="warning" size="small">
-              编辑中: #{{ editingRecordId }}
-            </el-tag>
           </div>
         </el-header>
         <el-main class="app-main">
@@ -89,7 +82,6 @@
   <!-- 视图组件 -->
   <script src="/src/views/Dashboard.js"></script>
   <script src="/src/views/DraftList.js"></script>
-  <script src="/src/views/ReportEditor.js"></script>
   <script src="/src/views/Students.js"></script>
   <script src="/src/views/Classes.js"></script>
   <script src="/src/views/TemplateManager.js"></script>

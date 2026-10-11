@@ -35,10 +35,10 @@ const DashboardView = {
       <!-- 快捷操作 -->
       <el-row :gutter="16" style="margin-bottom: 20px;">
         <el-col :span="8">
-          <el-card class="dashboard-card dashboard-card-primary" shadow="hover" @click="startNewReport">
+          <el-card class="dashboard-card dashboard-card-primary" shadow="hover" @click="Router.navigate('batch')">
             <el-icon :size="36" color="#fff" style="background:linear-gradient(135deg,#409eff,#667eea);padding:12px;border-radius:12px;"><Plus /></el-icon>
-            <h3>新建报告</h3>
-            <p>选择学生 → AI 生成 → 编辑 → 导出</p>
+            <h3>生成报告</h3>
+            <p>选择班级 → AI 生成 → 编辑 → 导出</p>
           </el-card>
         </el-col>
         <el-col :span="8">
@@ -49,10 +49,10 @@ const DashboardView = {
           </el-card>
         </el-col>
         <el-col :span="8">
-          <el-card class="dashboard-card" shadow="hover" @click="Router.navigate('editor?new')">
+          <el-card class="dashboard-card" shadow="hover" @click="Router.navigate('templates')">
             <el-icon :size="36" color="#e6a23c" style="background:rgba(230,162,60,0.1);padding:12px;border-radius:12px;"><Edit /></el-icon>
-            <h3>快速编辑</h3>
-            <p>直接进入报告编辑器</p>
+            <h3>模板管理</h3>
+            <p>选择和预览报告模板</p>
           </el-card>
         </el-col>
       </el-row>
@@ -148,15 +148,13 @@ const DashboardView = {
       }
     },
 
-    startNewReport() {
-      this.Router.navigate('editor?new');
-    },
-
     openDraft(row) {
       if (row.record_type === 'batch_report') {
         this.Router.navigate('batch?id=' + row.id);
       } else {
-        this.Router.navigate('editor?id=' + row.id);
+        // 个人报告编辑已下线，统一引导至报告工作台
+        this.$message.info('个人报告编辑已下线，请使用「报告工作台」生成报告');
+        this.Router.navigate('batch');
       }
     },
 

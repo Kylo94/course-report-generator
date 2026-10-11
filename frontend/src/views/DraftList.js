@@ -410,10 +410,12 @@ const DraftListView = {
 
     openDraft(row) {
       if (row._type === 'batch') {
-        // 批量报告 → 跳转到批量页面，带上 batch_id
+        // 批量报告 → 跳转到报告工作台，带上 batch_id
         window.location.hash = '#batch?id=' + row.id;
       } else {
-        this.Router.navigate('editor?id=' + row.id);
+        // 个人报告编辑已下线，统一引导至报告工作台
+        this.$message.info('个人报告编辑已下线，请使用「报告工作台」生成报告');
+        this.Router.navigate('batch');
       }
     },
 

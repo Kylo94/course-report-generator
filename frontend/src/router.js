@@ -46,12 +46,10 @@ const Router = {
     const titles = {
       dashboard: '首页',
       drafts: '草稿管理',
-      'editor?new': '新建报告',
-      editor: '报告编辑',
       students: '学生管理',
       classes: '班级管理',
       templates: '模板管理',
-      batch: '批量生成',
+      batch: '报告工作台',
       settings: '系统设置',
     };
     return titles[route] || '课程报告生成工具';

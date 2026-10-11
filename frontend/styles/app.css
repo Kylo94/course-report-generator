@@ -566,3 +566,74 @@ body {
 .app-sidebar::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.25);
 }
+
+/* ==================== 班级选择卡片（报告工作台） ==================== */
+.class-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  width: 100%;
+  max-width: 960px;
+}
+
+.class-card {
+  padding: 20px 16px;
+  border: 1px solid #e4e7ed;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.class-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, #409eff, #667eea);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.class-card:hover {
+  border-color: #409eff;
+  box-shadow: 0 4px 16px rgba(64, 158, 255, 0.15);
+  transform: translateY(-2px);
+}
+
+.class-card:hover::before {
+  opacity: 1;
+}
+
+.class-card-icon {
+  font-size: 34px;
+  margin-bottom: 10px;
+}
+
+.class-card-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+
+.class-card-count {
+  font-size: 13px;
+  color: #909399;
+  margin-bottom: 12px;
+}
+
+.class-card-action {
+  font-size: 13px;
+  color: #409eff;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.class-card:hover .class-card-action {
+  opacity: 1;
+}
