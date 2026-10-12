@@ -1313,12 +1313,16 @@ async def list_drafts(
     class_id: int | None = Query(None, description="按班级过滤"),
     status: str | None = Query(None, description="按状态过滤"),
     keyword: str | None = Query(None, description="按课程名搜索"),
-    type: str | None = Query(None, description="按类型过滤: record 个人 / batch 批量"),
+    template_id: str | None = Query(None, description="按模板过滤"),
+    date_from: str | None = Query(None, description="上课日期起 YYYY-MM-DD"),
+    date_to: str | None = Query(None, description="上课日期止 YYYY-MM-DD"),
+    sort_by: str = Query("updated_at", description="排序字段: updated_at/created_at/course_date/student_count"),
+    sort_dir: str = Query("desc", description="排序方向: asc/desc"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=200, description="每页数量"),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """合并批量报告与个人报告，按 updated_at 倒序全局分页。
+    """合并批量报告与个人报告，全局筛选+排序+分页。
 
     解决前端双重分页问题：之前前端同时调两个接口（各自分页）再本地合并，
     导致第 2 页起没有数据。此接口在服务端统一排序分页。
@@ -1326,7 +1330,7 @@ async def list_drafts(
     from backend.models import BatchReport, CourseRecord, Student as StudentModel
     from backend.services import batch_reports as _batch_svc
 
-    # ---- 1. 查询 BatchReport（支持 class_id/status/keyword/type）----
+    # ---- 1. 查询 BatchReport ----
     bq = select(BatchReport)
     if class_id is not None:
         bq = bq.where(BatchReport.class_id == class_id)
@@ -1338,13 +1342,17 @@ async def list_drafts(
             BatchReport.course_topic.ilike(kw)
             | BatchReport.class_name.ilike(kw)
         )
-    if type in (None, "", "batch"):
-        batch_result = await session.execute(bq)
-        batches = list(batch_result.scalars().all())
-    else:
-        batches = []
+    if template_id:
+        bq = bq.where(BatchReport.template_id == template_id)
+    if date_from:
+        bq = bq.where(BatchReport.course_date >= date_from)
+    if date_to:
+        bq = bq.where(BatchReport.course_date <= date_to)
 
-    # ---- 2. 查询 CourseRecord（支持 class_id/status/keyword/type）----
+    batch_result = await session.execute(bq)
+    batches = list(batch_result.scalars().all())
+
+    # ---- 2. 查询 CourseRecord ----
     rq = select(CourseRecord)
     if class_id is not None:
         rq = rq.join(StudentModel, CourseRecord.student_id == StudentModel.id)
@@ -1354,11 +1362,15 @@ async def list_drafts(
     if keyword:
         kw = f"%{keyword}%"
         rq = rq.where(CourseRecord.course_topic.ilike(kw))
-    if type in (None, "", "record"):
-        record_result = await session.execute(rq)
-        records = list(record_result.scalars().all())
-    else:
-        records = []
+    if template_id:
+        rq = rq.where(CourseRecord.template_id == template_id)
+    if date_from:
+        rq = rq.where(CourseRecord.course_date >= date_from)
+    if date_to:
+        rq = rq.where(CourseRecord.course_date <= date_to)
+
+    record_result = await session.execute(rq)
+    records = list(record_result.scalars().all())
 
     batch_dicts = [_batch_svc.to_list_dict(b) for b in batches]
     for d in batch_dicts:
@@ -1369,6 +1381,8 @@ async def list_drafts(
         d["_type"] = "record"
         d["rowKey"] = "record_" + str(d["id"])
         d["class_name"] = "-"
+        # 个人报告固定 1 个学生（与批量报告的 student_count 对齐以便统一排序）
+        d["student_count"] = 1
 
     # 个人报告补充班级名（通过 student → klass）
     if records:
@@ -1390,7 +1404,27 @@ async def list_drafts(
 
     # ---- 3. 合并 + 全局排序 + 分页 ----
     merged = batch_dicts + record_dicts
-    merged.sort(key=lambda x: x.get("updated_at") or 0, reverse=True)
+
+    # 排序字段映射：记录里没有的字段（student_count for record）按 -1/"" 兜底，
+    # 让两类报告在同一排序下都给出稳定结果
+    sort_field = sort_by if sort_by in ("updated_at", "created_at", "course_date", "student_count") else "updated_at"
+    reverse = (sort_dir or "desc").lower() == "desc"
+
+    def _sort_key(x: dict):
+        val = x.get(sort_field)
+        if sort_field in ("updated_at", "created_at"):
+            # 缺值用 0 兜底
+            return val or 0
+        if sort_field == "course_date":
+            # 个人报告没 course_date 用空串，批量报告有，混排时空串始终排到一边
+            return val or ""
+        if sort_field == "student_count":
+            # 个人报告 student_count=1，批量报告=实际人数，混排自然可比
+            return val if isinstance(val, (int, float)) else 0
+        return val or 0
+
+    # 稳定排序：单次排序，key=(主字段, id) 元组，避免二次 sort 覆盖主排序
+    merged.sort(key=lambda x: (_sort_key(x), x.get("id") or 0), reverse=reverse)
 
     total = len(merged)
     offset = (page - 1) * page_size

@@ -9,7 +9,7 @@ const DraftListView = {
 
       <!-- 筛选栏 -->
       <el-card style="margin-bottom: 16px;">
-        <el-form :inline="true" :model="filters" size="small">
+        <el-form :inline="true" :model="filters" size="default" label-width="76px">
           <el-form-item label="班级">
             <el-select v-model="filters.class_id" placeholder="全部班级" clearable style="width:150px"
               @change="search">
@@ -24,14 +24,20 @@ const DraftListView = {
               <el-option label="已归档" value="archived" />
             </el-select>
           </el-form-item>
-          <el-form-item label="课程名称">
-            <el-input v-model="filters.keyword" placeholder="搜索..." clearable style="width:180px" />
-          </el-form-item>
-          <el-form-item label="类型">
-            <el-select v-model="filters.type" placeholder="全部" clearable style="width:120px">
-              <el-option label="个人报告" value="record" />
-              <el-option label="批量报告" value="batch" />
+          <el-form-item label="模板">
+            <el-select v-model="filters.template_id" placeholder="全部" clearable style="width:140px">
+              <el-option v-for="t in templateList" :key="t.id"
+                :label="t.name" :value="t.id" />
             </el-select>
+          </el-form-item>
+          <el-form-item label="课程名">
+            <el-input v-model="filters.keyword" placeholder="搜索课程/班级" clearable style="width:200px" />
+          </el-form-item>
+          <el-form-item label="上课日期">
+            <el-date-picker
+              v-model="filters.dateRange" type="daterange" range-separator="至"
+              start-placeholder="起" end-placeholder="止"
+              value-format="YYYY-MM-DD" style="width:240px" />
           </el-form-item>
           <el-form-item>
             <div class="btn-group">
@@ -40,6 +46,20 @@ const DraftListView = {
             </div>
           </el-form-item>
         </el-form>
+        <!-- 排序条 -->
+        <div class="sort-bar">
+          <span class="sort-bar-label">排序：</span>
+          <el-radio-group v-model="sortBy" size="small" @change="onSortChange">
+            <el-radio-button value="updated_at">最后修改</el-radio-button>
+            <el-radio-button value="created_at">创建时间</el-radio-button>
+            <el-radio-button value="course_date">上课日期</el-radio-button>
+            <el-radio-button value="student_count">学生数</el-radio-button>
+          </el-radio-group>
+          <el-button size="small" link class="sort-dir-btn" @click="toggleSortDir">
+            <el-icon><component :is="sortDir === 'desc' ? 'SortDown' : 'SortUp'" /></el-icon>
+            {{ sortDir === 'desc' ? '降序' : '升序' }}
+          </el-button>
+        </div>
       </el-card>
 
       <!-- 数据表格 -->
@@ -86,12 +106,6 @@ const DraftListView = {
           >
             <el-table-column type="selection" width="40" />
           <el-table-column prop="id" label="ID" width="60" />
-          <el-table-column label="类型" width="100">
-            <template #default="{ row }">
-              <el-tag v-if="row._type === 'batch'" type="success" size="small">批量报告</el-tag>
-              <el-tag v-else type="info" size="small" effect="plain">个人报告</el-tag>
-            </template>
-          </el-table-column>
           <el-table-column prop="course_topic" label="课程名称" min-width="160" />
           <el-table-column label="班级" width="120">
             <template #default="{ row }">
@@ -99,15 +113,27 @@ const DraftListView = {
               <span v-else style="color:#909399;">-</span>
             </template>
           </el-table-column>
+          <el-table-column label="模板" width="100">
+            <template #default="{ row }">
+              <el-tag size="small" effect="plain">{{ templateName(row.template_id) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="学生数" width="80" sortable :sort-orders="['descending','ascending']">
+            <template #default="{ row }">
+              <span>{{ row.student_count ?? 0 }}</span>
+              <el-icon v-if="row.showcase_count > 0" title="已上传展示图"
+                style="margin-left:4px;color:#e6a23c;vertical-align:middle;"><Picture /></el-icon>
+            </template>
+          </el-table-column>
+          <el-table-column label="课程日期" width="120" prop="course_date" sortable
+            :sort-orders="['descending','ascending']" />
           <el-table-column label="状态" width="90">
             <template #default="{ row }">
               <el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="创建时间" width="170">
-            <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
-          </el-table-column>
-          <el-table-column label="最后修改" width="170">
+          <el-table-column label="最后修改" width="170" prop="updated_at" sortable
+            :sort-orders="['descending','ascending']">
             <template #default="{ row }">{{ formatDate(row.updated_at) }}</template>
           </el-table-column>
           <el-table-column label="操作" width="200" fixed="right">
@@ -260,7 +286,10 @@ const DraftListView = {
       page: 1,
       pageSize: 20,
       loading: false,
-      filters: { class_id: null, status: '', keyword: '', type: '' },
+      filters: { class_id: null, status: '', keyword: '', template_id: '', dateRange: [] },
+      sortBy: 'updated_at',
+      sortDir: 'desc',
+      templateList: [],
       selectedIds: [],
       selectAll: false,
       isIndeterminate: false,
@@ -312,6 +341,7 @@ const DraftListView = {
 
   mounted() {
     this.loadClassList();
+    this.loadTemplateList();
     this.loadList();
   },
 
@@ -328,11 +358,20 @@ const DraftListView = {
     async loadList() {
       this.loading = true;
       try {
-        const params = { page: this.page, page_size: this.pageSize };
+        const params = {
+          page: this.page,
+          page_size: this.pageSize,
+          sort_by: this.sortBy,
+          sort_dir: this.sortDir,
+        };
         if (this.filters.class_id) params.class_id = this.filters.class_id;
         if (this.filters.status) params.status = this.filters.status;
         if (this.filters.keyword) params.keyword = this.filters.keyword;
-        if (this.filters.type) params.type = this.filters.type;
+        if (this.filters.template_id) params.template_id = this.filters.template_id;
+        if (this.filters.dateRange && this.filters.dateRange.length === 2) {
+          params.date_from = this.filters.dateRange[0];
+          params.date_to = this.filters.dateRange[1];
+        }
 
         // —— 统一接口：后端合并个人报告 + 批量报告，全局排序分页 ——
         const result = await API.reports.drafts(params);
@@ -352,9 +391,35 @@ const DraftListView = {
     },
 
     resetFilters() {
-      this.filters = { class_id: null, status: '', keyword: '', type: '' };
+      this.filters = { class_id: null, status: '', keyword: '', template_id: '', dateRange: [] };
+      this.sortBy = 'updated_at';
+      this.sortDir = 'desc';
       this.page = 1;
       this.loadList();
+    },
+
+    onSortChange() {
+      this.page = 1;
+      this.loadList();
+    },
+
+    toggleSortDir() {
+      this.sortDir = this.sortDir === 'desc' ? 'asc' : 'desc';
+      this.page = 1;
+      this.loadList();
+    },
+
+    templateName(id) {
+      const t = this.templateList.find(x => x.id === id);
+      return t ? t.name : (id || '-');
+    },
+
+    async loadTemplateList() {
+      try {
+        this.templateList = await API.templates.list();
+      } catch (e) {
+        console.error('加载模板列表失败:', e);
+      }
     },
 
     onSelectionChange(selection) {

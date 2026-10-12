@@ -810,3 +810,26 @@ body {
 .tpl-option {
   box-sizing: border-box;
 }
+
+/* ==================== 草稿管理 · 排序条 ==================== */
+.sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px dashed #e4e7ed;
+}
+
+.sort-bar-label {
+  font-size: 13px;
+  color: #606266;
+  margin-right: 4px;
+}
+
+.sort-dir-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
