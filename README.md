@@ -1,4 +1,4 @@
-# 📄 课程报告生成工具 v1.2
+# 📄 课程报告生成工具 v1.2.0
 
 **Course Report Generator** — 少儿编程教师课后报告自动生成工具。
 
@@ -28,8 +28,9 @@ pip install uv
 # 1. 安装项目依赖
 uv sync
 
-# 2. 配置 LLM（编辑 config/llm.yaml，填入 API Key）
-#    支持 DeepSeek / 通义千问 / 智谱 GLM / OpenAI / Claude
+# 2. 准备 LLM 配置（复制模板后填入 API Key）
+cp config/llm.yaml.example config/llm.yaml
+#    编辑 config/llm.yaml，支持 DeepSeek / 通义千问 / 智谱 GLM / OpenAI / Claude
 
 # 3. 启动（开发模式）
 uv run python main.py
@@ -66,11 +67,16 @@ uv run python main.py
 
 ### 方式一：docker compose（推荐）
 
+项目配置在 **`config/` 目录**，不是 `.env`：
+
+- `config/app.yaml`：应用、服务器、数据库、报告目录等非敏感配置，可入 git。
+- `config/llm.yaml`：AI 供应商、API Key、模型等敏感配置，**不要提交**。
+- `config/llm.yaml.example`：配置模板，首次部署时复制一份。
+
 ```bash
-# 1. 创建 .env 文件填入 AI 配置
-echo 'CRG_LLM_API_KEY=sk-你的API密钥' >> .env
-echo 'CRG_LLM_PROVIDER=deepseek' >> .env
-echo 'CRG_LLM_DEFAULT_MODEL=deepseek-chat' >> .env
+# 1. 准备 AI 配置（只需第一次）
+cp config/llm.yaml.example config/llm.yaml
+# 编辑 config/llm.yaml，填入 api_key
 
 # 2. 构建并启动（之后改代码也用这条）
 docker compose up -d --build
@@ -85,7 +91,7 @@ docker compose logs -f
 docker compose down
 ```
 
-默认使用本地 Dockerfile 构建镜像，宿主机只发布 **8765** 一个入口。
+`docker-compose.yml` 会把 `./config/llm.yaml` 只读挂载到容器 `/app/config/llm.yaml`，修改后执行 `docker compose restart` 即可生效。宿主机只发布 **8765** 一个入口。
 
 ### 方式二：纯 docker
 
@@ -97,16 +103,24 @@ docker build -t course-report-generator .
 docker run -d \
   --name course-report \
   -p 8765:8765 \
-  -v crg_data:/app/data \
-  -e CRG_LLM__API_KEY=sk-你的API密钥 \
-  -e CRG_LLM__PROVIDER=deepseek \
-  -e CRG_LLM__DEFAULT_MODEL=deepseek-chat \
+  -v "$PWD/data:/app/data" \
+  -v "$PWD/config/llm.yaml:/app/config/llm.yaml:ro" \
   course-report-generator
 ```
 
+> 注意：纯 docker 运行时必须挂载 `config/llm.yaml`，否则容器里没有 API Key。也可以改用 `-e CRG_LLM__API_KEY=...` 环境变量覆盖。
+
+### 配置文件说明
+
+| 文件 | 用途 | 是否入 git |
+|---|---|---|
+| `config/app.yaml` | 应用配置：服务器端口、数据库、报告目录、Logo 等 | 是 |
+| `config/llm.yaml` | AI 配置：provider / api_key / default_model | 否（已忽略） |
+| `config/llm.yaml.example` | AI 配置模板 | 是 |
+
 ### 环境变量参考
 
-所有配置均可通过 `CRG_` 前缀的环境变量覆盖。完整字段对应关系见 [backend/config.py](backend/config.py)。
+所有配置都可以用 `CRG_` 前缀的环境变量覆盖，优先级高于 `config/*.yaml`。完整字段对应关系见 [backend/config.py](backend/config.py)。
 
 | 环境变量 | 对应配置 | 说明 | 默认值 |
 |---|---|---|---|
@@ -128,18 +142,14 @@ docker run -d \
 
 > **嵌套字段语法**：双下划线 `__` 表示嵌套层级。例如 `CRG_LLM__API_KEY` 对应配置文件中的 `llm.api_key`。
 
-### docker-compose 环境变量速查
+> **关于 `.env`**：Docker Compose 只会用 `.env` 做 compose 文件里的变量替换，**不会自动把 `.env` 中的变量注入容器**。如果确实想用环境变量覆盖配置，请在 `docker-compose.yml` 的 `environment:` 段显式声明，例如：
 
-在 `.env` 文件中也可以使用平铺名称（单下划线），`docker-compose.yml` 已做好映射：
-
-```bash
-# .env 文件（与 docker-compose.yml 同目录）
-CRG_LLM_API_KEY=sk-xxxxx
-CRG_LLM_PROVIDER=deepseek
-CRG_LLM_DEFAULT_MODEL=deepseek-chat
-CRG_LLM_BASE_URL=
-CRG_APP_DEBUG=false
-# 宿主机端口固定为 8765，不再通过 CRG_HOST_PORT 切换
+```yaml
+services:
+  course-report-generator:
+    environment:
+      - CRG_APP__DEBUG=false
+      - CRG_LLM__TIMEOUT=120
 ```
 
 ### 持久化数据
@@ -185,7 +195,7 @@ volumes:
 | 后端 | **Python 3.11+** + **FastAPI** |
 | AI 编排 | LangChain 组件 + 自定义业务编排（多步链式生成 + 单步重试） |
 | LLM 适配 | 自定义 `LLMProvider` 抽象层，支持 **DeepSeek / 通义千问 / 智谱 GLM / OpenAI / Claude** |
-| 代码解析 | Python `ast` 模块 + 正则注释提取 |
+| 代码解析 | Python `ast` 模块 + C/C++ 轻量正则解析 |
 | PDF 渲染 | Playwright（Chromium 内核，零系统依赖） |
 | Word 处理 | python-docx 原生生成（非 PDF 转 Word） |
 | 存储 | SQLite (aiosqlite) + 文件系统 |
@@ -208,7 +218,7 @@ volumes:
 ├── frontend/
 │   ├── index.html          # 单页应用入口
 │   └── src/                # Vue 3 组件（7 个视图：Dashboard/Classes/Students/…）
-├── templates/              # 报告模板（classic / cartoon / academic / python）
+├── templates/              # 报告模板（classic / cartoon / academic / 科技前沿 / minimal）
 ├── config/                 # 配置文件（app.yaml / llm.yaml）
 ├── data/                   # 运行期数据（SQLite + 报告输出 + 截图 + Logo）
 └── tests/                  # 单元测试 + 集成测试
@@ -218,11 +228,11 @@ volumes:
 
 ### 如何编写项目代码以获得最准确的报告
 
-工具通过分析学生项目文件夹中的 Python 文件来生成报告内容。代码注释和结构的格式决定了 AI 能否准确理解课程内容。
+工具通过分析学生项目文件夹中的 Python / C / C++ 文件来生成报告内容。代码注释和结构的格式决定了 AI 能否准确理解课程内容。
 
 ### 顶部注释格式（最关键）
 
-启动文件（`app.py` / `main.py`）顶部的注释是报告的基础，支持以下**课程主题**格式：
+启动文件（`main.py` / `main.cpp` / `main.c`）顶部的注释是报告的基础，支持以下**课程主题**格式：
 
 | 格式 | 示例 | 说明 |
 |------|------|------|
@@ -234,6 +244,8 @@ volumes:
 | `# 主题：<主题>` | `# 主题：飞翔的小鸟第一课` | 主题词写法 |
 
 > **推荐**使用 `# Course: 课程名称` 格式，最简单明确。
+>
+> C/C++ 工程使用 `//` 或 `/* ... */` 注释，标记文字与上表相同，例如 `// 课程：绘制五角星`、`// 作业:`。
 
 ### 课程目标（入口注释）
 
@@ -327,6 +339,27 @@ class Spaceship:
                 self.bullets.remove(b)
 ```
 
+**C/C++ 工程（`main.cpp`）：**
+
+```cpp
+/*
+ * 课程 01 基本语法
+ * 目标：
+ * 1. 变量与类型
+ * 2. 标准输入输出
+ * 作业:
+ * 使用输入获取长方形边长 a、b，计算并输出周长
+ */
+#include <stdio.h>
+
+int main() {
+    int a, b;
+    scanf("%d %d", &a, &b);
+    printf("%d\n", (a + b) * 2);
+    return 0;
+}
+```
+
 ### 非 Python 课程（Scratch / 机器人 / 硬件等）
 
 在项目文件夹中创建 `course.py`，用注释描述课程内容：
@@ -353,7 +386,7 @@ class Spaceship:
 
 ### 项目类型自动识别
 
-工具根据文件中的 `import` 语句自动判断项目类型，影响 AI 的知识点取向：
+工具根据文件中的 `import` / `#include` 语句自动判断项目类型，影响 AI 的知识点取向：
 
 | 框架/库 | 识别的项目类型 | 说明 |
 |---------|---------------|------|
@@ -365,16 +398,18 @@ class Spaceship:
 | `pyqt` / `pyside` | `pyqt` | Qt 桌面应用 |
 | `arcade` | `arcade` | Arcade 游戏框架 |
 | `flask` / `fastapi` / `django` | `web` | Web 服务 |
-| 无 GUI import | `algorithm` | 纯算法/逻辑项目 |
+| `<iostream>` / `<stdio.h>` | `cpp` / `c` | C/C++ 控制台程序 |
+| SFML / SDL / Qt / EasyX | `cpp_gui` | C/C++ 图形/游戏程序 |
+| 无 GUI import / include | `algorithm` | 纯算法/逻辑项目（C/C++ 控制台会识别为 `cpp`/`c`） |
 
 > **需要注意**：如果检测到错误的项目类型（如将游戏项目识别为 `algorithm`），AI 生成的知识点会偏离课程方向。一旦发现，检查代码中是否正确导入了对应框架包。
 
 ### 代码分析范围
 
 工具对代码的分析包括：
-- **AST 语法树解析**—提取函数定义、类结构、import 依赖、装饰器
-- **启动文件识别**—优先识别 `main.py`，其次根目录下首个 `.py` 文件
-- **关联文件读取**—从 `entry_comment` 的 `# 文件:` 行引用的文件也会被完整读取
+- **Python AST / C/C++ 轻量解析**—Python 提取函数定义、类结构、import 依赖、装饰器；C/C++ 提取函数、类/结构体、`#include`
+- **启动文件识别**—Python 优先 `main.py`；C/C++ 优先 `main.cpp` / `main.c`，其次包含 `main()` 的文件
+- **关联文件读取**—从入口注释的 `# 文件:` / `// 文件:` 行引用的文件也会被完整读取
 - **代码截断**—AI 接收最多 10,000 字符的源代码（一般课程完全够用）
 
 ### 提高 AI 准确度的建议
@@ -382,8 +417,8 @@ class Spaceship:
 1. **注释要具体**："实现碰撞检测"不如"使用 `collide()` 方法检测飞船与陨石的碰撞"
 2. **代码结构清晰**：把每节课的核心函数独立出来，函数名体现功能
 3. **注释与代码一致**：如果注释说"黑洞引力"但代码里没有引力计算，AI 会产生困惑
-4. **作业指导明确**：用 `# 作业:` 标记给出具体任务，AI 出题会更贴近课程内容
-5. **避免过多无关文件**：项目文件夹中只放本节课相关的 `.py` 文件，无关文件会分散 AI 注意力
+4. **作业指导明确**：用 Python 的 `# 作业:` 或 C/C++ 的 `// 作业:` 标记给出具体任务，AI 出题会更贴近课程内容
+5. **避免过多无关文件**：项目文件夹中只放本节课相关的 `.py` / `.cpp` / `.c` / `.h` 文件，无关文件会分散 AI 注意力
 
 ### LLM 配置 (`config/llm.yaml`)
 
@@ -427,6 +462,16 @@ uv run pytest --cov --cov-report=html
 # 代码检查
 uv run ruff check .
 ```
+
+### 版本号管理
+
+版本号唯一来源是 [backend/version.py](backend/version.py)。
+
+- `pyproject.toml` 通过 Hatchling 动态读取该文件；
+- `backend/config.py`、`build.py`、`build.spec` 也从该文件读取；
+- `config/app.yaml` 不再单独写 `app.version`，避免多处不一致。
+
+发版时只需修改 `backend/version.py` 中的 `__version__`，然后执行 `uv lock` 更新锁文件、同步更新 README 的版本历史，不要再在其它文件手写版本号。
 
 ## 打包 & 分发
 
@@ -548,8 +593,8 @@ dist/课程报告生成工具/
 ## 版本历史
 
 ```
-v1.2 — 支持 C/C++ 工程；新增「素白极简」低打印负担模板；Classic/素白极简 Word 采用 PDF 风格卡片版式；导出按钮合并为「导出报告」；宿主机端口固定 8765
-v1.1 — 重构项目文档，详述代码注释规范以提高AI准确度；去除作业评分标准
+v1.2.0 — 支持 C/C++ 工程；新增「素白极简」低打印负担模板；Classic/素白极简 Word 采用 PDF 风格卡片版式；导出按钮合并为「导出报告」；宿主机端口固定 8765
+v1.1.0 — 重构项目文档，详述代码注释规范以提高AI准确度；去除作业评分标准
 v1.0.0 — 正式版。完整功能闭环比对、文档完善、打包准备
 v0.8.0 — 批量生成 + 报告中心 + AI 对话记忆
 v0.7.0 — Word 导入导出（python-docx + AI 辅助识别）

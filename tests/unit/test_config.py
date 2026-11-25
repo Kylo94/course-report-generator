@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from backend.config import (
+    APP_VERSION,
     LLMConfig,
     LogoConfig,
     Settings,
@@ -20,7 +21,7 @@ class TestSettingsDefaults:
     def test_default_app_meta(self) -> None:
         s = Settings()
         assert s.app.name == "课程报告生成工具"
-        assert s.app.version == "0.1.0"
+        assert s.app.version == APP_VERSION
 
     def test_default_logo(self) -> None:
         s = Settings()
@@ -75,7 +76,7 @@ logo:
     def test_load_missing_file(self, tmp_dir: Path) -> None:
         s = Settings.from_yaml(tmp_dir / "nonexistent.yaml")
         # 文件不存在时返回默认值
-        assert s.app.version == "0.1.0"
+        assert s.app.version == APP_VERSION
 
 
 class TestGetSettingsSingleton:

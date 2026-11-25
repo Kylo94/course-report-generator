@@ -27,9 +27,13 @@ from pathlib import Path
 _SPEC_PATH = globals().get("SPEC") or sys.argv[0]
 PROJECT_ROOT = Path(os.path.dirname(os.path.abspath(_SPEC_PATH)))
 
+# 版本号唯一来源：backend/version.py
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+from backend.version import __version__ as APP_VERSION
+
 # ── 应用元信息 ──
 APP_NAME = "课程报告生成工具"
-APP_VERSION = "1.0.0"
 
 # ── 要排除的标准库模块（减小体积） ──
 EXCLUDES = [

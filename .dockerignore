@@ -82,6 +82,7 @@ data/reports/
 data/screenshots/
 data/assets/
 data/backups/
+data/showcase/
 data/custom_templates/
 data/user_settings.json
 data/course_reports.db

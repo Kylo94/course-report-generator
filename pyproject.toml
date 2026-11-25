@@ -1,6 +1,6 @@
 [project]
 name = "course-report-generator"
-version = "0.1.0"
+dynamic = ["version"]
 description = "少儿编程课程报告自动生成工具 - 选择程序文件夹，AI 生成内容，按 4 页 A4 模板输出 PDF 报告"
 requires-python = ">=3.11"
 authors = [
@@ -40,6 +40,9 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "backend/version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["backend"]

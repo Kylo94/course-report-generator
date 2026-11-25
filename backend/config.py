@@ -25,12 +25,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # 项目根目录（兼容 PyInstaller 打包模式）
 from backend.paths import get_app_root, get_user_config_dir, _is_frozen
 from backend.utils.logger import get_logger
+from backend.version import __version__ as APP_VERSION
 
 PROJECT_ROOT = get_app_root()
 log = get_logger("config")
 
-# 应用版本号（与 build.spec / pyproject.toml 保持一致）
-APP_VERSION = "1.0.0"
+# 应用版本号唯一来源：backend/version.py
 
 # 环境变量前缀
 ENV_PREFIX = "CRG_"
@@ -47,7 +47,7 @@ def _env(section: str, key: str) -> str | None:
 # =========================
 class AppMeta(BaseModel):
     name: str = "课程报告生成工具"
-    version: str = "0.1.0"
+    version: str = APP_VERSION
     debug: bool = True
     log_level: str = "INFO"
 

@@ -23,6 +23,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from backend.version import __version__
+
 PROJECT_ROOT = Path(__file__).resolve().parent
 DIST_DIR = PROJECT_ROOT / "dist"
 APP_NAME = "课程报告生成工具"
@@ -206,7 +208,7 @@ def main() -> None:
     args = parser.parse_args()
 
     print(f"📦 {APP_NAME} 构建脚本")
-    print(f"   版本: 1.0.0")
+    print(f"   版本: {__version__}")
     print(f"   目录: {PROJECT_ROOT}")
 
     check_environment()
