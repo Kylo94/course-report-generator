@@ -173,6 +173,7 @@ const API = {
     generate(data) { return API.post('/api/ai/generate', data); },
     regenerate(data) { return API.post('/api/ai/regenerate', data); },
     providers() { return API.get('/api/ai/providers'); },
+    testConnection() { return API.post('/api/ai/test-connection', {}); },
   },
 
   // =====================

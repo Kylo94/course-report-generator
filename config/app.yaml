@@ -18,7 +18,7 @@ server:
 
 # 报告
 report:
-  default_template: classic_default
+  default_template: classic
   output_dir: ./data/reports
   screenshot_dir: ./data/screenshots
   asset_dir: ./data/assets

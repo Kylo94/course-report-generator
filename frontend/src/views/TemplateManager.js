@@ -441,7 +441,7 @@ const TemplateManagerView = {
       uploadSuccess: false,
 
       // 字体选项
-      defaultTemplateId: localStorage.getItem('crg_default_template') || '',
+      defaultTemplateId: '', // 从后端用户设置加载
       fontOptions: [
         { value: 'Heiti SC', label: '黑体' },
         { value: 'STSong', label: '宋体' },
@@ -458,10 +458,19 @@ const TemplateManagerView = {
 
   async mounted() {
     this.Router = Router;
-    await this.loadTemplates();
+    await Promise.all([this.loadTemplates(), this.loadDefaultTemplate()]);
   },
 
   methods: {
+    async loadDefaultTemplate() {
+      try {
+        const settings = await API.settings.get();
+        this.defaultTemplateId = settings.default_template_id || '';
+      } catch (e) {
+        console.error('加载默认模板设置失败:', e);
+      }
+    },
+
     async loadTemplates() {
       this.loading = true;
       try {
@@ -721,10 +730,14 @@ const TemplateManagerView = {
       this.previewTemplate(this.createForm.base_template_id, this._buildPreviewOverrides(this.createForm));
     },
 
-    setDefault(template) {
-      localStorage.setItem('crg_default_template', template.id);
-      this.defaultTemplateId = template.id;
-      this.$message.success(`已将「${template.name}」设为默认模板`);
+    async setDefault(template) {
+      try {
+        await API.settings.save({ default_template_id: template.id });
+        this.defaultTemplateId = template.id;
+        this.$message.success(`已将「${template.name}」设为默认模板`);
+      } catch (e) {
+        this.$message.error('设置默认模板失败: ' + e.message);
+      }
     },
 
     confirmDelete(template) {

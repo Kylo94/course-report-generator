@@ -79,10 +79,10 @@ if [[ ! -d .venv ]]; then
 fi
 
 # ── 检查配置文件 ──────────────────────────────────────
-if [[ ! -f config/llm.yaml ]]; then
-  echo -e "${YELLOW}⚠ 未找到 config/llm.yaml，将使用默认配置${NC}"
-  echo "  首次使用请编辑 config/llm.yaml 填入 API Key"
+if [[ ! -f config/app.yaml ]]; then
+  echo -e "${YELLOW}⚠ 未找到 config/app.yaml，将使用默认应用配置${NC}"
 fi
+echo -e "${CYAN}ℹ AI 配置请在应用「设置」页面填写（旧 config/llm.yaml 仅作升级迁移）${NC}"
 
 # ── 启动信息 ──────────────────────────────────────────
 echo ""

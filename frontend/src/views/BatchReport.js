@@ -589,12 +589,21 @@ const BatchReportView = {
 
     async loadTemplates() {
       try {
-        this.templateList = await API.templates.list();
-      // 优先使用用户设置的默认模板
-      const savedDefault = localStorage.getItem('crg_default_template');
-      if (savedDefault && this.templateList.some(t => t.id === savedDefault)) {
-        this.config.template_id = savedDefault;
-      }
+        const [templates, settings] = await Promise.all([
+          API.templates.list(),
+          API.settings.get().catch(() => ({})),
+        ]);
+        this.templateList = templates;
+        const savedDefault = settings.default_template_id || localStorage.getItem('crg_default_template');
+        if (savedDefault && this.templateList.some(t => t.id === savedDefault)) {
+          this.config.template_id = savedDefault;
+          // 一次性把旧的 localStorage 值迁移到用户设置
+          if (!settings.default_template_id && localStorage.getItem('crg_default_template')) {
+            API.settings.save({ default_template_id: savedDefault })
+              .then(() => localStorage.removeItem('crg_default_template'))
+              .catch(() => {});
+          }
+        }
       } catch (e) {
         console.error('加载模板列表失败:', e);
       }

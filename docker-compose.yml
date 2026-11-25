@@ -2,7 +2,8 @@
 # 宿主机端口固定为 8765，只保留一个入口。
 #
 # ★ 需要修改的地方 ★
-#   AI 配置：./config/llm.yaml（已挂载进容器，修改后 docker compose restart）
+#   AI 配置：启动后访问 http://localhost:8765 的「设置」页面填写
+#   数据（含用户设置与加密密钥）持久化在 ./data 目录
 #
 # 常用命令：
 #   docker compose up -d --build  本地构建并启动
@@ -27,7 +28,6 @@ services:
 
     volumes:
       - ./data:/app/data
-      - ./config/llm.yaml:/app/config/llm.yaml:ro
       - /Users/kylo/Documents/Workspace:/Users/kylo/Documents/Workspace
       - /Users/kylo/Desktop:/Users/kylo/Desktop
       - /Users/kylo/Documents:/Users/kylo/Documents

@@ -84,6 +84,13 @@ HIDDEN_IMPORTS = [
     "playwright.sync_api",
     # yaml
     "yaml",
+    # API Key 安全存储
+    "cryptography.fernet",
+    "keyring",
+    "keyring.backends.chainer",
+    "keyring.backends.macOS",
+    "keyring.backends.Windows",
+    "keyring.backends.SecretService",
 ]
 
 # ── 数据文件（需随应用一起分发的资源） ──

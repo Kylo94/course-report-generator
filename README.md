@@ -1,4 +1,4 @@
-# 📄 课程报告生成工具 v1.2.0
+# 📄 课程报告生成工具 v1.3.0
 
 **Course Report Generator** — 少儿编程教师课后报告自动生成工具。
 
@@ -28,17 +28,13 @@ pip install uv
 # 1. 安装项目依赖
 uv sync
 
-# 2. 准备 LLM 配置（复制模板后填入 API Key）
-cp config/llm.yaml.example config/llm.yaml
-#    编辑 config/llm.yaml，支持 DeepSeek / 通义千问 / 智谱 GLM / OpenAI / Claude
-
-# 3. 启动（开发模式）
+# 2. 启动（开发模式）
 uv run python main.py
 
-# 4. 浏览器打开 http://localhost:8765
+# 3. 浏览器打开 http://localhost:8765，在「设置」页面填写 AI 配置
 ```
 
-首次启动自动创建 SQLite 数据库，无需额外配置。
+首次启动自动创建 SQLite 数据库，无需额外配置。AI 供应商、API Key、模型、默认模板都在「设置」页面维护，保存后即时生效。
 
 ### C/C++ 工程
 
@@ -67,31 +63,23 @@ uv run python main.py
 
 ### 方式一：docker compose（推荐）
 
-项目配置在 **`config/` 目录**，不是 `.env`：
-
-- `config/app.yaml`：应用、服务器、数据库、报告目录等非敏感配置，可入 git。
-- `config/llm.yaml`：AI 供应商、API Key、模型等敏感配置，**不要提交**。
-- `config/llm.yaml.example`：配置模板，首次部署时复制一份。
+非敏感的应用配置在 **`config/app.yaml`**；AI 配置与默认模板在应用「设置」页面维护，保存到挂载的 `./data/user_settings.json`，API Key 加密保存在系统钥匙串或 `data/.llm_secret.*`。
 
 ```bash
-# 1. 准备 AI 配置（只需第一次）
-cp config/llm.yaml.example config/llm.yaml
-# 编辑 config/llm.yaml，填入 api_key
-
-# 2. 构建并启动（之后改代码也用这条）
+# 1. 构建并启动（之后改代码也用这条）
 docker compose up -d --build
 
-# 3. 打开浏览器
+# 2. 打开浏览器，进入「设置」页面填写 AI 配置
 open http://localhost:8765
 
-# 4. 查看日志
+# 3. 查看日志
 docker compose logs -f
 
-# 5. 停止服务
+# 4. 停止服务
 docker compose down
 ```
 
-`docker-compose.yml` 会把 `./config/llm.yaml` 只读挂载到容器 `/app/config/llm.yaml`，修改后执行 `docker compose restart` 即可生效。宿主机只发布 **8765** 一个入口。
+`docker-compose.yml` 只挂载 `./data` 用于持久化用户设置与加密密钥；宿主机只发布 **8765** 一个入口。设置页面保存后即时生效，无需重启容器。
 
 ### 方式二：纯 docker
 
@@ -104,23 +92,23 @@ docker run -d \
   --name course-report \
   -p 8765:8765 \
   -v "$PWD/data:/app/data" \
-  -v "$PWD/config/llm.yaml:/app/config/llm.yaml:ro" \
   course-report-generator
 ```
 
-> 注意：纯 docker 运行时必须挂载 `config/llm.yaml`，否则容器里没有 API Key。也可以改用 `-e CRG_LLM__API_KEY=...` 环境变量覆盖。
+> 注意：`./data` 必须挂载，否则用户设置、加密密钥和报告不会持久化。也可以在运行时用 `-e CRG_LLM__API_KEY=...` 环境变量覆盖页面配置（最高优先级）。
 
 ### 配置文件说明
 
 | 文件 | 用途 | 是否入 git |
 |---|---|---|
 | `config/app.yaml` | 应用配置：服务器端口、数据库、报告目录、Logo 等 | 是 |
-| `config/llm.yaml` | AI 配置：provider / api_key / default_model | 否（已忽略） |
-| `config/llm.yaml.example` | AI 配置模板 | 是 |
+| `data/user_settings.json` | 用户设置：AI 配置（不含明文 Key）、默认模板、路径等 | 否 |
+| `data/.llm_secret.key` / `.llm_secret.enc` | API Key 加密密钥与密文 | 否（已忽略） |
+| `config/llm.yaml.example` | 旧版配置格式参考（已废弃） | 是 |
 
 ### 环境变量参考
 
-所有配置都可以用 `CRG_` 前缀的环境变量覆盖，优先级高于 `config/*.yaml`。完整字段对应关系见 [backend/config.py](backend/config.py)。
+所有配置都可以用 `CRG_` 前缀的环境变量覆盖，优先级高于「设置」页面和 `config/*.yaml`。完整字段对应关系见 [backend/config.py](backend/config.py)。
 
 | 环境变量 | 对应配置 | 说明 | 默认值 |
 |---|---|---|---|
@@ -207,7 +195,7 @@ volumes:
 ├── main.py                 # 应用入口（uvicorn 启动）
 ├── backend/
 │   ├── app.py              # FastAPI 应用工厂
-│   ├── config.py           # 配置加载（app.yaml + llm.yaml）
+│   ├── config.py           # 配置加载（app.yaml + data/user_settings.json）
 │   ├── db.py               # SQLAlchemy 异步引擎 + 迁移
 │   ├── api/                # RESTful 路由（students/classes/reports/projects/…）
 │   ├── services/           # 业务逻辑层（AI 编排、PDF/Word 生成、代码分析…）
@@ -219,7 +207,7 @@ volumes:
 │   ├── index.html          # 单页应用入口
 │   └── src/                # Vue 3 组件（7 个视图：Dashboard/Classes/Students/…）
 ├── templates/              # 报告模板（classic / cartoon / academic / 科技前沿 / minimal）
-├── config/                 # 配置文件（app.yaml / llm.yaml）
+├── config/                 # 配置文件（app.yaml；llm.yaml.example 仅作迁移参考）
 ├── data/                   # 运行期数据（SQLite + 报告输出 + 截图 + Logo）
 └── tests/                  # 单元测试 + 集成测试
 ```
@@ -420,15 +408,14 @@ int main() {
 4. **作业指导明确**：用 Python 的 `# 作业:` 或 C/C++ 的 `// 作业:` 标记给出具体任务，AI 出题会更贴近课程内容
 5. **避免过多无关文件**：项目文件夹中只放本节课相关的 `.py` / `.cpp` / `.c` / `.h` 文件，无关文件会分散 AI 注意力
 
-### LLM 配置 (`config/llm.yaml`)
+### AI 配置（设置页面）
 
-```yaml
-provider: deepseek              # 当前激活的供应商
-api_key: sk-xxxxx               # API Key
-default_model: deepseek-chat    # 默认模型
-timeout: 60                     # 请求超时（秒）
-max_retries: 2                  # 失败重试次数
-```
+在应用左侧「设置」→「AI 服务」卡片中填写供应商、API Key、模型、超时、重试次数、最大 Token 与各步骤温度参数，点击「保存设置」即时生效。
+
+- API Key 优先保存在系统钥匙串（macOS 钥匙串 / Windows 凭据管理器），不可用时保存为本地加密文件；
+- `data/user_settings.json` 中不写入明文 Key，接口只返回「已配置」状态和脱敏尾号；
+- 旧版 `config/llm.yaml` 仅在首次升级时迁移一次，之后不再生效；
+- 也可以用 `CRG_LLM__*` 环境变量覆盖页面配置（适合 CI / 无界面部署）。
 
 支持供应商及推荐模型：
 
@@ -538,10 +525,12 @@ uv run python -m playwright install chromium
 
 ```
 config/
-├── app.yaml            # 应用配置（可编辑）
-└── llm.yaml            # AI 配置（填入 API Key）
+└── app.yaml            # 应用配置（可编辑）
 data/
 ├── app.db              # SQLite 数据库
+├── user_settings.json  # 用户设置（AI 配置、默认模板等，不含明文 Key）
+├── .llm_secret.key     # API Key 加密密钥（钥匙串不可用时生成）
+├── .llm_secret.enc     # API Key 密文
 ├── reports/            # 导出 PDF
 ├── screenshots/        # 上传截图
 └── assets/             # Logo 等资产
@@ -549,16 +538,13 @@ data/
 
 ### AI 配置
 
-打包后的程序首次启动时，会自动在 exe 同级目录生成 `config/llm.yaml`。**使用前需编辑此文件**填入 API Key，然后重启应用：
+启动程序后访问 `http://127.0.0.1:8765`，进入「设置」页面：
 
-```yaml
-# config/llm.yaml（用记事本/VSCode 打开编辑）
-provider: deepseek
-api_key: sk-你的API密钥       # ← 填在这里
-default_model: deepseek-chat
-timeout: 60
-max_retries: 2
-```
+1. 在「AI 服务」卡片选择供应商并填入 API Key；
+2. 确认模型与地址，点击「保存并测试连接」；
+3. 在「报告」卡片选择默认模板并保存。
+
+设置即时生效，无需重启。API Key 加密保存，不会明文写入配置文件。
 
 支持的供应商：
 
@@ -570,7 +556,7 @@ max_retries: 2
 | OpenAI | `openai` | `gpt-4o-mini` |
 | Claude | `claude` | `claude-sonnet-4-6` |
 
-> 编辑后**必须重启应用**才能使新配置生效。也可以在运行中修改后通过前端「设置」页面重载。
+> 旧版本已有的 `config/llm.yaml` 会在首次启动时自动迁移到设置页面，并清除其中的明文 Key。
 
 ### 打包文件结构
 
@@ -581,10 +567,11 @@ dist/课程报告生成工具/
 ├── browser/               # [可选] Chromium 浏览器引擎（~200MB）
 └── 首次启动后自动创建:
     ├── config/            # 用户配置文件目录
-    │   ├── app.yaml       # 应用设置
-    │   └── llm.yaml       # AI API Key（首次使用必填）
+    │   └── app.yaml       # 应用设置
     └── data/              # 运行数据
         ├── app.db         # 数据库
+        ├── user_settings.json  # 用户设置（页面维护）
+        ├── .llm_secret.*  # API Key 加密存储
         ├── reports/       # 导出 PDF
         ├── screenshots/   # 截图
         └── assets/        # Logo
@@ -593,6 +580,7 @@ dist/课程报告生成工具/
 ## 版本历史
 
 ```
+v1.3.0 — AI 配置迁移到「设置」页面；API Key 加密存储（系统钥匙串 / 本地加密文件）；默认模板改为后端持久化；配置保存即时生效
 v1.2.0 — 支持 C/C++ 工程；新增「素白极简」低打印负担模板；Classic/素白极简 Word 采用 PDF 风格卡片版式；导出按钮合并为「导出报告」；宿主机端口固定 8765
 v1.1.0 — 重构项目文档，详述代码注释规范以提高AI准确度；去除作业评分标准
 v1.0.0 — 正式版。完整功能闭环比对、文档完善、打包准备

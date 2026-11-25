@@ -6,8 +6,9 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.config import get_settings
 from backend.db import get_session
-from backend.llm.base import get_provider
+from backend.llm.base import SUPPORTED_PROVIDERS, get_provider
 from backend.schemas.ai_generation import (
     AIGeneratedContent,
     AIGenerateRequest,
@@ -131,13 +132,13 @@ async def regenerate_field(
 
 @router.get("/providers", response_model=list[str], summary="支持的 LLM 供应商列表")
 async def list_providers() -> list[str]:
-    return ["deepseek", "minimax", "qwen", "glm", "openai", "claude"]
+    return list(SUPPORTED_PROVIDERS)
 
 
 @router.post("/test-connection", summary="测试当前 LLM 配置连通性")
 async def test_connection() -> dict:
     try:
-        provider = get_provider()
+        provider = get_provider(get_settings().llm)
         ok, msg = provider.test_connection()
         return {
             "provider": provider.name,
@@ -186,7 +187,7 @@ async def websocket_generate(websocket: WebSocket) -> None:
 
                 # 流式调用
                 from backend.services.ai_chains import build_streaming_chains
-                provider = get_provider()
+                provider = get_provider(get_settings().llm)
                 chains = build_streaming_chains(provider)
                 chain = chains[field]
 

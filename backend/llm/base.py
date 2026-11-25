@@ -60,7 +60,12 @@ class LLMProviderError(Exception):
         super().__init__(message)
 
 
-# 各供应商的默认 base_url（用户可在 llm.yaml 覆盖）
+# 支持的供应商（设置页下拉框与接口校验共用）
+SUPPORTED_PROVIDERS: tuple[str, ...] = (
+    "deepseek", "minimax", "qwen", "glm", "openai", "claude",
+)
+
+# 各供应商的默认 base_url（用户可在设置页覆盖）
 DEFAULT_BASE_URLS: dict[str, str] = {
     "minimax": "https://api.minimax.chat/v1",
     "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",

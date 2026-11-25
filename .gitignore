@@ -102,6 +102,8 @@ dist_run.log
 # =========================
 config/llm.yaml
 config/app.yaml.local
+data/.llm_secret.key
+data/.llm_secret.enc
 .env
 .env.local
 
