@@ -18,6 +18,9 @@ log = get_logger(__name__)
 
 TEMPLATES_DIR = PROJECT_ROOT / "templates"
 CUSTOM_TEMPLATES_DIR = PROJECT_ROOT / "data" / "custom_templates"
+# 所有模板共享的 A4 分页 / 图片等比缩放 / 长文本密度样式
+BASE_CSS_PATH = TEMPLATES_DIR / "_base.css"
+_CPP_EXTS = {".cpp", ".cc", ".cxx", ".c++", ".c", ".h", ".hpp", ".hh", ".hxx"}
 
 
 class TemplateNotFoundError(Exception):
@@ -29,9 +32,11 @@ class TemplateNotFoundError(Exception):
 
 
 def _load_json(value: str | None, default: Any = None) -> Any:
-    """安全解析 JSON 字符串。"""
+    """安全解析 JSON 字符串（也兼容已经是 list/dict 的值）。"""
     if value is None:
         return default
+    if isinstance(value, (list, dict)):
+        return value
     try:
         return json.loads(value)
     except (json.JSONDecodeError, TypeError):
@@ -85,6 +90,84 @@ def _image_to_data_uri(image_path: str) -> str | None:
     except Exception as e:
         log.warning("图片转 data URI 失败: %s", e)
         return None
+
+
+def _text_chars(values) -> int:
+    """统计一组文本值的字符数（忽略 None）。"""
+    total = 0
+    for value in values:
+        if isinstance(value, str):
+            total += len(value)
+    return total
+
+
+def _density_class(score: int, compact: int, ultra: int) -> str:
+    """根据内容体量返回密度档位 class。"""
+    if score >= ultra:
+        return "density-ultra"
+    if score >= compact:
+        return "density-compact"
+    return ""
+
+
+def _compute_density(
+    knowledge_points: list,
+    content_items: list,
+    code_excerpt: str,
+    vocabulary: dict,
+    homework: dict,
+    evaluation: str,
+    ability_improvement: str,
+    has_code_images: bool = False,
+) -> dict[str, str]:
+    """估算每页内容量，供模板切换字号/行距，避免文字撑出 A4。
+
+    只做启发式估算：正常内容保持原设计；文字明显偏多时逐级压缩。
+    """
+    kp_chars = _text_chars(knowledge_points)
+    kp_score = kp_chars + len(knowledge_points) * 4
+    if len(knowledge_points) >= 12:
+        p1 = "density-ultra"
+    elif len(knowledge_points) >= 8:
+        p1 = "density-compact"
+    else:
+        p1 = _density_class(kp_score, 100, 180)
+
+    content_chars = sum(
+        _text_chars([item.get("kp", ""), item.get("text", "")])
+        for item in content_items
+        if isinstance(item, dict)
+    )
+    p2 = _density_class(content_chars + len(content_items) * 12, 1000, 1450)
+
+    vocabulary = vocabulary if isinstance(vocabulary, dict) else {}
+    homework = homework if isinstance(homework, dict) else {}
+    vocab_chars = _text_chars(
+        [vocabulary.get(k, "") for k in ("word", "phonetic", "meaning", "example")]
+    )
+    p3_score = len(code_excerpt) + vocab_chars + len(ability_improvement or "")
+    if not has_code_images and code_excerpt:
+        p3_score += 120
+    p3 = _density_class(p3_score, 900, 1300)
+
+    questions = homework.get("questions")
+    questions = questions if isinstance(questions, list) else []
+    hw_chars = _text_chars([homework.get("goal", ""), homework.get("hint", "")])
+    for q in questions:
+        if isinstance(q, dict):
+            hw_chars += _text_chars([q.get("goal", ""), q.get("hint", "")])
+            hints = q.get("hints")
+            if isinstance(hints, list):
+                hw_chars += _text_chars(hints)
+    p4_score = hw_chars + len(evaluation or "") + len(questions) * 60
+    if len(questions) >= 5:
+        p4 = "density-ultra"
+    elif len(questions) >= 3:
+        p4 = "density-compact"
+    else:
+        p4 = _density_class(p4_score, 800, 1200)
+
+    return {"p1": p1, "p2": p2, "p3": p3, "p4": p4}
 
 
 def list_templates() -> list[dict[str, Any]]:
@@ -182,7 +265,11 @@ class ReportRenderer:
 
         # 加载模板文件
         self.html_template = self._load_file("template.html")
-        self.css_content = self._load_file("style.css")
+        # 共享布局样式前置，模板自身样式可以继续覆盖外观
+        base_css = ""
+        if BASE_CSS_PATH.exists():
+            base_css = BASE_CSS_PATH.read_text("utf-8")
+        self.css_content = f"{base_css}\n\n{self._load_file('style.css')}"
 
         # 加载配置
         self.config = get_template_config(template_id)
@@ -346,7 +433,8 @@ class ReportRenderer:
                     try:
                         lines = fpath.read_text("utf-8").splitlines()
                         selected = lines[block["start"]:block["end"]]
-                        header = f"# {block['file']}:{block['start'] + 1}"
+                        marker = "//" if fpath.suffix.lower() in _CPP_EXTS else "#"
+                        header = f"{marker} {block['file']}:{block['start'] + 1}"
                         return header + "\n" + "\n".join(selected)
                     except (OSError, IndexError):
                         return ""
@@ -361,23 +449,34 @@ class ReportRenderer:
                         entry_path = folder / pm["py_files"][0]["path"]
                     if entry_path and entry_path.exists():
                         source = entry_path.read_text("utf-8")
-                        try:
-                            tree = _ast.parse(source)
-                            source_lines = source.splitlines()
-                            for node in _ast.walk(tree):
-                                if not isinstance(node, _ast.FunctionDef):
-                                    continue
-                                if referenced_funcs and node.name not in referenced_funcs:
-                                    continue
-                                start = node.lineno - 1
-                                end = node.end_lineno if hasattr(node, 'end_lineno') and node.end_lineno else start + 5
-                                raw_blocks.append(f"# {entry_path.name}:{node.lineno}\n" + "\n".join(source_lines[start:end]))
-                                if len("\n\n".join(raw_blocks)) > 800:
+                        source_lines = source.splitlines()
+                        if entry_path.suffix.lower() in _CPP_EXTS:
+                            # C/C++：优先从 main() 所在行开始截取
+                            start = 0
+                            for idx, line in enumerate(source_lines):
+                                if _re.search(r"\bmain\s*\(", line):
+                                    start = idx
                                     break
-                        except SyntaxError:
-                            source_lines = source.splitlines()
-                            body = [l for l in source_lines if l.strip() and not l.strip().startswith(("import ", "from ", "#"))]
-                            raw_blocks = [line for line in body[:15]]
+                            raw_blocks.append(
+                                f"// {entry_path.name}:{start + 1}\n"
+                                + "\n".join(source_lines[start:start + 15])
+                            )
+                        else:
+                            try:
+                                tree = _ast.parse(source)
+                                for node in _ast.walk(tree):
+                                    if not isinstance(node, _ast.FunctionDef):
+                                        continue
+                                    if referenced_funcs and node.name not in referenced_funcs:
+                                        continue
+                                    start = node.lineno - 1
+                                    end = node.end_lineno if hasattr(node, 'end_lineno') and node.end_lineno else start + 5
+                                    raw_blocks.append(f"# {entry_path.name}:{node.lineno}\n" + "\n".join(source_lines[start:end]))
+                                    if len("\n\n".join(raw_blocks)) > 800:
+                                        break
+                            except SyntaxError:
+                                body = [l for l in source_lines if l.strip() and not l.strip().startswith(("import ", "from ", "#"))]
+                                raw_blocks = [line for line in body[:15]]
 
                 # 6. 限制总行数 ≤ 15
                 if raw_blocks:
@@ -436,6 +535,27 @@ class ReportRenderer:
             else:
                 resolved_showcase_photo = showcase_photo
 
+        # 首页「项目运行效果」统一图片区：学生展示图 + 运行截图 + 其他截图。
+        # 展示图不再单独占一个区块，避免破坏首页版式。
+        effect_images: list[str] = []
+        for image in ([resolved_showcase_photo] if resolved_showcase_photo else []) + \
+                resolved_run_screenshots + resolved_screenshots:
+            if image and image not in effect_images:
+                effect_images.append(image)
+        # 固定网格最多容纳 4 张（2x2），超出的不展示，保证页面不溢出
+        effect_images = effect_images[:4]
+
+        density = _compute_density(
+            knowledge_points=kp,
+            content_items=content_items,
+            code_excerpt=code_excerpt,
+            vocabulary=vocabulary or {},
+            homework=homework or {},
+            evaluation=record.evaluation or "",
+            ability_improvement=record.ability_improvement or "",
+            has_code_images=bool(resolved_code_screenshots),
+        )
+
         # 模板上下文
         ctx = {
             "css_content": self.css_content,
@@ -455,8 +575,12 @@ class ReportRenderer:
             "run_screenshots": resolved_run_screenshots,
             "code_screenshots": resolved_code_screenshots,
             "homework_screenshots": resolved_homework_screenshots,
-            # PR3: 学生独有展示图
+            # PR3: 学生独有展示图（保留给自定义模板；内置模板已合并进 effect_images）
             "showcase_photo": resolved_showcase_photo,
+            # 首页项目运行效果图片（含展示图），固定网格展示
+            "effect_images": effect_images,
+            # 每页文字密度档位（"" / density-compact / density-ultra）
+            "density": density,
         }
 
         # 使用 Jinja2 渲染
@@ -466,6 +590,13 @@ class ReportRenderer:
         )
         template = env.from_string(self.html_template)
         html = template.render(ctx)
+
+        # 文字过多时自动缩小正文区域，确保内容始终留在 A4 页面内。
+        # PDF（Playwright/Chromium）与浏览器预览都会执行这段脚本。
+        if "</body>" in html:
+            html = html.replace("</body>", _FIT_SCRIPT + "\n</body>", 1)
+        else:
+            html += _FIT_SCRIPT
 
         return html
 
@@ -494,10 +625,15 @@ class ReportRenderer:
             lines.append(f"  --logo-offset-left: {logo_margin_mm}mm;")
         lines.append("}")
 
-        # 页面尺寸和内边距（控制内容不覆盖背景图边框）
+        # 页面尺寸和内边距（A4 固定盒模型，内容不会溢出到下一页）
         lines.append(".page {")
         lines.append("  width: 210mm;")
-        lines.append("  min-height: 297mm;")
+        lines.append("  height: 296mm;")
+        lines.append("  min-height: 0;")
+        lines.append("  box-sizing: border-box;")
+        lines.append("  overflow: hidden;")
+        lines.append("  display: flex;")
+        lines.append("  flex-direction: column;")
         lines.append("  padding:")
         lines.append(f"    var(--page-margin-top, 20mm)")
         lines.append(f"    var(--page-margin-right, 18mm)")
@@ -543,6 +679,58 @@ def merge_layout_with_theme(
     return result
 
 
+_FIT_SCRIPT = """\
+<script>
+(function () {
+  var MIN_SCALE = 0.45;
+
+  function reset(inner) {
+    inner.style.transform = '';
+    inner.style.transformOrigin = '';
+    inner.style.width = '';
+    inner.style.zoom = '';
+  }
+
+  function fit(parent) {
+    if (!parent) return;
+    var inner = parent.querySelector(':scope > .fit');
+    if (!inner) return;
+
+    reset(inner);
+    var available = parent.clientHeight;
+    var contentHeight = inner.scrollHeight;
+    if (!available || contentHeight <= available + 1) return;
+
+    // 用 transform 等比缩放，既能保留阅读顺序，也能让 Chrome 正常打印 PDF
+    var scale = Math.max(MIN_SCALE, available / contentHeight);
+    inner.style.transformOrigin = 'top left';
+    inner.style.transform = 'scale(' + scale.toFixed(4) + ')';
+    // 缩放后让内容仍然铺满正文宽度，避免右侧留白
+    inner.style.width = (100 / scale).toFixed(4) + '%';
+  }
+
+  function run() {
+    var pages = document.querySelectorAll('.page');
+    for (var i = 0; i < pages.length; i++) {
+      fit(pages[i].querySelector('.page1-kp'));
+      fit(pages[i].querySelector('.page-body'));
+    }
+  }
+
+  if (document.readyState === 'complete') {
+    run();
+  } else {
+    window.addEventListener('load', run, { once: true });
+  }
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(run);
+  }
+  window.addEventListener('beforeprint', run);
+})();
+</script>
+"""
+
+
 _A4_PREVIEW_CSS = """\
 <style>
 @media screen {
@@ -552,7 +740,10 @@ _A4_PREVIEW_CSS = """\
   }
   .page {
     width: 210mm !important;
-    min-height: 297mm !important;
+    height: 296mm !important;
+    min-height: 0 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
     margin: 28px auto !important;
     padding-top: var(--page-margin-top, 20mm) !important;
     padding-right: var(--page-margin-right, 18mm) !important;
@@ -564,18 +755,23 @@ _A4_PREVIEW_CSS = """\
   }
   .page:last-of-type {
     margin-bottom: 30px !important;
+    page-break-after: auto !important;
   }
 }
 @media print {
   .page {
     width: 210mm;
-    min-height: 297mm;
+    height: 296mm;
+    min-height: 0;
+    box-sizing: border-box;
+    overflow: hidden;
     padding-top: var(--page-margin-top, 20mm);
     padding-right: var(--page-margin-right, 18mm);
     padding-bottom: var(--page-margin-bottom, 18mm);
     padding-left: var(--page-margin-left, 18mm);
     page-break-after: always;
   }
+  .page:last-of-type { page-break-after: auto; }
 }
 </style>
 """

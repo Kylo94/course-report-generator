@@ -328,6 +328,16 @@ body {
   color: #cdd6f4;
 }
 
+/* ===== 固定尺寸图片区（等比缩放，不溢出） ===== */
+.img-cell {
+  background: linear-gradient(135deg, #FFF8F3, #FFF0E8);
+  border: 2px solid #FFD0C0;
+  border-radius: 8mm;
+}
+.effect-grid .img-cell {
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.12);
+}
+
 /* ===== 截图占位 ===== */
 .screenshot-placeholder {
   display: flex;
@@ -335,7 +345,6 @@ body {
   align-items: center;
   justify-content: center;
   gap: 3mm;
-  height: 80mm;
   margin: 4mm 0;
   border: 3px dashed #FFD0C0;
   border-radius: 8mm;
@@ -344,16 +353,3 @@ body {
 }
 .placeholder-icon { font-size: 24pt; }
 .placeholder-text { font-size: 12pt; }
-/* PR3: 学生作品展示 */
-.showcase-photo {
-  margin: 3mm 0;
-  text-align: center;
-  page-break-inside: avoid;
-}
-.showcase-photo img {
-  max-width: 100%;
-  max-height: 80mm;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-

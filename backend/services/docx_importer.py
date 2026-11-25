@@ -32,16 +32,26 @@ class DocxImportError(Exception):
 FIELD_HEADINGS: dict[str, list[str]] = {
     "course_date": ["上课时间", "上课日期", "日期", "课程日期"],
     "course_topic": ["课程名称", "课程主题", "课程名", "课程标题", "主题"],
-    "knowledge_points": ["知识点概括", "知识点", "知识点摘要", "学习知识点"],
+    "knowledge_points": ["本节课知识点", "知识点概括", "知识点", "知识点摘要", "学习知识点"],
     "ability_improvement": ["能力提升", "能力培养", "能力成长", "提升"],
-    "content_items": ["内容概述", "课程内容", "内容详解", "教学内容", "内容"],
-    "vocabulary": ["单词学习", "核心词汇", "词汇学习", "英语单词", "单词"],
+    "content_items": ["课程内容详解", "内容概述", "课程内容", "内容详解", "教学内容", "内容"],
+    "vocabulary": ["核心词汇", "单词学习", "词汇学习", "英语单词", "单词"],
     "homework": ["课后作业", "作业", "家庭作业", "练习"],
     "evaluation": ["学生评价", "评价", "教师评价", "评语", "老师评语"],
 }
 
 _field_name_to_key = {
     "基本信息": None,  # 特殊处理
+}
+
+# 这些小节只用于排版展示，不对应可导入字段；识别后直接跳过，
+# 避免导入自己导出的 Word 时出现在“未识别小节”里。
+IGNORED_SECTION_HEADINGS = {
+    "项目运行效果",
+    "代码展示",
+    "代码展示 & 单词学习",
+    "作业截图",
+    "能力提升（续）",
 }
 
 
@@ -56,20 +66,26 @@ def _match_heading(text: str) -> str | None:
 
 
 def _parse_basic_info(paragraphs: list) -> dict[str, Any]:
-    """解析基本信息（项目文件夹等）。"""
+    """解析基本信息。
+
+    支持一行里包含多个“标签：值”的情况，例如：
+    “学生姓名：张三 ｜ 上课时间：2025-06-15”。
+    """
     fields: dict[str, Any] = {}
     for para in paragraphs:
         text = para.text.strip()
-        if "：" in text:
-            label, _, value = text.partition("：")
+        if not text:
+            continue
+        for part in re.split(r"[｜|]", text):
+            part = part.strip()
+            if "：" not in part:
+                continue
+            label, _, value = part.partition("：")
+            label = label.strip()
             value = value.strip()
-            if "上课时间" in label or "课程日期" in label:
-                # 尝试提取 YYYY-MM-DD
+            if "上课时间" in label or "课程日期" in label or label == "日期":
                 m = re.search(r"\d{4}-\d{2}-\d{2}", value)
-                if m:
-                    fields["course_date"] = m.group()
-                else:
-                    fields["course_date"] = value
+                fields["course_date"] = m.group() if m else value
             elif "学生姓名" in label or "姓名" in label:
                 fields["_student_name"] = value
             elif "课程名称" in label or "课程主题" in label or "课程名" in label:
@@ -131,6 +147,27 @@ def _parse_list_section(paragraphs: list) -> list[str]:
     return items
 
 
+def _iter_block_paragraphs(doc):
+    """按文档顺序遍历正文段落，包含表格单元格里的段落。
+
+    PDF 风格的 Word 版式会把卡片内容放在表格里；只读 doc.paragraphs
+    会漏掉知识点、内容卡、词汇卡、评价卡等文字。
+    """
+    from docx.oxml.ns import qn
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
+    for child in doc.element.body.iterchildren():
+        if child.tag == qn("w:p"):
+            yield Paragraph(child, doc)
+        elif child.tag == qn("w:tbl"):
+            table = Table(child, doc)
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        yield para
+
+
 def import_docx(docx_bytes: bytes, llm_provider=None) -> dict[str, Any]:
     """解析 docx 文件为结构化字段。
 
@@ -160,16 +197,35 @@ def import_docx(docx_bytes: bytes, llm_provider=None) -> dict[str, Any]:
     current_heading = None
     current_paras: list = []
 
-    all_paragraphs = list(doc.paragraphs)
+    all_paragraphs = list(_iter_block_paragraphs(doc))
 
     def _flush_section():
         nonlocal current_heading, current_paras, total_sections, matched_sections
         if current_heading is None:
+            # 第一个 Heading 1 之前的段落：新版 Classic Word 没有“基本信息”
+            # 标题，课程名/学生/日期直接放在封面。这里把它们当封面信息解析。
+            info = _parse_basic_info(current_paras)
+            for k, v in info.items():
+                if k not in fields or v:
+                    fields[k] = v
+            if not fields.get("course_topic"):
+                for para in current_paras:
+                    text = para.text.strip()
+                    if not text:
+                        continue
+                    if any(label in text for label in ("学生姓名", "上课时间", "课程日期", "姓名", "日期")):
+                        continue
+                    fields["course_topic"] = text
+                    break
             current_paras = []
             return
 
         total_sections += 1
         heading_text = current_heading.text.strip()
+        if heading_text in IGNORED_SECTION_HEADINGS:
+            matched_sections += 1
+            current_paras = []
+            return
         field_key = _match_heading(heading_text)
 
         if field_key is None and heading_text in ("基本信息",):
@@ -194,7 +250,10 @@ def import_docx(docx_bytes: bytes, llm_provider=None) -> dict[str, Any]:
             vocab: dict[str, str] = {}
             for k, v in kv.items():
                 if "单词" in k or "word" in k.lower() or "vocab" in k.lower():
-                    vocab["word"] = v
+                    parts = re.split(r"\s{2,}|\s+", v.strip(), maxsplit=1)
+                    vocab["word"] = parts[0]
+                    if len(parts) > 1:
+                        vocab["phonetic"] = parts[1].strip("/ ")
                 elif "音" in k or "phonetic" in k.lower() or "ph" in k.lower():
                     vocab["phonetic"] = v.strip("/")
                 elif "释义" in k or "含义" in k or "意思" in k or "meaning" in k.lower():
@@ -212,12 +271,20 @@ def import_docx(docx_bytes: bytes, llm_provider=None) -> dict[str, Any]:
                 text = para.text.strip()
                 if not text:
                     continue
+                if text.startswith("作业截图"):
+                    # 作业截图是版式小节，不是作业提示
+                    mode = None
+                    continue
                 if text.startswith("目标") or text.startswith("goal") or "：" in text and text.split("：")[0] in ("目标", "Goal"):
                     label, _, val = text.partition("：")
                     homework["goal"] = val.strip()
                     mode = None
                 elif text.startswith("提示") or "hint" in text.lower():
                     mode = "hints"
+                    if "：" in text:
+                        inline_hint = text.partition("：")[2].strip()
+                        if inline_hint:
+                            homework["hints"].append(inline_hint)
                 elif text.startswith("评分") or "criteria" in text.lower() or "标准" in text:
                     mode = "criteria"
                 elif mode == "hints":

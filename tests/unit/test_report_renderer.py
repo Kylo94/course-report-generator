@@ -27,6 +27,7 @@ class TestTemplateDiscovery:
         assert "classic" in ids
         assert "cartoon" in ids
         assert "academic" in ids
+        assert "minimal" in ids
 
     def test_get_template_config(self) -> None:
         """get_template_config 加载经典模板配置。"""
@@ -153,7 +154,7 @@ class TestRenderer:
     def test_render_all_templates(self) -> None:
         """三种模板渲染都不出错。"""
         record = self._make_fake_record()
-        for tid in ("classic", "cartoon", "academic"):
+        for tid in ("classic", "cartoon", "academic", "minimal"):
             renderer = ReportRenderer(tid)
             html = renderer.render(record, student_name="测试")
             assert isinstance(html, str)
@@ -173,6 +174,51 @@ class TestRenderer:
         for i in range(5):
             assert f"KP{i}" in html
             assert f"内容{i}" in html
+
+    def test_showcase_photo_merged_into_project_effect(self) -> None:
+        """学生展示图合并进「项目运行效果」区域，首页不再多一个展示位。"""
+        renderer = ReportRenderer("classic")
+        record = self._make_fake_record()
+        html = renderer.render(
+            record,
+            run_screenshots=["/api/assets/screenshots/run1.png"],
+            showcase_photo="/api/assets/screenshots/showcase.png",
+        )
+        assert "学生作品展示" not in html
+        assert "img-grid effect-grid count-2" in html
+        assert "showcase.png" in html
+        assert "run1.png" in html
+
+    def test_effect_images_capped_at_four(self) -> None:
+        """项目运行效果最多 4 张图，避免固定网格被撑破。"""
+        renderer = ReportRenderer("classic")
+        record = self._make_fake_record()
+        html = renderer.render(
+            record,
+            run_screenshots=[f"/api/assets/screenshots/run{i}.png" for i in range(6)],
+        )
+        assert "img-grid effect-grid count-4" in html
+        assert "run4.png" not in html
+        assert "run5.png" not in html
+
+    def test_long_text_gets_density_class(self) -> None:
+        """内容明显偏多时，页面自动切换到紧凑/超紧凑字号档位。"""
+        renderer = ReportRenderer("classic")
+        items = [{"kp": f"KP{i}", "text": "很长的课程内容描述。" * 100} for i in range(6)]
+        record = self._make_fake_record(content_items=json.dumps(items, ensure_ascii=False))
+        html = renderer.render(record)
+        assert "density-ultra" in html
+
+    def test_html_has_fixed_a4_page_and_fit_script(self) -> None:
+        """页面使用固定 A4 高度，并包含文字过多时的自动缩放脚本。"""
+        renderer = ReportRenderer("classic")
+        record = self._make_fake_record()
+        html = renderer.render(record)
+        assert "height: 296mm" in html
+        assert "overflow: hidden" in html
+        assert ".img-grid" in html
+        assert "MIN_SCALE" in html
+        assert "object-fit: contain" in html
 
 
 class TestLayoutConfigRendering:
@@ -236,7 +282,7 @@ class TestLayoutConfigRendering:
         """三种模板带 layout_config 都能正常渲染。"""
         record = self._make_fake_record()
         layout = {"primary_color": "#9C27B0", "font_title": "KaiTi"}
-        for tid in ("classic", "cartoon", "academic"):
+        for tid in ("classic", "cartoon", "academic", "minimal"):
             renderer = ReportRenderer(tid)
             html = renderer.render(record, student_name="测试", layout_config=layout)
             assert isinstance(html, str)
@@ -284,3 +330,30 @@ class TestHelpers:
         """无效路径返回 None。"""
         result = _image_to_data_uri("")
         assert result is None
+
+class TestMinimalTemplate:
+    """素白极简模板：白底 + 细边框，低打印负担。"""
+
+    def _make_record(self) -> MagicMock:
+        defaults = {
+            "course_topic": "01 基本语法",
+            "course_date": "2026-11-21",
+            "ability_improvement": "逻辑思维提升",
+            "evaluation": "表现良好",
+            "knowledge_points": json.dumps(["变量", "函数"], ensure_ascii=False),
+            "content_items": json.dumps([{"kp": "变量", "text": "使用 int 声明变量"}], ensure_ascii=False),
+            "homework": json.dumps({"goal": "完成练习", "hints": [], "criteria": []}, ensure_ascii=False),
+            "vocabulary": json.dumps({"word": "variable", "meaning": "变量"}, ensure_ascii=False),
+            "screenshot_paths": json.dumps([]),
+            "logo_config": json.dumps({"enabled": False}),
+        }
+        return MagicMock(**defaults)
+
+    def test_minimal_uses_white_background_and_border(self) -> None:
+        html = ReportRenderer("minimal").render(self._make_record(), student_name="张三")
+        assert "--primary: #2F4A5F" in html
+        assert "#F4F7F9" in html
+        assert ".page::before" in html
+        assert "border: 1px solid #D9E1E8" in html
+        # 不使用整页背景图，减少打印负担
+        assert "background-image: url(" not in html

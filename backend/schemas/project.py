@@ -10,11 +10,14 @@ class FileInfoSchema(BaseModel):
     name: str
     is_python: bool
     size_bytes: int
+    is_code: bool = False
+    language: str | None = None
 
 
 class PyStructureSchema(BaseModel):
-    """Python 文件结构。"""
+    """代码文件结构（Python / C / C++ 共用）。"""
     path: str
+    language: str = "python"
     imports: list[str] = Field(default_factory=list)
     from_imports: list[dict] = Field(default_factory=list)
     function_names: list[str] = Field(default_factory=list)
@@ -24,6 +27,7 @@ class PyStructureSchema(BaseModel):
     course_title: str | None = None
     homework_guidance: str | None = None
     line_count: int = 0
+    has_main_function: bool = False
 
 
 class ProjectMetaSchema(BaseModel):
@@ -31,6 +35,7 @@ class ProjectMetaSchema(BaseModel):
     folder: str
     entry_file: str | None
     project_type: str
+    language: str = "python"
     course_title: str | None
     all_files: list[FileInfoSchema]
     py_files: list[PyStructureSchema]
@@ -45,6 +50,7 @@ class ProjectMetaSchema(BaseModel):
             folder="",
             entry_file="",
             project_type="图文",
+            language="text",
             course_title=course_topic,
             all_files=[],
             py_files=[],

@@ -1,0 +1,192 @@
+/* ============================================================
+   通用 A4 分页布局（所有内置/自定义模板共享，渲染时自动前置）
+   ------------------------------------------------------------
+   1. .page 固定为 A4 高度，overflow:hidden，保证内容不会溢出到
+      下一页，也不会出现第 5 页空白页。
+   2. 图片统一放进 .img-grid + .img-cell 的固定尺寸容器里，
+      使用 object-fit: contain 等比缩放，永不拉伸、永不超框。
+   3. 文字过多时通过 .density-compact / .density-ultra 档位
+      自动缩小字号、行距与间距（由 report_renderer 计算）。
+   ============================================================ */
+
+.page {
+  width: 210mm;
+  height: 296mm;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  page-break-after: always;
+  break-after: page;
+}
+.page:last-of-type {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+/* 页头固定，正文区域吃满剩余高度 */
+.page-head { flex: 0 0 auto; }
+.page > .page-header { flex: 0 0 auto; }
+.page-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.page1-kp {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.page1-effect { flex: 0 0 auto; }
+
+/* 自动缩放测量容器：由页面脚本在文字过多时缩小，保证内容留在 A4 内 */
+.fit {
+  width: 100%;
+  min-height: 0;
+  flex: 0 0 auto;
+}
+
+/* ===== 固定尺寸图片网格 ===== */
+.img-grid {
+  display: grid;
+  gap: 4mm;
+  width: 100%;
+  height: var(--grid-h, 70mm);
+  align-items: stretch;
+  justify-items: stretch;
+}
+.img-grid.count-1 { grid-template-columns: minmax(0, 1fr); }
+.img-grid.count-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.img-grid.count-3,
+.img-grid.count-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+.img-cell {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 5px;
+}
+.img-cell img,
+.img-grid img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* 各页图片区域固定高度 */
+.effect-grid { --grid-h: 92mm; }
+.code-grid   { --grid-h: 76mm; }
+.homework-grid { --grid-h: 52mm; }
+
+/* 超长英文单词 / URL 也必须在正文宽度内换行 */
+.content-block-text,
+.evaluation,
+.ability,
+.ability-box,
+.evaluation-box,
+.homework-goal,
+.homework-hint-text,
+.hw-hint-text,
+.timeline-text,
+.kp-card,
+.kp-chip {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 占位框同样固定高度，避免把后续内容顶出页面 */
+.screenshot-placeholder {
+  height: 70mm;
+  flex: 0 0 auto;
+}
+.page1-effect .screenshot-placeholder { height: 92mm; }
+
+/* ===== 长文本密度档位 ===== */
+.page.density-compact .section-title {
+  margin: 5mm 0 3mm;
+  font-size: 13pt;
+  padding-bottom: 2mm;
+}
+.page.density-compact .page-header {
+  margin-bottom: 6mm;
+  padding: 3mm 0;
+  font-size: 15pt;
+}
+.page.density-compact .section-header {
+  margin-top: 4mm;
+  font-size: 12.5pt;
+}
+.page.density-compact .kp-card { padding: 2mm 5mm; }
+.page.density-compact .knowledge-cards { gap: 3mm; margin: 3mm 0; }
+.page.density-compact .content-block { margin-bottom: 3mm; padding: 3mm 4mm; }
+.page.density-compact .content-block-text {
+  font-size: calc(var(--fs-body, 11pt) - 0.8pt);
+  line-height: 1.65;
+}
+.page.density-compact .content-block-title { font-size: 12pt; margin-bottom: 1.5mm; }
+.page.density-compact .evaluation,
+.page.density-compact .ability,
+.page.density-compact .ability-box,
+.page.density-compact .evaluation-box {
+  font-size: calc(var(--fs-body, 11pt) - 0.8pt);
+  line-height: 1.7;
+  padding: 3mm 4mm;
+}
+.page.density-compact .vocabulary-card { padding: 3mm 5mm; }
+.page.density-compact .homework-goal { margin-bottom: 3mm; padding: 3mm 4mm; }
+.page.density-compact .homework-hint-text,
+.page.density-compact .hw-hint-text {
+  padding: 2mm 4mm;
+  font-size: calc(var(--fs-body, 11pt) - 1pt);
+  line-height: 1.6;
+}
+.page.density-compact .vocab-row { margin-bottom: 1.5mm; }
+
+.page.density-ultra .section-title {
+  margin: 4mm 0 2.5mm;
+  font-size: 12pt;
+  padding-bottom: 1.5mm;
+}
+.page.density-ultra .page-header {
+  margin-bottom: 5mm;
+  padding: 2mm 0;
+  font-size: 14pt;
+}
+.page.density-ultra .section-header {
+  margin-top: 3mm;
+  font-size: 11.5pt;
+}
+.page.density-ultra .kp-card { padding: 1.5mm 4mm; }
+.page.density-ultra .knowledge-cards { gap: 2mm; margin: 2mm 0; }
+.page.density-ultra .content-block { margin-bottom: 2mm; padding: 2mm 3mm; }
+.page.density-ultra .content-block-text {
+  font-size: calc(var(--fs-body, 11pt) - 1.6pt);
+  line-height: 1.5;
+}
+.page.density-ultra .content-block-title { font-size: 11.5pt; margin-bottom: 1mm; }
+.page.density-ultra .evaluation,
+.page.density-ultra .ability,
+.page.density-ultra .ability-box,
+.page.density-ultra .evaluation-box {
+  font-size: calc(var(--fs-body, 11pt) - 1.6pt);
+  line-height: 1.55;
+  padding: 2mm 3mm;
+}
+.page.density-ultra .vocabulary-card { padding: 2mm 4mm; }
+.page.density-ultra .homework-goal { margin-bottom: 2mm; padding: 2mm 3mm; }
+.page.density-ultra .homework-hint-text,
+.page.density-ultra .hw-hint-text {
+  padding: 1.5mm 3mm;
+  font-size: calc(var(--fs-body, 11pt) - 1.8pt);
+  line-height: 1.5;
+}
+.page.density-ultra .vocab-row { margin-bottom: 1mm; }

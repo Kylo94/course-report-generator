@@ -2,16 +2,15 @@
 代码分析服务
 
 职责：
-1. 扫描项目文件夹，识别 .py 文件与资源文件
-2. 用 AST 解析每个 .py 文件的代码结构
-3. 解析启动文件顶部注释（提取课程主题）
-4. 提取依赖（imports）
-5. 识别项目类型（pygame / turtle / tkinter / web / cli / 算法）
+1. 扫描项目文件夹，识别 Python / C / C++ 源文件与资源文件
+2. Python 用 AST 解析；C/C++ 用轻量正则解析函数、类、#include
+3. 解析启动文件顶部注释（提取课程主题、作业引导）
+4. 提取依赖（Python imports / C/C++ #include）
+5. 识别项目类型（pygame / turtle / web / cpp / c / algorithm）
 
 约定启动文件识别：
-  - 优先：项目根目录的 main.py
-  - 其次：项目根目录的首个 .py 文件
-  - 最后：项目根目录下任何 .py 文件
+  - Python：优先 main.py，其次根目录有逻辑的 .py
+  - C/C++：优先 main.cpp / main.c，其次包含 main() 的文件
 """
 from __future__ import annotations
 
@@ -48,6 +47,8 @@ HOMEWORK_GUIDANCE_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"^\s*作业引导\s*[:：]"),                    # "作业引导：xxx"
     re.compile(r"^\s*作业指导\s*[:：]"),                    # "作业指导：xxx"
     re.compile(r"^\s*作业\s*[:：]"),                        # "作业：画五角星" 或 "作业："
+    re.compile(r"^\s*作业\s*$"),                            # 单独一行 "作业"
+    re.compile(r"^\s*Homework\s*$", re.IGNORECASE),         # 单独一行 "Homework"
     re.compile(r"^\s*HomeworkGuidance\s*[:：]", re.IGNORECASE),
 ]
 
@@ -87,6 +88,20 @@ GUI_TYPES = {"pygame", "turtle", "tkinter", "pyqt", "arcade", "pgzero"}
 WEB_TYPES = {"web"}
 SKIP_DIRS = {".venv", "venv", "__pycache__", ".git", "node_modules", "dist", "build", ".idea", ".vscode"}
 
+# 代码文件扩展名
+PYTHON_EXTS = {".py"}
+C_EXTS = {".c", ".h"}
+CPP_EXTS = {".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx"}
+CODE_EXTS = PYTHON_EXTS | C_EXTS | CPP_EXTS
+
+# C/C++ 控制关键字（不要把 if/for/while 等当成函数名）
+CPP_CONTROL_KEYWORDS = {
+    "if", "else", "for", "while", "do", "switch", "case", "default",
+    "try", "catch", "throw", "return", "sizeof", "new", "delete",
+    "namespace", "using", "typedef", "struct", "class", "enum",
+    "static_assert", "decltype", "alignof", "typeid", "operator",
+}
+
 
 # =========================
 # 数据结构
@@ -98,12 +113,15 @@ class FileInfo:
     name: str
     is_python: bool
     size_bytes: int
+    is_code: bool = False
+    language: str | None = None
 
 
 @dataclass
 class PyStructure:
-    """单个 .py 文件的结构。"""
+    """单个代码文件的结构（Python / C / C++ 共用）。"""
     path: str
+    language: str = "python"
     imports: list[str] = field(default_factory=list)
     from_imports: list[tuple[str, str | None]] = field(default_factory=list)
     function_names: list[str] = field(default_factory=list)
@@ -113,6 +131,7 @@ class PyStructure:
     course_title: str | None = None  # 解析出的课程主题
     homework_guidance: str | None = None  # 解析出的作业引导
     line_count: int = 0
+    has_main_function: bool = False  # C/C++ 是否包含 main()
 
 
 @dataclass
@@ -120,7 +139,8 @@ class ProjectMeta:
     """项目元信息汇总。"""
     folder: str
     entry_file: str | None  # 启动文件相对路径
-    project_type: str  # pygame / turtle / tkinter / web / cli / algorithm
+    project_type: str  # pygame / turtle / tkinter / web / cpp / c / algorithm
+    language: str  # python / cpp / c
     course_title: str | None  # 课程主题（来自启动文件注释）
     all_files: list[FileInfo] = field(default_factory=list)
     py_files: list[PyStructure] = field(default_factory=list)
@@ -158,28 +178,36 @@ def analyze_project(folder: str | Path) -> ProjectMeta:
     if not files:
         raise ValueError(f"项目文件夹为空: {folder}")
 
-    py_files = [f for f in files if f.is_python]
-    if not py_files:
-        raise ValueError(f"未找到任何 .py 文件: {folder}")
+    code_files = [f for f in files if f.is_code]
+    if not code_files:
+        raise ValueError(f"未找到任何 .py / .cpp / .c 代码文件: {folder}")
 
-    # 2. 先解析所有 .py 文件（AST 分析），让入口选择器能基于代码内容做决策
+    # 2. 识别项目主语言
+    language = _detect_language(code_files)
+
+    # 3. 先解析所有代码文件，让入口选择器能基于代码内容做决策
     structures: list[PyStructure] = []
-    for f in py_files:
+    for f in code_files:
         abs_path = folder / f.path
         try:
-            struct = _parse_py_file(abs_path)
+            if f.is_python:
+                struct = _parse_py_file(abs_path)
+            else:
+                struct = _parse_cpp_file(abs_path)
             struct.path = f.path
+            struct.language = f.language or language
             structures.append(struct)
-        except SyntaxError as e:
+        except Exception as e:
             log.warning("解析 %s 失败: %s", f.path, e)
             structures.append(PyStructure(
                 path=f.path,
+                language=f.language or language,
                 line_count=0,
                 top_comment="",
             ))
 
-    # 3. 识别启动文件（基于 AST 分析结果：有函数/类/import 的小文件优先）
-    entry_path = _find_entry_file(folder, py_files, structures)
+    # 4. 识别启动文件（基于解析结果：有函数/类/import 的小文件优先）
+    entry_path = _find_entry_file(folder, code_files, structures, language)
     log.info("启动文件: %s", entry_path)
 
     # 4. 提取启动文件的课程主题
@@ -190,7 +218,7 @@ def analyze_project(folder: str | Path) -> ProjectMeta:
 
     # 5. 识别项目类型
     all_imports = _collect_imports(structures)
-    project_type = _detect_project_type(all_imports)
+    project_type = _detect_project_type(all_imports, language)
 
     # 6. 总行数
     total_lines = sum(s.line_count for s in structures)
@@ -198,22 +226,24 @@ def analyze_project(folder: str | Path) -> ProjectMeta:
     # 7. 警告
     warnings = []
     if course_title is None and entry_structure is not None:
+        comment_example = "// Course: xxx" if language != "python" else "# Course: xxx"
         warnings.append(
             f"启动文件 {entry_path} 顶部未找到课程主题注释"
-            "（如 # Course: xxx）"
+            f"（如 {comment_example}）"
         )
     if not all_imports:
-        warnings.append("项目没有任何 import 语句")
+        warnings.append("项目没有任何 #include / import 语句")
 
     log.info(
-        "项目分析完成: type=%s files=%d py=%d lines=%d course=%s",
-        project_type, len(files), len(py_files), total_lines, course_title,
+        "项目分析完成: language=%s type=%s files=%d code=%d lines=%d course=%s",
+        language, project_type, len(files), len(code_files), total_lines, course_title,
     )
 
     return ProjectMeta(
         folder=str(folder),
         entry_file=entry_path,
         project_type=project_type,
+        language=language,
         course_title=course_title,
         all_files=files,
         py_files=structures,
@@ -232,21 +262,44 @@ def _scan_files(folder: Path) -> list[FileInfo]:
     for item in folder.rglob("*"):
         if not item.is_file():
             continue
-        # 跳过排除目录中的文件
-        if any(part in SKIP_DIRS for part in item.relative_to(folder).parts):
+        parts = item.relative_to(folder).parts
+        # 跳过排除目录（含 macOS 的 .dSYM 调试包）
+        if any(part in SKIP_DIRS or part.endswith(".dSYM") for part in parts):
             continue
         rel = item.relative_to(folder)
+        suffix = item.suffix.lower()
+        is_python = suffix in PYTHON_EXTS
+        is_code = suffix in CODE_EXTS
+        if is_python:
+            language = "python"
+        elif suffix in {".c", ".h"}:
+            language = "c"
+        elif suffix in CPP_EXTS:
+            language = "cpp"
+        else:
+            language = None
         files.append(
             FileInfo(
                 path=str(rel),
                 name=item.name,
-                is_python=item.suffix.lower() == ".py",
+                is_python=is_python,
                 size_bytes=item.stat().st_size,
+                is_code=is_code,
+                language=language,
             )
         )
     # 文件名排序
     files.sort(key=lambda f: f.path)
     return files
+
+
+def _detect_language(code_files: list[FileInfo]) -> str:
+    """根据代码文件扩展名判断项目主语言。"""
+    if any(f.language == "cpp" for f in code_files):
+        return "cpp"
+    if any(f.language == "c" for f in code_files):
+        return "c"
+    return "python"
 
 
 def _get_line_count(f: FileInfo, structs: dict[str, PyStructure]) -> int:
@@ -259,47 +312,240 @@ def _get_line_count(f: FileInfo, structs: dict[str, PyStructure]) -> int:
 
 
 def _find_entry_file(
-    folder: Path, py_files: list[FileInfo], structures: list[PyStructure] | None = None
+    folder: Path,
+    code_files: list[FileInfo],
+    structures: list[PyStructure] | None = None,
+    language: str = "python",
 ) -> str:
     """识别启动文件路径。
 
-    策略：
-    1. 优先 main.py
-    2. 找根目录下包含实际 Python 逻辑（函数/类/import）的最小 .py 文件
-       — 排除纯数据文件如 HTML.py（只是一大段字符串赋值，无逻辑）
-    3. 回退到根目录下最小的 .py 文件
+    Python 策略：优先 main.py → 根目录有逻辑的最小 .py。
+    C/C++ 策略：优先 main.cpp/main.c → 包含 main() 的根目录文件 →
+                根目录有函数/类的最小文件。
     """
-    root_pys = [f for f in py_files if "/" not in f.path]
+    root_files = [f for f in code_files if "/" not in f.path]
     name_to_struct = {s.path: s for s in (structures or [])}
 
-    # 1. main.py 优先
-    for f in root_pys:
-        if f.name == "main.py":
-            return f.path
+    # 1. 入口文件名优先
+    preferred = (
+        ["main.py"] if language == "python"
+        else ["main.cpp", "main.c", "main.cc", "main.cxx"]
+    )
+    for name in preferred:
+        for f in root_files:
+            if f.name == name:
+                return f.path
 
-    # 2. 找有实际 Python 逻辑的最小文件
+    # 2. C/C++ 找包含 main() 的文件
+    if language != "python":
+        for f in root_files:
+            s = name_to_struct.get(f.path)
+            if s and s.has_main_function:
+                return f.path
+
+    # 3. 找有实际逻辑的最小文件（排除纯数据文件）
     candidates = []
-    for f in root_pys:
+    for f in root_files:
         s = name_to_struct.get(f.path)
         has_logic = s and (s.function_names or s.class_names or s.imports)
         line_cnt = _get_line_count(f, name_to_struct)
-        # 排除纯数据文件（无逻辑且行数极大，如 HTML.py 50K+）
-        is_pure_data = line_cnt > 500 and not has_logic
         if has_logic:
             candidates.append((f.path, line_cnt))
     if candidates:
         return min(candidates, key=lambda x: x[1])[0]
 
-    # 3. 回退：根目录下最小文件
-    if root_pys:
-        return min(root_pys, key=lambda x: _get_line_count(x, name_to_struct)).path
+    # 4. 回退：根目录下最小文件
+    if root_files:
+        return min(root_files, key=lambda x: _get_line_count(x, name_to_struct)).path
 
-    # 4. 兜底
-    return py_files[0].path
+    # 5. 兜底
+    return code_files[0].path
 
 
 # =========================
-# 内部：AST 解析
+# 内部：C/C++ 解析
+# =========================
+def _parse_cpp_file(path: Path) -> PyStructure:
+    """解析单个 C/C++ 文件（轻量正则，不依赖编译器）。"""
+    source = path.read_text(encoding="utf-8", errors="ignore")
+    line_count = source.count("\n") + (1 if source else 0)
+
+    top_comment = _extract_cpp_top_comment(source)
+    clean_source = _strip_cpp_comments(source)
+    includes = re.findall(r'#\s*include\s*[<"]([^>"]+)[>"]', clean_source)
+    function_names = _extract_cpp_functions(clean_source)
+    class_names = re.findall(
+        r'(?m)^\s*(?:class|struct)\s+([A-Za-z_]\w*)', clean_source
+    )
+
+    return PyStructure(
+        path=path.name,
+        language="cpp" if path.suffix.lower() not in {".c", ".h"} else "c",
+        imports=sorted(set(includes)),
+        function_names=sorted(set(function_names)),
+        class_names=sorted(set(class_names)),
+        top_comment=top_comment,
+        course_title=_parse_course_title(top_comment),
+        homework_guidance=_parse_homework_guidance(top_comment),
+        line_count=line_count,
+        has_main_function="main" in function_names,
+    )
+
+
+def _strip_cpp_comments(source: str) -> str:
+    """去掉 C/C++ 注释，保留换行以维持行号；用于 #include/函数名提取。"""
+    result: list[str] = []
+    i = 0
+    length = len(source)
+    state = "normal"  # normal | line | block | string | char
+    while i < length:
+        ch = source[i]
+        nxt = source[i + 1] if i + 1 < length else ""
+
+        if state == "normal":
+            if ch == "/" and nxt == "/":
+                state = "line"
+                result.append("  ")
+                i += 2
+                continue
+            if ch == "/" and nxt == "*":
+                state = "block"
+                result.append("  ")
+                i += 2
+                continue
+            if ch == '"':
+                state = "string"
+            elif ch == "'":
+                state = "char"
+            result.append(ch)
+            i += 1
+            continue
+
+        if state == "line":
+            if ch == "\n":
+                state = "normal"
+                result.append("\n")
+            else:
+                result.append(" ")
+            i += 1
+            continue
+
+        if state == "block":
+            if ch == "*" and nxt == "/":
+                state = "normal"
+                result.append("  ")
+                i += 2
+                continue
+            result.append("\n" if ch == "\n" else " ")
+            i += 1
+            continue
+
+        # string / char：保留内容，处理转义
+        result.append(ch)
+        if ch == "\\":
+            if i + 1 < length:
+                result.append(source[i + 1])
+                i += 2
+                continue
+        elif (state == "string" and ch == '"') or (state == "char" and ch == "'"):
+            state = "normal"
+        i += 1
+
+    return "".join(result)
+
+
+def _extract_cpp_top_comment(source: str) -> str:
+    """提取 C/C++ 文件顶部的 // 行注释或 /* ... */ 块注释。
+
+    支持两种常见写法：
+        // 课程：xxx
+        // 目标：xxx
+    以及：
+        /*
+         * 课程：xxx
+         * 目标：xxx
+         */
+    """
+    lines = source.splitlines()
+    collected: list[str] = []
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].strip()
+
+        if not stripped:
+            # 空行是注释块之间的边界，保留给作业引导解析器
+            if collected and collected[-1] != "":
+                collected.append("")
+            i += 1
+            continue
+
+        if stripped.startswith("//"):
+            collected.append(stripped[2:].strip())
+            i += 1
+            continue
+
+        if stripped.startswith("/*"):
+            remainder = stripped[2:]
+            # 单行块注释 /* xxx */
+            if "*/" in remainder:
+                content = remainder.split("*/", 1)[0].strip()
+                if content:
+                    collected.append(content)
+                collected.append("")
+                i += 1
+                continue
+
+            # 多行块注释
+            first = remainder.strip()
+            if first:
+                collected.append(first)
+            i += 1
+            while i < len(lines):
+                body = lines[i].strip()
+                if "*/" in body:
+                    before = body.split("*/", 1)[0].strip()
+                    if before:
+                        collected.append(before.lstrip("*").strip())
+                    collected.append("")
+                    i += 1
+                    break
+                cleaned = body.lstrip("*").strip()
+                if cleaned:
+                    collected.append(cleaned)
+                i += 1
+            continue
+
+        # 遇到 #include / 代码，顶部注释结束
+        break
+
+    return "\n".join(collected).strip()
+
+
+def _extract_cpp_functions(source: str) -> list[str]:
+    """从 C/C++ 源码中提取函数名（轻量规则，供入口识别和 AI 参考）。"""
+    names: list[str] = []
+    # 带返回类型的函数定义：int main() { / void Character::attack(int) {
+    pattern_with_type = re.compile(
+        r"(?m)^[ \t]*(?:template\s*<[^>]*>\s*)?"
+        r"(?:[A-Za-z_][\w:<>,\s*&\[\]]*?)\s+"
+        r"([A-Za-z_]\w*)\s*\([^;{}]*\)\s*"
+        r"(?:const\s*)?(?:noexcept\s*)?\{"
+    )
+    # 构造函数：Character(...) { / explicit Character(...) {
+    pattern_ctor = re.compile(
+        r"(?m)^[ \t]*(?:explicit\s+)?([A-Za-z_]\w*)\s*"
+        r"\([^;{}]*\)\s*(?::[^{]+)?\{"
+    )
+    for pattern in (pattern_with_type, pattern_ctor):
+        for match in pattern.finditer(source):
+            name = match.group(1)
+            if name and name not in CPP_CONTROL_KEYWORDS:
+                names.append(name)
+    return names
+
+
+# =========================
+# 内部：Python AST 解析
 # =========================
 def _parse_py_file(path: Path) -> PyStructure:
     """解析单个 .py 文件的 AST。"""
@@ -513,9 +759,20 @@ def _collect_imports(structures: list[PyStructure]) -> list[str]:
     return all_imports
 
 
-def _detect_project_type(imports: list[str]) -> str:
-    """根据 import 列表识别项目类型。"""
+def _detect_project_type(imports: list[str], language: str = "python") -> str:
+    """根据依赖列表和语言识别项目类型。"""
     imports_lower = " ".join(i.lower() for i in imports)
+
+    if language in ("cpp", "c"):
+        # C/C++ 图形/游戏框架
+        gui_keywords = (
+            "sfml", "sdl", "glfw", "opengl", "gl/", "qt", "qtwidgets",
+            "graphics.h", "easyx", "raylib", "allegro", "imgui",
+        )
+        if any(keyword in imports_lower for keyword in gui_keywords):
+            return "cpp_gui"
+        return "cpp" if language == "cpp" else "c"
+
     for keyword, ptype in PROJECT_TYPE_RULES:
         if keyword in imports_lower:
             return ptype

@@ -169,11 +169,15 @@ class AIConversation:
     "记忆" = self.messages（list[BaseMessage]），每次 _call 追加一对 Human/AI。
     """
 
-    def __init__(self, provider: LLMProvider):
+    def __init__(self, provider: LLMProvider, language: str = "python"):
         self.provider = provider
         self.messages: list = []
         self.outputs: dict[str, Any] = {}
         self._code_refs: str = ""
+        language_key = (language or "python").lower()
+        self.language_label = {
+            "cpp": "C++", "c++": "C++", "c": "C", "python": "Python",
+        }.get(language_key, "编程")
 
     @staticmethod
     def _extract_code_refs(code: str) -> str:
@@ -205,6 +209,15 @@ class AIConversation:
             'split', 'join', 'strip', 'replace', 'find', 'format',
             'startswith', 'endswith', 'upper', 'lower',
             'format', 'isdigit', 'isalpha', 'isalnum',
+            # C/C++ 关键字与常用库名
+            'void', 'char', 'float', 'double', 'long', 'short', 'unsigned',
+            'signed', 'const', 'static', 'struct', 'public', 'private',
+            'protected', 'virtual', 'override', 'template', 'typename',
+            'using', 'namespace', 'std', 'string', 'vector', 'cout', 'cin',
+            'endl', 'main', 'include', 'define', 'ifdef',
+            'ifndef', 'endif', 'pragma', 'sizeof', 'new', 'delete', 'this',
+            'nullptr', 'true', 'false', 'auto', 'switch', 'case', 'break',
+            'continue', 'goto', 'try', 'catch', 'throw', 'do', 'enum',
         }
         calls = set()
         for m in re.finditer(r'(?a)(?<!["\'])(\w+)\s*\(', code):
@@ -219,14 +232,20 @@ class AIConversation:
         for m in re.finditer(r'(?a)\.(\w+)\s*=', code):
             attrs.add(m.group(1))
 
-        # def 函数定义名
+        # def / C++ 函数定义名
         defs = set()
         for m in re.finditer(r'(?a)def\s+(\w+)\s*\(', code):
             defs.add(m.group(1))
+        for m in re.finditer(
+            r'(?m)^[ \t]*(?:[A-Za-z_][\w:<>,\s*&\[\]]*?)\s+'
+            r'([A-Za-z_]\w*)\s*\([^;{}]*\)\s*(?:const\s*)?\{',
+            code,
+        ):
+            defs.add(m.group(1))
 
-        # class 定义名
+        # class / struct 定义名
         classes = set()
-        for m in re.finditer(r'(?a)class\s+(\w+)', code):
+        for m in re.finditer(r'(?a)\b(?:class|struct)\s+(\w+)', code):
             classes.add(m.group(1))
 
         # 从 import 提取的模块/类
@@ -239,6 +258,8 @@ class AIConversation:
             {'os', 'sys', 'json', 're', 'math', 'random', 'time',
              'Path', 'typing', 'collections', 'dataclass'}
         )
+        for m in re.finditer(r'#\s*include\s*[<"]([^>"]+)[>"]', code):
+            imports.add(m.group(1))
 
         parts = []
         if defs:
@@ -292,19 +313,24 @@ class AIConversation:
 
         # 检测代码风格：扫描代码中是否有 def 函数定义或 class 定义
         # 如果有，优先识别为函数；如果没有(或极少)，则将逻辑块/API调用视为函数
-        has_defs = len(re.findall(r'(?a)\bdef\s+\w+|class\s+\w+', code)) >= 3
+        has_defs = (
+            len(re.findall(r'(?a)\b(?:def|class|struct)\s+\w+', code))
+            + len(re.findall(
+                r'(?m)^[ \t]*[\w:<>,*&\[\]\s]+?\s+[A-Za-z_]\w*\s*\([^;{}]*\)\s*\{',
+                code,
+            ))
+        ) >= 3
 
         if not has_defs:
-            func_desc = """注意：本代码是脚本风格（主要使用框架 API 调用如 key_pressed、goto 等），
-没有或极少有显式的 def 函数定义。请将 main_objectives 对应的**主要逻辑块**列在 key_functions 中，
-用逻辑块的核心 API 调用作为名称（如 key_just_pressed、play_snd、goto），
-start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
+            func_desc = """注意：本代码是脚本风格（主要使用框架/库 API 调用），
+没有或极少有显式函数定义。请将 main_objectives 对应的**主要逻辑块**列在 key_functions 中，
+用逻辑块的核心函数/API 调用作为名称，start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
         else:
             func_desc = """key_functions **只包含直接服务于 main_objectives 的函数**，每个必须关联至少一个目标。
 纯辅助函数（如初始化、工具函数）不要放进来。
 必须从源码中确定 start_line / end_line。"""
 
-        prompt = f"""你是少儿 Python 编程教学助手。请仔细阅读以下项目代码并**记住所有代码和逻辑**。
+        prompt = f"""你是少儿 {self.language_label} 编程教学助手。请仔细阅读以下项目代码并**记住所有代码和逻辑**。
 
 【入口文件顶部注释（说明本节课目标和主题）】
 {entry_comment}
@@ -327,18 +353,18 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
     {{
       "name": "函数名或核心逻辑块名，如 set_keys",
       "purpose": "作用描述，20-40字",
-      "technique": "核心 Python 技术点",
-      "file_path": "文件名",
+      "technique": "核心编程技术点",
+      "file_path": "文件名（如 main.py / main.cpp）",
       "start_line": 起始行号,
       "end_line": 结束行号,
       "related_objectives": [0]
     }}
   ],
-  "python_techniques": ["代码中实际用到的 Python 技术点，如条件判断、列表操作、循环、字符串操作等"]
+  "python_techniques": ["代码中实际用到的编程技术点，如条件判断、循环、函数、数据结构等"]
 }}
 
 【重要】
-- **入口注释中提到的文件名（如 tools.py、sun.py）是本课的核心学习文件，必须重点关注这些文件中的函数或逻辑**
+- **入口注释中提到的文件名（如 tools.py、utils.cpp）是本课的核心学习文件，必须重点关注这些文件中的函数或逻辑**
 - {func_desc}
 - **禁止编造代码中不存在的内容**。如果代码中没有 def 函数定义，请把关键逻辑块当作函数来分析
 - 只输出 JSON，不要额外解释"""
@@ -377,7 +403,7 @@ start_line/end_line 填写该逻辑块在代码中的起始和结束行号。"""
 要求：
 - **每个知识点必须对应代码中实际存在的函数、类、方法或 API 调用**
 - **只能引用上方清单中列出的代码元素，禁止编造清单外的函数名或 API**
-- **优先从入口注释中提到的文件中提取知识点**，入口注释中出现的文件（如 tools.py、sun.py）是本课的核心学习文件
+- **优先从入口注释中提到的文件中提取知识点**，入口注释中出现的文件（如 tools.py、utils.cpp）是本课的核心学习文件
 - **禁止编造代码中没有的函数或技术点**
 - 格式「具体技术点 + 训练能力」，如：
   "if-else 训练条件判断逻辑"

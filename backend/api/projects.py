@@ -95,16 +95,17 @@ async def list_directory(
 @router.post(
     "/scan",
     response_model=ProjectMetaSchema,
-    summary="扫描 Python 项目文件夹",
+    summary="扫描代码项目文件夹（Python / C / C++）",
 )
 async def scan_project(req: ProjectScanRequest) -> ProjectMetaSchema:
     """
-    扫描指定路径下的 Python 项目，返回：
+    扫描指定路径下的 Python / C / C++ 项目，返回：
     - 启动文件
-    - 项目类型（pygame / turtle / web / algorithm 等）
+    - 项目类型（pygame / turtle / web / cpp / c / algorithm 等）
+    - 语言（python / cpp / c）
     - 课程主题（从启动文件顶部注释解析）
-    - 所有文件清单 + 每个 .py 的结构
-    - 全部 import 列表
+    - 所有文件清单 + 每个代码文件的结构
+    - 全部 import / #include 列表
     - 警告（如未找到课程主题）
     """
     try:
@@ -120,11 +121,13 @@ async def scan_project(req: ProjectScanRequest) -> ProjectMetaSchema:
         folder=meta.folder,
         entry_file=meta.entry_file,
         project_type=meta.project_type,
+        language=meta.language,
         course_title=meta.course_title,
         all_files=[FileInfoSchema(**vars(f)) for f in meta.all_files],
         py_files=[
             PyStructureSchema(
                 path=s.path,
+                language=s.language,
                 imports=s.imports,
                 from_imports=[
                     {"module": m, "name": n} for m, n in s.from_imports
@@ -135,6 +138,7 @@ async def scan_project(req: ProjectScanRequest) -> ProjectMetaSchema:
                 top_comment=s.top_comment,
                 course_title=s.course_title,
                 line_count=s.line_count,
+                has_main_function=s.has_main_function,
             )
             for s in meta.py_files
         ],

@@ -1,0 +1,35 @@
+{
+  "id": "minimal",
+  "name": "素白极简",
+  "version": "1.0",
+  "is_builtin": true,
+  "parent_template": null,
+  "thumbnail": "",
+  "description": "纯白背景 + 细边框，低打印负担；标题保留浅色底，适合日常打印",
+  "page_size": "A4",
+  "theme": {
+    "primary_color": "#2F4A5F",
+    "secondary_color": "#F4F7F9",
+    "font_title": "Heiti SC",
+    "font_body": "STSong",
+    "font_size_title": 24,
+    "font_size_body": 11,
+    "background_color": "#FFFFFF",
+    "background_image": null,
+    "page_margin_top": 20,
+    "page_margin_right": 20,
+    "page_margin_bottom": 20,
+    "page_margin_left": 20,
+    "page_border": "#D9E1E8",
+    "heading_fill": "#F4F7F9",
+    "card_fill": "#FFFFFF"
+  },
+  "logo_config": {
+    "enabled": true,
+    "position": "top-right",
+    "size": 30,
+    "show_on_all_pages": true,
+    "margin": 9
+  },
+  "logo_data_uri": "/api/assets/logo.png"
+}

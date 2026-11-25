@@ -26,7 +26,7 @@ from backend.schemas.course_record import (
 from backend.schemas.template import TemplateListItem
 from backend.schemas.batch import BatchGenerateRequest, BatchGenerateResponse, BatchStudentResult
 from backend.services import course_records as record_svc
-from backend.services.course_records import RecordNotFoundError
+from backend.services.course_records import RecordNotFoundError, _load_json
 from backend.services.pdf_generator import PDFGenerationError, PDFGenerator
 from backend.services.report_renderer import (
     ReportRenderer,
@@ -49,6 +49,21 @@ assets_router = APIRouter(prefix="/api/assets", tags=["assets"])
 # =========================
 # 辅助：ORM → Read Schema
 # =========================
+
+def _apply_word_screenshot_overrides(record, body: dict) -> None:
+    """把请求体中的分类截图挂到 record 上，供 Word 生成器使用。"""
+    for body_key, attr in (
+        ("run_screenshots", "_run_screenshots"),
+        ("code_screenshots", "_code_screenshots"),
+        ("homework_screenshots", "_homework_screenshots"),
+    ):
+        if body_key in body:
+            value = body.get(body_key)
+            setattr(record, attr, list(value) if isinstance(value, list) else [])
+    if "showcase_photo" in body:
+        value = body.get("showcase_photo")
+        setattr(record, "_showcase_photo", value if isinstance(value, str) and value else None)
+
 
 def _apply_overrides_to_record(record, overrides: dict) -> None:
     """将 overrides（来自前端预览/导出请求）应用到 record 对象上。
@@ -444,7 +459,6 @@ async def export_report(
 
     # 如果没有传 layout_config，尝试从数据库记录加载
     if layout_config is None:
-        from backend.services.course_records import _load_json
         layout_config = _load_json(getattr(record, "layout_config", None))
 
     # 如果请求中传了截图路径，覆盖数据库中的（与预览接口一致）
@@ -627,6 +641,9 @@ async def export_report_word(
     else:
         log.info("Word导出: 使用 DB 中的截图路径 (type=%s)", type(record.screenshot_paths).__name__)
 
+    # 分类截图（运行/代码/作业/展示图）覆盖，与 PDF 导出一致
+    _apply_word_screenshot_overrides(record, body)
+
     template_config = None
     try:
         template_config = get_template_config(template_id)
@@ -699,6 +716,9 @@ async def export_report_word_stream(
         template_config = get_template_config(template_id)
     except (TemplateNotFoundError, FileNotFoundError):
         pass
+
+    # 分类截图（运行/代码/作业/展示图）覆盖，与 PDF 导出一致
+    _apply_word_screenshot_overrides(record, body)
 
     from backend.services.docx_generator import DocxGenerationError, generate as generate_docx
 
@@ -780,11 +800,13 @@ async def batch_generate_reports(
                 folder=meta.folder,
                 entry_file=meta.entry_file,
                 project_type=meta.project_type,
+                language=meta.language,
                 course_title=meta.course_title,
                 all_files=[FileInfoSchema(**vars(f)) for f in meta.all_files],
                 py_files=[
                     PyStructureSchema(
                         path=s.path,
+                        language=s.language,
                         imports=s.imports,
                         from_imports=[{"module": m, "name": n} for m, n in s.from_imports],
                         function_names=s.function_names,
@@ -793,6 +815,7 @@ async def batch_generate_reports(
                         top_comment=s.top_comment,
                         course_title=s.course_title,
                         line_count=s.line_count,
+                        has_main_function=s.has_main_function,
                     )
                     for s in meta.py_files
                 ],

@@ -1,9 +1,8 @@
 # 课程报告生成工具 — 部署栈（GHCR 镜像）
-# 端口 8767（与本地栈 ../docker/course-report-generator/ 8766 区分，不要同启）
+# 宿主机端口固定为 8765，只保留一个入口。
 #
-# ★ 需要修改的两处 ★
-#   1) AI 配置：./config/llm.yaml（已挂载进容器，修改后 docker compose restart）
-#   2) 端口：CRG_HOST_PORT（默认 8767）
+# ★ 需要修改的地方 ★
+#   AI 配置：./config/llm.yaml（已挂载进容器，修改后 docker compose restart）
 #
 # 常用命令：
 #   docker compose up -d --build  本地构建并启动
@@ -20,15 +19,11 @@ services:
     container_name: course-report
     restart: unless-stopped
 
-    # 宿主机 8765 端口（局域网访问 kylo.local:8765 / 手机/同事访问）
-    # 宿主机 8767 端口（本地开发用，避免和开发模式的 8765 冲突）
-    # 两个端口都转发到容器内的 8765
-    # 注意：
-    #   - 如果 8765 已被占（如宿主机装了别的服务），就把这条删掉，只留 8767
-    #   - 第一次启用 8765 时，macOS 可能弹防火墙授权，务必点"允许"
+    # 只发布宿主机 8765 端口（局域网访问 kylo.local:8765 / 手机/同事访问）
+    # 不再提供 8767 入口，避免浏览器打开两个不同 origin 看到不同缓存状态。
+    # 第一次启用 8765 时，macOS 可能弹防火墙授权，务必点"允许"。
     ports:
       - "8765:8765"
-      - "${CRG_HOST_PORT:-8767}:8765"
 
     volumes:
       - ./data:/app/data
@@ -36,6 +31,7 @@ services:
       - /Users/kylo/Documents/Workspace:/Users/kylo/Documents/Workspace
       - /Users/kylo/Desktop:/Users/kylo/Desktop
       - /Users/kylo/Documents:/Users/kylo/Documents
+      - /Users/kylo/Library/CloudStorage/飞牛同步-瓦力文档同步:/Users/kylo/Documents/Share
 
 # 注释掉的命名卷（保留作为备选写法）：
 #   - crg_data:/app/data

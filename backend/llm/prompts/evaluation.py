@@ -3,7 +3,7 @@ Prompt 模板 4：学生评价
 
 生成 180-200 字符的口语化学生评价，基于本节课的具体知识点和函数。
 """
-EVALUATION_PROMPT = """你是少儿 Python 编程老师。为该学生写一篇学习评价。
+EVALUATION_PROMPT = """你是少儿编程老师。为该学生写一篇学习评价。
 
 【学生信息】
 - 姓名：{student_name}

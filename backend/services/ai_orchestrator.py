@@ -87,6 +87,11 @@ class AIOrchestrator:
         self._code_cache: str | None = None     # 代码内容缓存（避免重复读盘）
         self._shared_conv: AIConversation | None = None  # 批量共享会话
 
+    def _make_conversation(self, project=None) -> AIConversation:
+        """按项目语言创建对话（Python / C / C++）。"""
+        language = getattr(project, "language", "python") if project is not None else "python"
+        return AIConversation(self.provider, language=language)
+
     # =========================
     # 单篇生成
     # =========================
@@ -108,7 +113,7 @@ class AIOrchestrator:
         log.info("开始生成报告: course=%s student=%s", project.course_title, student.name)
         existing_content = existing_content or {}
 
-        conv = AIConversation(self.provider)
+        conv = self._make_conversation(project)
         code_content = self._build_code_content(project)
         entry_comment = self._get_entry_comment(project)
         course_topic = project.course_title or "未指定"
@@ -248,7 +253,7 @@ class AIOrchestrator:
         )
         existing_content = existing_content or {}
 
-        conv = AIConversation(self.provider)
+        conv = self._make_conversation(project)
         code_content = self._build_code_content(project)
         entry_comment = self._get_entry_comment(project)
         course_topic = project.course_title or "未指定"
@@ -378,7 +383,7 @@ class AIOrchestrator:
         )
         existing_content = existing_content or {}
 
-        conv = AIConversation(self.provider)
+        conv = self._make_conversation()
 
         # Step 1: 知识点（用户已填则跳过 AI）
         if existing_content.get("knowledge_points"):
@@ -544,7 +549,7 @@ class AIOrchestrator:
 
         log.info("重生成字段: %s type=%s", field_name, homework_type if field_name == "homework_vocab" else "-")
 
-        conv = AIConversation(self.provider)
+        conv = self._make_conversation(project)
         code_content = self._build_code_content(project)
         entry_comment = self._get_entry_comment(project)
         course_topic = project.course_title or "未指定"
@@ -597,7 +602,7 @@ class AIOrchestrator:
         新版不再依赖 analysis_text，保留此方法避免导入错误。
         实际调用时会创建对话读代码，浪费 token，所以应尽快移除调用方。
         """
-        conv = AIConversation(self.provider)
+        conv = self._make_conversation(project)
         code_content = self._build_code_content(project)
         entry_comment = self._get_entry_comment(project)
         course_topic = project.course_title or "未指定"
@@ -650,7 +655,10 @@ class AIOrchestrator:
         """
         if not entry_comment:
             return set()
-        refs = re.findall(r'\b([\w-]+\.py)\b', entry_comment)
+        refs = re.findall(
+            r'\b([\w-]+\.(?:py|cpp|cc|cxx|c|h|hpp|hh|hxx))\b',
+            entry_comment,
+        )
         return set(refs)
 
     def _build_code_content(self, project: ProjectMetaSchema) -> str:
@@ -684,14 +692,15 @@ class AIOrchestrator:
             log.info("入口注释中引用的文件: %s", referenced_files)
 
         parts: list[str] = []
+        marker = "//" if getattr(project, "language", "python") != "python" else "#"
 
         if entry:
             file_path = (project_root / entry.path).resolve()
             try:
                 source = file_path.read_text(encoding='utf-8')
-                parts.append(f"# === {entry.path}（启动文件）===\n{source}")
+                parts.append(f"{marker} === {entry.path}（启动文件）===\n{source}")
             except (OSError, IOError):
-                parts.append(f"# === {entry.path}（启动文件）===\n# (文件无法读取)")
+                parts.append(f"{marker} === {entry.path}（启动文件）===\n{marker} (文件无法读取)")
 
         # 重点文件：入口注释中提到的文件，按行数排序后排在前面（全部读完整源码）
         referenced_list = []
@@ -710,10 +719,10 @@ class AIOrchestrator:
             file_path = (project_root / f.path).resolve()
             try:
                 source = file_path.read_text(encoding='utf-8')
-                parts.append(f"# === {f.path}（重点文件 - 入口注释引用）===\n{source}")
+                parts.append(f"{marker} === {f.path}（重点文件 - 入口注释引用）===\n{source}")
             except (OSError, IOError):
                 parts.append(
-                    f"# === {f.path}（重点文件 - 入口注释引用）===\n"
+                    f"{marker} === {f.path}（重点文件 - 入口注释引用）===\n"
                     f"imports: {f.imports}\n"
                     f"functions: {f.function_names}\n"
                     f"classes: {f.class_names}"
@@ -725,17 +734,17 @@ class AIOrchestrator:
             if f.line_count and f.line_count <= 80:
                 try:
                     source = file_path.read_text(encoding='utf-8')
-                    parts.append(f"# === {f.path} ===\n{source}")
+                    parts.append(f"{marker} === {f.path} ===\n{source}")
                 except (OSError, IOError):
                     parts.append(
-                        f"# === {f.path} ===\n"
+                        f"{marker} === {f.path} ===\n"
                         f"imports: {f.imports}\n"
                         f"functions: {f.function_names}\n"
                         f"classes: {f.class_names}"
                     )
             else:
                 parts.append(
-                    f"# === {f.path} ===\n"
+                    f"{marker} === {f.path} ===\n"
                     f"imports: {f.imports}\n"
                     f"functions: {f.function_names}\n"
                     f"classes: {f.class_names}"

@@ -1,0 +1,309 @@
+/* ============================================================
+   素白极简模板 v1.0
+   ------------------------------------------------------------
+   设计目标：
+   - 纯白背景，四周只有一条极细的浅灰边框，尽量少用墨水
+   - 标题保留很浅的底色，正文卡片以白底 + 细边框为主
+   - 不用阴影、渐变、深色大色块，打印出来干净、克制
+   ============================================================ */
+@page {
+  size: A4;
+  margin: 0;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-body, "STSong", "SimSun", serif);
+  font-size: var(--fs-body, 11pt);
+  line-height: 1.75;
+  color: #1F2937;
+  background: var(--bg-color, #FFFFFF);
+}
+
+/* ===== 页面：纯白 + 细边框 ===== */
+.page {
+  position: relative;
+  background: var(--bg-color, #FFFFFF);
+}
+.page::before {
+  content: '';
+  position: absolute;
+  inset: 7mm;
+  border: 1px solid #D9E1E8;
+  border-radius: 1.2mm;
+  pointer-events: none;
+}
+.page::after {
+  content: '';
+  position: absolute;
+  top: 7mm;
+  left: 7mm;
+  width: 20mm;
+  height: 2px;
+  background: var(--primary, #2F4A5F);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* ===== Logo ===== */
+.logo { position: absolute; z-index: 2; }
+.logo-top-left    { top: var(--logo-offset-top, 9mm); left: var(--logo-offset-left, 9mm); }
+.logo-top-right   { top: var(--logo-offset-top, 9mm); right: var(--logo-offset-right, 9mm); }
+.logo-top-center  { top: var(--logo-offset-top, 9mm); left: 50%; transform: translateX(-50%); }
+.logo-bottom-left     { bottom: var(--logo-offset-bottom, 9mm); left: var(--logo-offset-left, 9mm); }
+.logo-bottom-right    { bottom: var(--logo-offset-bottom, 9mm); right: var(--logo-offset-right, 9mm); }
+.logo-bottom-center   { bottom: var(--logo-offset-bottom, 9mm); left: 50%; transform: translateX(-50%); }
+
+/* ===== 首页标题 ===== */
+.title {
+  font-family: var(--font-title, "Heiti SC", "PingFang SC", sans-serif);
+  font-size: var(--fs-title, 24pt);
+  color: var(--primary, #2F4A5F);
+  text-align: center;
+  margin: 18mm 0 6mm;
+  letter-spacing: 2.5pt;
+  font-weight: 700;
+}
+
+.student-info {
+  text-align: center;
+  font-size: 11pt;
+  color: #475569;
+  margin-bottom: 10mm;
+  padding: 3mm 9mm;
+  background: #FFFFFF;
+  display: inline-block;
+  margin-left: auto;
+  margin-right: auto;
+  border: 1px solid #DCE3EA;
+  border-radius: 2mm;
+}
+
+/* ===== 通用小标题：浅底 + 左侧细线 ===== */
+.section-title {
+  font-family: var(--font-title, "Heiti SC", "PingFang SC", sans-serif);
+  font-size: 14pt;
+  color: var(--primary, #2F4A5F);
+  font-weight: 700;
+  margin: 8mm 0 4mm;
+  padding: 2.5mm 4mm;
+  background: var(--secondary, #F4F7F9);
+  border-left: 3px solid var(--primary, #2F4A5F);
+  border-radius: 1mm;
+}
+
+.page-header {
+  font-family: var(--font-title, "Heiti SC", "PingFang SC", sans-serif);
+  font-size: 16pt;
+  color: var(--primary, #2F4A5F);
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 9mm;
+  padding: 4mm 0;
+  border-bottom: 1px solid #D9E1E8;
+}
+
+/* ===== 知识点卡片：白底细框，尽量少墨 ===== */
+.knowledge-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4mm;
+  margin: 4mm 0;
+}
+.kp-card {
+  background: #FFFFFF;
+  border: 1px solid #E1E7ED;
+  padding: 3mm 7mm;
+  border-radius: 2mm;
+  font-size: 10.5pt;
+  color: #1F2937;
+  font-weight: 500;
+}
+
+/* ===== 内容详解 ===== */
+.content-block {
+  margin-bottom: 4mm;
+  padding: 4mm 5mm;
+  border: 1px solid #E2E8F0;
+  border-left: 3px solid var(--primary, #2F4A5F);
+  background: #FFFFFF;
+  border-radius: 0 2mm 2mm 0;
+}
+.content-block-title {
+  font-family: var(--font-title, "Heiti SC", "PingFang SC", sans-serif);
+  font-size: 12pt;
+  font-weight: 700;
+  color: var(--primary, #2F4A5F);
+  margin-bottom: 2mm;
+}
+.content-block-text {
+  font-size: 10.5pt;
+  line-height: 1.8;
+  color: #475569;
+}
+
+/* ===== 能力提升 ===== */
+.ability {
+  font-size: 10.5pt;
+  line-height: 1.85;
+  color: #475569;
+  margin: 3mm 0;
+  padding: 4mm 6mm;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-left: 3px solid var(--primary, #2F4A5F);
+  border-radius: 0 2mm 2mm 0;
+}
+
+/* ===== 代码展示：浅色纸面，避免整块深色耗墨 ===== */
+.code-block {
+  background: #F7F8FA;
+  border: 1px solid #DCE3EA;
+  border-radius: 2mm;
+  padding: 4mm;
+  margin: 4mm 0;
+  overflow-x: auto;
+}
+.code-block pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 8.5pt;
+  line-height: 1.55;
+}
+.code-block code {
+  font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+  color: #1F2937;
+}
+
+/* ===== 核心词汇 ===== */
+.vocabulary-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-left: 3px solid var(--primary, #2F4A5F);
+  border-radius: 0 2mm 2mm 0;
+  padding: 5mm 7mm;
+  margin: 4mm 0;
+}
+.vocab-row {
+  margin-bottom: 2.5mm;
+}
+.vocab-word {
+  font-family: var(--font-title, "Heiti SC", "PingFang SC", sans-serif);
+  font-size: 14pt;
+  font-weight: 700;
+  color: var(--primary, #2F4A5F);
+  margin-right: 4mm;
+}
+.vocab-phonetic {
+  font-size: 11pt;
+  color: #94A3B8;
+  font-style: italic;
+}
+.vocab-label {
+  font-weight: 600;
+  color: #64748B;
+  margin-right: 2mm;
+}
+.vocab-meaning, .vocab-example {
+  font-size: 10.5pt;
+  color: #334155;
+}
+
+/* ===== 作业 ===== */
+.homework-section {
+  margin: 3mm 0 6mm;
+}
+.homework-goal {
+  font-size: 11pt;
+  line-height: 1.75;
+  color: #334155;
+  margin-bottom: 4mm;
+  padding: 4mm 5mm;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-left: 3px solid var(--primary, #2F4A5F);
+  border-radius: 0 2mm 2mm 0;
+}
+.homework-subsection {
+  margin-bottom: 3mm;
+  padding-left: 2mm;
+}
+.homework-subtitle {
+  font-family: var(--font-title, "Heiti SC", "PingFang SC", sans-serif);
+  font-size: 11.5pt;
+  color: var(--primary, #2F4A5F);
+  font-weight: 700;
+  margin-bottom: 2mm;
+}
+.homework-hint-text {
+  font-size: 10.5pt;
+  line-height: 1.7;
+  color: #475569;
+  padding: 3mm 5mm;
+  background: #FFFDF7;
+  border: 1px solid #F3E8D3;
+  border-left: 3px solid #C9A227;
+  border-radius: 0 2mm 2mm 0;
+  font-style: italic;
+}
+
+/* ===== 学生评价 ===== */
+.evaluation {
+  font-size: 11pt;
+  line-height: 1.9;
+  color: #475569;
+  margin: 3mm 0;
+  text-indent: 2em;
+  padding: 5mm 6mm;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 2mm;
+}
+
+/* ===== 图片区：白底细框，不加阴影 ===== */
+.img-cell {
+  background: #FFFFFF;
+  border: 1px solid #E1E7ED;
+  border-radius: 1.5mm;
+}
+.effect-grid .img-cell,
+.code-grid .img-cell,
+.homework-grid .img-cell {
+  box-shadow: none;
+}
+
+/* ===== 占位框 ===== */
+.screenshot-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3mm;
+  margin: 4mm 0;
+  border: 1px dashed #CBD5E1;
+  border-radius: 2mm;
+  background: #FFFFFF;
+  color: #94A3B8;
+}
+.placeholder-icon { font-size: 24pt; }
+.placeholder-text { font-size: 11pt; }
+
+/* ===== 页脚（模板预留） ===== */
+.footer {
+  margin-top: 12mm;
+  padding-top: 3mm;
+  border-top: 1px solid #E2E8F0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.signature-label, .signature-space {
+  font-size: 11pt;
+  color: #64748B;
+}
+.footer-date {
+  font-size: 10pt;
+  color: #94A3B8;
+}

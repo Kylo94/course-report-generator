@@ -241,7 +241,7 @@ const BatchReportView = {
                   <el-tag v-else-if="r.evaluation" type="success" size="small" effect="plain">已生成</el-tag>
                   <el-tag v-else size="info" effect="plain">待填写</el-tag>
                   <el-button v-if="batchId" size="small" link type="primary"
-                    @click="exportSinglePdf(r)">导出PDF</el-button>
+                    @click="exportSingleReport(r)">导出报告</el-button>
                   <el-button v-if="batchId" size="small" link type="info"
                     @click="previewReport(r)">预览</el-button>
                   <!-- PR3: 展示图上传 -->
@@ -250,7 +250,8 @@ const BatchReportView = {
                     :http-request="(opts) => handleShowcaseUpload(opts, r)"
                     :show-file-list="false" accept="image/jpeg,image/png,image/webp"
                   >
-                    <el-button size="small" link type="warning">
+                    <el-button size="small" link type="warning"
+                      title="展示图会显示在报告首页的「项目运行效果」位置，不会额外占用版面">
                       {{ showcasePhotos[r.student_id] ? '🖼️ 替换展示图' : '📷 上传展示图' }}
                     </el-button>
                   </el-upload>
@@ -313,13 +314,9 @@ const BatchReportView = {
                 <el-button type="primary" class="sidebar-btn" @click="saveAllRecords" :loading="savingAll">
                   💾 保存全部{{ savingAllCount > 0 ? '（已保存' + savingAllCount + '）' : '' }}
                 </el-button>
-                <el-button type="primary" class="sidebar-btn" @click="exportPdf" :loading="exporting"
+                <el-button type="primary" class="sidebar-btn" @click="exportReports" :loading="exporting"
                   :disabled="batchRunning || selectedExportIds.length === 0">
-                  📄 导出勾选（{{ selectedExportIds.length }}）PDF
-                </el-button>
-                <el-button type="primary" plain class="sidebar-btn" @click="exportWord" :loading="wordExporting"
-                  :disabled="batchRunning || selectedExportIds.length === 0">
-                  📝 导出勾选（{{ selectedExportIds.length }}）Word
+                  📄 导出报告（{{ selectedExportIds.length }}）
                 </el-button>
               </div>
             </div>
@@ -507,7 +504,6 @@ const BatchReportView = {
       studentList: [],
       batchResults: [],
       exporting: false,
-      wordExporting: false,
       savingAll: false,
       savingAllCount: 0,
       classInfo: '',
@@ -1142,15 +1138,30 @@ const BatchReportView = {
       }
     },
 
-    // ===== 导出 =====
-    async exportSinglePdf(row) {
+    // ===== 导出报告（PDF + Word） =====
+    async exportSingleReport(row) {
       if (!this.batchId) return;
       await this.autoSaveShared();
+      let pdfOk = false;
+      let wordOk = false;
       try {
         await API.batchReports.exportPdf(this.batchId, row.student_id, this.config.template_id, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots, this.config.run_screenshots);
-        this.$message.success(row.student_name + ' PDF 已导出');
+        pdfOk = true;
       } catch (e) {
-        this.$message.error('导出失败: ' + e.message);
+        console.error('导出 PDF 失败:', row.student_name, e);
+      }
+      try {
+        await API.batchReports.exportWord(this.batchId, row.student_id, this.config.template_id, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots, this.config.run_screenshots);
+        wordOk = true;
+      } catch (e) {
+        console.error('导出 Word 失败:', row.student_name, e);
+      }
+      if (pdfOk && wordOk) {
+        this.$message.success(row.student_name + ' 报告已导出（PDF + Word）');
+      } else if (pdfOk || wordOk) {
+        this.$message.warning(row.student_name + ' 部分导出成功：' + (pdfOk ? 'PDF ' : '') + (wordOk ? 'Word' : ''));
+      } else {
+        this.$message.error(row.student_name + ' 导出失败');
       }
     },
 
@@ -1202,7 +1213,7 @@ const BatchReportView = {
       }
     },
 
-    async exportPdf() {
+    async exportReports() {
       const ids = this.selectedExportIds;
       if (ids.length === 0 || !this.batchId) {
         this.$message.warning('没有勾选可导出的学生');
@@ -1210,42 +1221,33 @@ const BatchReportView = {
       }
       await this.autoSaveShared();
       this.exporting = true;
-      this.$message.info('开始导出 PDF（共 ' + ids.length + ' 份）...');
-      let count = 0;
+      this.$message.info('开始导出报告（PDF + Word，共 ' + ids.length + ' 份）...');
+      let pdfOk = 0;
+      let wordOk = 0;
+      let failed = 0;
       for (const sid of ids) {
         const r = this.batchResults.find(x => x.student_id === sid);
         try {
           await API.batchReports.exportPdf(this.batchId, sid, this.config.template_id, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots, this.config.run_screenshots);
-          count++;
+          pdfOk++;
         } catch (e) {
-          console.error('导出失败:', r ? r.student_name : sid, e);
+          failed++;
+          console.error('导出 PDF 失败:', r ? r.student_name : sid, e);
         }
-      }
-      this.$message.success(`已完成 ${count}/${ids.length} 份 PDF 导出`);
-      this.exporting = false;
-    },
-
-    async exportWord() {
-      const ids = this.selectedExportIds;
-      if (ids.length === 0 || !this.batchId) {
-        this.$message.warning('没有勾选可导出的学生');
-        return;
-      }
-      this.wordExporting = true;
-      await this.autoSaveShared();
-      this.$message.info('开始导出 Word（共 ' + ids.length + ' 份）...');
-      let count = 0;
-      for (const sid of ids) {
-        const r = this.batchResults.find(x => x.student_id === sid);
         try {
           await API.batchReports.exportWord(this.batchId, sid, this.config.template_id, this.config.output_dir, this.config.screenshot_paths, this.config.code_screenshots, this.config.homework_screenshots, this.config.run_screenshots);
-          count++;
+          wordOk++;
         } catch (e) {
-          console.error('导出失败:', r ? r.student_name : sid, e);
+          failed++;
+          console.error('导出 Word 失败:', r ? r.student_name : sid, e);
         }
       }
-      this.$message.success(`已完成 ${count}/${ids.length} 份 Word 导出`);
-      this.wordExporting = false;
+      if (failed === 0) {
+        this.$message.success(`已完成 ${ids.length} 份报告导出（PDF ${pdfOk} 份 + Word ${wordOk} 份）`);
+      } else {
+        this.$message.warning(`导出完成：PDF ${pdfOk} 份，Word ${wordOk} 份，失败 ${failed} 项`);
+      }
+      this.exporting = false;
     },
 
     // ===== 按勾选导出：勾选状态管理 =====

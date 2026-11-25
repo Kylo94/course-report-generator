@@ -143,3 +143,47 @@ def baz():
         assert "foo" in entry["function_names"]
         assert "Bar" in entry["class_names"]
         assert "staticmethod" in entry["decorators"]
+
+class TestScanCppProject:
+    async def test_scan_cpp_project(self, api_client, tmp_dir: Path) -> None:
+        project = tmp_dir / "cpp_demo"
+        project.mkdir()
+        (project / "main.cpp").write_text(
+            """/*
+ * 课程 01 基本语法
+ * 作业
+ * 输入两个数，输出长方形周长
+ */
+#include <iostream>
+int main() {
+    int a = 0, b = 10;
+    std::cin >> a >> b;
+    std::cout << (a + b) * 2 << std::endl;
+    return 0;
+}
+""",
+            encoding="utf-8",
+        )
+        (project / "utils.cpp").write_text(
+            "int add(int a, int b) { return a + b; }\n",
+            encoding="utf-8",
+        )
+        # 编译产物不应被当成代码文件
+        (project / "main").write_bytes(b"\x7fELF")
+
+        resp = await api_client.post(
+            "/api/projects/scan", json={"folder": str(project)}
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+
+        assert data["language"] == "cpp"
+        assert data["entry_file"] == "main.cpp"
+        assert data["project_type"] == "cpp"
+        assert data["course_title"] == "01 基本语法"
+        assert "iostream" in data["all_imports"]
+        assert len(data["py_files"]) == 2
+        entry = next(f for f in data["py_files"] if f["path"] == "main.cpp")
+        assert entry["language"] == "cpp"
+        assert entry["has_main_function"] is True
+        assert "main" in entry["function_names"]

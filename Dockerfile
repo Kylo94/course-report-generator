@@ -4,6 +4,14 @@
 # 构建：docker build -t course-report-generator .
 # 运行：docker run -p 8765:8765 -v crg_data:/app/data \
 #         -e CRG_LLM__API_KEY=sk-xxx course-report-generator
+#
+# 分层说明（重要）：
+#   1. 系统依赖 / uv / Playwright 浏览器放在「复制业务代码」之前；
+#   2. 先只复制 pyproject.toml、uv.lock，安装 Python 依赖；
+#   3. 再复制 backend / templates / frontend 等业务代码；
+#   4. 最后只做一次快速的 `uv sync` 安装本项目。
+#   这样改业务代码时，不会重新下载 500MB+ 依赖和 1GB+ Chromium，
+#   日常 rebuild 通常只需要几秒到几十秒。
 # ===================================================================
 FROM python:3.12-slim
 
@@ -51,19 +59,36 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN fc-cache -fv
 
 # ------------------------------------------------------------------
+# Python 依赖（只依赖 pyproject.toml + uv.lock，不依赖业务代码）
+# ------------------------------------------------------------------
+# 先复制依赖清单。README.md 是 pyproject.toml 的 readme 字段需要的。
+COPY pyproject.toml uv.lock README.md ./
+
+# 只安装第三方依赖，不安装本项目；这一层只在依赖变化时重建。
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --no-dev --no-install-project
+
+# Playwright 只安装 headless shell（PDF 渲染只需要它），体积约为完整 Chromium 的 1/3。
+# 加入 3 次重试与更长下载超时，避免网络抖动导致整次 build 失败。
+ENV PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT=120000
+RUN set -e; \
+    for i in 1 2 3; do \
+        if .venv/bin/python -m playwright install --only-shell chromium --no-progress; then \
+            exit 0; \
+        fi; \
+        echo "Playwright install failed, retry $i/3 ..."; \
+        sleep 5; \
+    done; \
+    exit 1
+
+# ------------------------------------------------------------------
 # 应用代码
 # ------------------------------------------------------------------
 COPY . .
 
-# ------------------------------------------------------------------
-# Python 依赖 & Playwright Chromium
-# ------------------------------------------------------------------
-# uv sync 默认以 editable 模式安装本项目，使得 __file__ 路径
-# 解析（backend/paths.py）仍指向 /app/backend/，与开发环境一致。
-RUN uv sync --no-dev
-
-# Playwright Chromium 浏览器（用于 HTML → PDF 渲染）
-RUN uv run python -m playwright install chromium
+# 依赖已经装好，这一步只把本项目以 editable 方式安装进 .venv，速度很快。
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --no-dev
 
 # 清理开发产物
 RUN rm -rf .git tests htmlcov .coverage .ruff_cache
@@ -84,5 +109,7 @@ EXPOSE 8765
 # ------------------------------------------------------------------
 # 启动
 # ------------------------------------------------------------------
-# 使用 uvicorn 直起（跳过 main.py 中的浏览器打开逻辑）
-CMD ["uv", "run", "uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8765"]
+# 直接使用 .venv 里的 uvicorn 启动。
+# 不要用 `uv run uvicorn`：uv run 默认会重新 sync（包括 dev 组），
+# 导致容器启动时还要联网下载 ruff/pygments 等开发依赖，启动慢且容易失败。
+CMD [".venv/bin/python", "-m", "uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8765"]

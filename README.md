@@ -1,4 +1,4 @@
-# 📄 课程报告生成工具 v1.1
+# 📄 课程报告生成工具 v1.2
 
 **Course Report Generator** — 少儿编程教师课后报告自动生成工具。
 
@@ -39,6 +39,22 @@ uv run python main.py
 
 首次启动自动创建 SQLite 数据库，无需额外配置。
 
+### C/C++ 工程
+
+除 Python 外，也支持 C / C++ 工程。把项目文件夹填入“项目文件夹”即可，例如：
+
+```text
+/Users/kylo/Documents/Workspace/WaliCode/CPlus/01 基本语法
+```
+
+系统会自动识别：
+
+- 入口文件：`main.cpp` / `main.c` / 包含 `main()` 的文件
+- 函数、类 / 结构体、`#include`
+- 文件顶部的 `/* 课程 ... 作业 ... */` 或 `// 课程 ...` 注释
+
+之后与 Python 工程一样，走同一套 AI 生成、模板预览、PDF / Word 导出流程。
+
 ---
 
 ## Docker 部署
@@ -56,8 +72,8 @@ echo 'CRG_LLM_API_KEY=sk-你的API密钥' >> .env
 echo 'CRG_LLM_PROVIDER=deepseek' >> .env
 echo 'CRG_LLM_DEFAULT_MODEL=deepseek-chat' >> .env
 
-# 2. 启动服务（首次自动从 GHCR 拉取镜像）
-docker compose up -d
+# 2. 构建并启动（之后改代码也用这条）
+docker compose up -d --build
 
 # 3. 打开浏览器
 open http://localhost:8765
@@ -69,7 +85,7 @@ docker compose logs -f
 docker compose down
 ```
 
-如需本地构建镜像而非从 GHCR 拉取，编辑 `docker-compose.yml`，将 `image:` 行替换为 `build: .`。
+默认使用本地 Dockerfile 构建镜像，宿主机只发布 **8765** 一个入口。
 
 ### 方式二：纯 docker
 
@@ -123,12 +139,12 @@ CRG_LLM_PROVIDER=deepseek
 CRG_LLM_DEFAULT_MODEL=deepseek-chat
 CRG_LLM_BASE_URL=
 CRG_APP_DEBUG=false
-CRG_HOST_PORT=8765       # 宿主机端口映射
+# 宿主机端口固定为 8765，不再通过 CRG_HOST_PORT 切换
 ```
 
 ### 持久化数据
 
-容器内部的数据存储在 `/app/data` 目录，通过 Docker 命名卷 `crg_data` 持久化，包含：
+容器内部的数据存储在 `/app/data` 目录，默认通过 `./data` bind mount 持久化（也保留 `crg_data` 命名卷写法），包含：
 
 - SQLite 数据库（`app.db`）
 - 导出的 PDF 报告
@@ -150,12 +166,13 @@ volumes:
 | 模块 | 功能 |
 |------|------|
 | **AI 生成** | 基于程序代码 + 注释，一键生成知识点、内容概述、能力提升、课后作业、学生评价等 9 项内容。支持单字段重试和批量差异化评价 |
+| **项目分析** | 支持 Python / C / C++ 工程；自动识别 main.py / main.cpp / main.c、函数、类、#include，解析文件顶部课程与作业注释 |
 | **学生管理** | 学生/班级 CRUD、Excel/CSV 批量导入导出、搜索、批量删除 |
 | **报告编辑** | 富文本编辑器，9 项内容均可手动修改；截图上传（支持 JPG/PNG/WebP） |
 | **草稿系统** | 自动保存（30s 间隔）+ 手动保存，关闭可续编。状态机：草稿 → 已导出 → 已归档 |
-| **模板系统** | 3 套内置 A4 模板（经典简约/少儿卡通/学术风），支持自定义排版 JSON 配置、Logo 上传（6 位置 × 3 尺寸） |
-| **PDF 导出** | Playwright（Chromium 内核）渲染，精准 4 页 A4 排版，图文混排 |
-| **Word 导出/导入** | python-docx 原生生成，结构清晰可编辑；修改后的 docx 可导回工具重新识别（AI 辅助字段匹配） |
+| **模板系统** | 5 套内置 A4 模板（经典简约/少儿卡通/学术风/科技前沿/素白极简），支持自定义排版 JSON 配置、Logo 上传（6 位置 × 3 尺寸） |
+| **PDF 导出** | Playwright（Chromium 内核）渲染，精准 4 页 A4 排版，图文混排；与 Word 一起通过「导出报告」一键导出 |
+| **Word 导出/导入** | python-docx 原生生成 A4 打印版。Classic / 素白极简采用 PDF 风格卡片版式（Classic 整页背景，素白极简纯白细边框），全部文字可编辑、图片为内嵌型可右键替换；其他模板沿用简洁原生版式。修改后的 docx 可导回工具重新识别 |
 | **批量生成** | 单次 ≤ 50 名学生，共用知识点+差异化评价与作业难度 |
 | **报告中心** | 按学生/班级/日期检索历史报告，可二次编辑、重新导出 |
 | **班级排序** | 支持手动调整班级显示顺序，影响全部下拉选择 |
@@ -531,6 +548,7 @@ dist/课程报告生成工具/
 ## 版本历史
 
 ```
+v1.2 — 支持 C/C++ 工程；新增「素白极简」低打印负担模板；Classic/素白极简 Word 采用 PDF 风格卡片版式；导出按钮合并为「导出报告」；宿主机端口固定 8765
 v1.1 — 重构项目文档，详述代码注释规范以提高AI准确度；去除作业评分标准
 v1.0.0 — 正式版。完整功能闭环比对、文档完善、打包准备
 v0.8.0 — 批量生成 + 报告中心 + AI 对话记忆

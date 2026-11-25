@@ -7,8 +7,10 @@ import pytest
 
 from backend.services.code_analyzer import (
     _detect_project_type,
+    _extract_cpp_top_comment,
     _extract_top_comment,
     _parse_course_title,
+    _parse_cpp_file,
     _parse_py_file,
     analyze_project,
 )
@@ -251,3 +253,110 @@ class Foo:
         entry = next(s for s in meta.py_files if s.path == "main.py")
         assert "lru_cache" in entry.decorators
         assert "property" in entry.decorators
+
+class TestCppProject:
+    """C/C++ 工程支持测试。"""
+
+    def test_cpp_top_comment_block(self) -> None:
+        source = """/*
+ * 课程 01 基本语法
+ * 目标
+ * 1. 变量与函数
+ * 作业
+ * 输入两个数，输出长方形周长
+ */
+
+#include <iostream>
+int main() { return 0; }
+"""
+        comment = _extract_cpp_top_comment(source)
+        assert "课程 01 基本语法" in comment
+        assert _parse_course_title(comment) == "01 基本语法"
+
+    def test_parse_cpp_file(self, tmp_dir: Path) -> None:
+        cpp = tmp_dir / "main.cpp"
+        cpp.write_text(
+            """/*
+ * 课程 02 函数与类
+ * 作业
+ * 用函数计算两个数的和
+ */
+#include <iostream>
+#include <vector>
+using namespace std;
+
+class Character {
+public:
+    void attack(int dmg) { hp -= dmg; }
+    int hp = 100;
+};
+
+int add(int a, int b) {
+    return a + b;
+}
+
+int main() {
+    cout << add(1, 2) << endl;
+    return 0;
+}
+""",
+            encoding="utf-8",
+        )
+        result = _parse_cpp_file(cpp)
+        assert result.language == "cpp"
+        assert "iostream" in result.imports
+        assert "vector" in result.imports
+        assert "Character" in result.class_names
+        assert "attack" in result.function_names
+        assert "add" in result.function_names
+        assert "main" in result.function_names
+        assert result.has_main_function is True
+        assert result.course_title == "02 函数与类"
+        assert "用函数计算两个数的和" in (result.homework_guidance or "")
+
+    def test_cpp_project_entry_and_language(self, tmp_dir: Path) -> None:
+        project = tmp_dir / "cpp_demo"
+        project.mkdir()
+        (project / "main.cpp").write_text(
+            """/*
+ * 课程 01 基本语法
+ */
+#include <iostream>
+int main() {
+    std::cout << "hello" << std::endl;
+    return 0;
+}
+""",
+            encoding="utf-8",
+        )
+        (project / "utils.cpp").write_text(
+            "int add(int a, int b) { return a + b; }\n",
+            encoding="utf-8",
+        )
+        (project / "readme.md").write_text("demo", encoding="utf-8")
+
+        meta = analyze_project(project)
+
+        assert meta.language == "cpp"
+        assert meta.entry_file == "main.cpp"
+        assert meta.project_type == "cpp"
+        assert meta.course_title == "01 基本语法"
+        assert "iostream" in meta.all_imports
+        assert len(meta.py_files) == 2
+        assert any(f.path == "main.cpp" and f.is_code for f in meta.all_files)
+
+    def test_cpp_project_falls_back_to_other_main(self, tmp_dir: Path) -> None:
+        project = tmp_dir / "cpp_no_main_name"
+        project.mkdir()
+        (project / "打印练习.cpp").write_text(
+            "#include <stdio.h>\nint main() { return 0; }\n",
+            encoding="utf-8",
+        )
+        meta = analyze_project(project)
+        assert meta.language == "cpp"
+        assert meta.entry_file == "打印练习.cpp"
+
+    def test_cpp_detect_project_type(self) -> None:
+        assert _detect_project_type(["iostream"], "cpp") == "cpp"
+        assert _detect_project_type(["SFML/Graphics.hpp"], "cpp") == "cpp_gui"
+        assert _detect_project_type(["stdio.h"], "c") == "c"

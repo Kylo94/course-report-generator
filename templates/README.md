@@ -17,6 +17,10 @@ my-template/
 
 上传时将这 3 个文件打包成一个 **zip**（无子目录），在模板管理页面上传即可。
 
+> 此外，`templates/_base.css` 是**系统共享布局样式**，渲染时会自动前置到每个模板的
+> `style.css` 之前，负责固定 A4 分页、图片等比缩放和长文本自动缩放。自定义模板无需
+> 复制它，但建议使用下文约定的 `.page` / `.img-grid` / `.fit` 结构。
+
 ---
 
 ## config.json 参考
@@ -104,6 +108,12 @@ my-template/
 | `{{ screenshots }}` | list\[string\] | 截图列表（data URI 格式） |
 | `{{ logo }}` | dict\|null | Logo 信息：`{data_uri, position, width_mm, show_on_all_pages}`，无 Logo 时为 null |
 | `{{ code_excerpt }}` | string | 代码片段（最多 15 行） |
+| `{{ effect_images }}` | list\[string\] | 首页「项目运行效果」图片（展示图 + 运行截图 + 其他截图，最多 4 张） |
+| `{{ run_screenshots }}` | list\[string\] | 运行效果截图 |
+| `{{ code_screenshots }}` | list\[string\] | 代码截图 |
+| `{{ homework_screenshots }}` | list\[string\] | 作业截图 |
+| `{{ showcase_photo }}` | string\|null | 学生展示图（已合并进 `effect_images`，自定义模板可单独使用） |
+| `{{ density }}` | dict | 每页文字密度档位：`density.p1` ~ `density.p4`，值为空字符串 / `density-compact` / `density-ultra` |
 
 ### Jinja2 语法示例
 
@@ -128,6 +138,25 @@ my-template/
 ```
 
 > 完整示例参考本目录下的 `classic/template.html`。
+
+### A4 版式约定（推荐）
+
+- 每个逻辑页使用 `<div class="page page-1 {{ density.p1 }}">`，系统会强制为 `210mm × 296mm`，
+  并设置 `overflow: hidden`，防止内容溢出到下一页。
+- 页面内的正文章节包一层 `<div class="page-body"><div class="fit">...</div></div>`；
+  首页知识点区域包一层 `<div class="page1-kp"><div class="fit">...</div></div>`。
+  `.fit` 由系统脚本在文字过多时等比缩小，保证内容始终留在 A4 内。
+- 图片统一使用固定尺寸网格：
+  ```html
+  <div class="img-grid effect-grid count-{{ effect_images|length }}">
+    {% for s in effect_images %}
+    <div class="img-cell"><img src="{{ s }}" alt="项目运行效果"></div>
+    {% endfor %}
+  </div>
+  ```
+  `.img-grid` 固定高度，`.img-cell img` 使用 `object-fit: contain`，图片只会等比缩放，
+  不会被拉伸或超出页面。可用 `--grid-h` 调整网格高度（内置：`effect-grid` 92mm、
+  `code-grid` 76mm、`homework-grid` 52mm）。
 
 ---
 

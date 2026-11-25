@@ -263,15 +263,29 @@ class TestScreenshotUpload:
 
 class TestLogoUpload:
     async def test_upload_logo(self, api_client) -> None:
-        img_data = io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
-        resp = await api_client.post(
-            "/api/assets/logo",
-            files={"file": ("logo.png", img_data, "image/png")},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "path" in data
-        assert data["mime_type"] == "image/png"
+        from pathlib import Path
+
+        from backend.config import get_settings
+
+        # 该接口会写入真实的 data/assets/logo.png，测试前备份、测试后恢复，
+        # 避免测试把用户正在使用的 Logo 覆盖成 1x1 测试图。
+        logo_path = Path(get_settings().report.asset_dir) / "logo.png"
+        original = logo_path.read_bytes() if logo_path.exists() else None
+        try:
+            img_data = io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+            resp = await api_client.post(
+                "/api/assets/logo",
+                files={"file": ("logo.png", img_data, "image/png")},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert "path" in data
+            assert data["mime_type"] == "image/png"
+        finally:
+            if original is not None:
+                logo_path.write_bytes(original)
+            elif logo_path.exists():
+                logo_path.unlink()
 
     async def test_get_logo_info(self, api_client) -> None:
         resp = await api_client.get("/api/assets/logo")

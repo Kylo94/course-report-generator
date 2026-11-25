@@ -84,7 +84,7 @@ const DraftListView = {
               @click="showBatchExportDialog"
               :loading="batchExporting"
             >
-              📤 批量导出
+              📤 导出报告
             </el-button>
             <el-button
               size="small" type="danger" :disabled="selectedIds.length === 0"
@@ -95,7 +95,7 @@ const DraftListView = {
             </el-button>
             <span v-if="selectedRecordIds.length > 0 && selectedBatchIds.length > 0"
               style="color:#E6A23C;font-size:12px;">
-              提示：批量导出仅支持「批量报告」，个人报告请单独操作
+              提示：导出报告仅支持「批量报告」，个人报告请单独操作
             </span>
           </div>
           <el-table
@@ -175,7 +175,7 @@ const DraftListView = {
     <!-- PR2: 批量导出弹窗 -->
     <el-dialog
       v-model="batchExportDialog"
-      title="📤 批量导出"
+      title="📤 导出报告"
       width="640px"
       :close-on-click-modal="false"
       @close="onBatchExportDialogClose"
@@ -231,13 +231,6 @@ const DraftListView = {
             </div>
           </el-form-item>
 
-          <el-form-item label="导出格式">
-            <el-radio-group v-model="batchExportFormat">
-              <el-radio value="pdf">PDF</el-radio>
-              <el-radio value="word">Word</el-radio>
-              <el-radio value="both">PDF + Word</el-radio>
-            </el-radio-group>
-          </el-form-item>
         </el-form>
 
         <!-- 导出结果展示 -->
@@ -273,7 +266,7 @@ const DraftListView = {
           :disabled="totalSelectedStudents === 0"
           @click="executeBatchExport"
         >
-          开始导出（合计 {{ totalSelectedStudents }} 份）
+          开始导出报告（合计 {{ totalSelectedStudents }} 份）
         </el-button>
       </template>
     </el-dialog>
@@ -298,7 +291,6 @@ const DraftListView = {
       // PR2: 报告中心批量导出
       batchExportDialog: false,
       batchExporting: false,
-      batchExportFormat: 'pdf',  // pdf | word | both
       batchExportResults: null,  // {success, failed, results, errors}
       // 每个选中批量报告的学生列表（弹窗内多选用）
       // 结构: {batchId: [{id, name}], ...}
@@ -537,7 +529,6 @@ const DraftListView = {
     async showBatchExportDialog() {
       this.batchExportDialog = true;
       this.batchExportResults = null;
-      this.batchExportFormat = 'pdf';
       this.batchStudents = {};
       this.batchStudentSelection = {};
       await this.loadBatchStudents();
@@ -612,7 +603,7 @@ const DraftListView = {
           this.$message.warning('请至少选择 1 名学生');
           return;
         }
-        const result = await API.batchReports.exportMulti(items, this.batchExportFormat);
+        const result = await API.batchReports.exportMulti(items, 'both');
         this.batchExportResults = result;
         if (result.failed === 0) {
           this.$message.success(`成功导出 ${result.success} 份报告`);
