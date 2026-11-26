@@ -556,6 +556,16 @@ PyInstaller 不支持交叉编译，因此 `.github/workflows/desktop-build.yml`
 2. 双击 `课程报告生成工具.exe`（Windows）或运行 `课程报告生成工具`（macOS/Linux）
 3. 浏览器打开 [http://127.0.0.1:8765](http://127.0.0.1:8765)
 
+#### macOS 首次运行（DMG）
+
+DMG 中包含 `课程报告生成工具.app`、`Applications` 快捷方式和 `启动说明.txt`。将 App 拖到 `Applications` 即可安装。
+
+由于应用未做 Apple 开发者签名和公证，macOS 首次打开可能提示“来自身份不明的开发者”。任选一种方式解决：
+
+1. 在「应用程序」中按住 Control 点击 App → 「打开」→ 弹窗中再次选择「打开」。
+2. 终端执行 `xattr -cr "/Applications/课程报告生成工具.app"` 后重新双击。
+3. 「系统设置」→「隐私与安全性」→ 找到对应提示 → 「仍要打开」。
+
 #### 不含浏览器版本
 
 接收方需先安装 Playwright Chromium：

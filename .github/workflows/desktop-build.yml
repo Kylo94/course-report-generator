@@ -81,7 +81,18 @@ jobs:
         run: |
           VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' backend/version.py)
           ARCHIVE="course-report-generator-${{ matrix.target }}-v${VERSION}.dmg"
-          hdiutil create -volname "课程报告生成工具" -srcfolder dist -ov -format UDZO "$ARCHIVE"
+          STAGE=".dmg-staging-${{ matrix.target }}"
+          APP=$(find dist -maxdepth 1 -type d -name "*.app" | head -n 1)
+          if [ -z "$APP" ]; then
+            echo "错误: 未找到 .app 构建产物"
+            exit 1
+          fi
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+          cp -R "$APP" "$STAGE/"
+          cp "packaging/macos/启动说明.txt" "$STAGE/启动说明.txt"
+          ln -s /Applications "$STAGE/Applications"
+          hdiutil create -volname "课程报告生成工具" -srcfolder "$STAGE" -ov -format UDZO "$ARCHIVE"
           echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
 
       - name: Create Linux TAR.GZ
