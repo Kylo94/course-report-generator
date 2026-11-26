@@ -314,7 +314,7 @@ docker compose -f docker-compose.ghcr.yml down
           </details>
           <details>
             <summary>有 Windows / macOS 桌面版吗？怎么下载？</summary>
-            <p>有。推送 <code>v*</code> tag 时，GitHub Actions 会在 Windows x64、macOS x64、macOS arm64、Linux x64 四个原生 runner 上分别打包并发布到 Releases。下载 <code>course-report-generator-&lt;平台&gt;-v&lt;版本&gt;.tar.gz</code> 解压即可，无需安装 Python。PyInstaller 不支持交叉编译，所以每个平台都在对应系统上构建。</p>
+            <p>有。推送 <code>v*</code> tag 时，GitHub Actions 会在四个原生 runner 上分别打包并发布到 Releases：Windows x64 为 <code>.zip</code>（内含 <code>.exe</code> 和 <code>browser/</code>），macOS x64 / arm64 为 <code>.dmg</code>（内含 <code>.app</code>），Linux x64 为 <code>.tar.gz</code>。无需安装 Python。PyInstaller 不支持交叉编译，所以每个平台都在对应系统上构建。</p>
           </details>
           <details>
             <summary>升级镜像会丢数据吗？</summary>
