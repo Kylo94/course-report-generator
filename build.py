@@ -109,15 +109,18 @@ def find_chromium_exe() -> Path | None:
     return None
 
 
-def copy_chromium(chromium_exe: Path, dist_exe_dir: Path) -> None:
-    """将 Chromium 复制到打包目录。"""
-    target_dir = dist_exe_dir / "browser"
+def copy_chromium(chromium_exe: Path, browser_dir: Path) -> None:
+    """将 Chromium 复制到可执行文件同级的 browser 目录。"""
+    target_dir = browser_dir
     log(f"正在复制 Chromium 到 {target_dir}...")
 
     # Chromium 需要整个目录（包含框架、资源等），不仅仅是可执行文件
     browser_root = chromium_exe.parent
-    # 向上找到 chrome-mac / chrome-win / chrome-linux 目录
-    while browser_root.name not in ("chrome-mac", "chrome-mac-arm64", "chrome-win", "chrome-linux") and browser_root.parent != browser_root:
+    # 向上找到 chrome-mac / chrome-win* / chrome-linux* / chromium-* 目录
+    while (
+        not (browser_root.name.startswith("chrome-") or browser_root.name.startswith("chromium-"))
+        and browser_root.parent != browser_root
+    ):
         browser_root = browser_root.parent
 
     target_browser = target_dir / browser_root.name
@@ -144,6 +147,51 @@ def _dir_size(path: Path) -> int:
 
 
 # ── 步骤 4: 构建 ──
+def find_build_output() -> Path:
+    """兼容 onefile / onedir / macOS .app 三种布局。"""
+    exe_name = APP_NAME + ".exe" if sys.platform == "win32" else APP_NAME
+    candidates = [
+        DIST_DIR / f"{APP_NAME}.app",
+        DIST_DIR / exe_name,
+        DIST_DIR / APP_NAME,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            log(f"构建产物: {candidate}")
+            return candidate
+
+    # 兜底：取 dist 根目录最近生成的可执行文件
+    for pattern in ("*.exe", "*.app", APP_NAME):
+        matches = sorted(
+            (p for p in DIST_DIR.glob(pattern) if p.is_file() or p.suffix == ".app"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if matches:
+            log(f"构建产物: {matches[0]}")
+            return matches[0]
+
+    log("错误: 构建产物未找到")
+    sys.exit(1)
+
+
+def browser_dir_for(output: Path) -> Path:
+    """Chromium 必须与真正执行时 sys.executable 同级。"""
+    if output.suffix == ".app":
+        return output / "Contents" / "MacOS" / "browser"
+    if output.is_dir():
+        return output / "browser"
+    return output.parent / "browser"
+
+
+def entry_point_for(output: Path) -> Path | None:
+    if output.suffix == ".app":
+        return output / "Contents" / "MacOS" / APP_NAME
+    if output.is_dir():
+        return output / (APP_NAME + ".exe" if sys.platform == "win32" else APP_NAME)
+    return output
+
+
 def run_pyinstaller(clean: bool = False) -> Path:
     print("\n🔨 PyInstaller 构建")
     if clean and DIST_DIR.exists():
@@ -156,46 +204,27 @@ def run_pyinstaller(clean: bool = False) -> Path:
         sys.exit(1)
 
     run([sys.executable, "-m", "PyInstaller", str(spec), "--noconfirm"])
-
-    # 查找构建产物
-    if sys.platform == "darwin":
-        # macOS 下同时有 .app 和 exe 目录
-        app_bundle = DIST_DIR / f"{APP_NAME}.app"
-        exe_dir = DIST_DIR / APP_NAME
-        if app_bundle.exists():
-            log(f"macOS .app 包: {app_bundle}")
-        if exe_dir.exists():
-            log(f"可执行目录: {exe_dir}")
-            return exe_dir
-        return app_bundle if app_bundle.exists() else exe_dir
-    else:
-        exe_dir = DIST_DIR / APP_NAME
-        if exe_dir.exists():
-            log(f"可执行目录: {exe_dir}")
-            return exe_dir
-        log("错误: 构建产物未找到")
-        sys.exit(1)
+    return find_build_output()
 
 
 # ── 步骤 5: 输出报告 ──
-def print_report(exe_dir: Path, with_chrome: bool) -> None:
+def print_report(output: Path, with_chrome: bool) -> None:
     print("\n✅ 构建完成")
-    print(f"   输出目录: {exe_dir}")
+    print(f"   输出:     {output}")
 
-    total = _dir_size(exe_dir)
+    total = _dir_size(output) if output.is_dir() else output.stat().st_size
+    if with_chrome:
+        total += _dir_size(browser_dir_for(output))
     print(f"   总大小:   {total // 1024 // 1024} MB")
 
-    if sys.platform == "darwin" and exe_dir.suffix == ".app":
-        exe_path = exe_dir / "Contents" / "MacOS" / APP_NAME
-        print(f"   入口:     {exe_path}")
-    else:
-        exe_path = exe_dir / (APP_NAME + ".exe" if sys.platform == "win32" else APP_NAME)
-        print(f"   入口:     {exe_path}")
-        print(f"   用法:     双击 {exe_path.name} 启动，浏览器打开 http://127.0.0.1:8765")
+    entry = entry_point_for(output)
+    if entry is not None:
+        print(f"   入口:     {entry}")
+        print(f"   用法:     运行 {entry.name} 启动，浏览器打开 http://127.0.0.1:8765")
 
     if with_chrome:
-        chrome_size = _dir_size(exe_dir / "browser") if (exe_dir / "browser").exists() else 0
-        print(f"   其中 Chromium: {chrome_size // 1024 // 1024} MB")
+        chrome_dir = browser_dir_for(output)
+        print(f"   其中 Chromium: {_dir_size(chrome_dir) // 1024 // 1024} MB ({chrome_dir})")
     else:
         print("   注意: 未打包 Chromium")
         print("         用户需自行安装: python -m playwright install chromium")
@@ -221,19 +250,18 @@ def main() -> None:
     if not args.no_chrome:
         ensure_chromium()
 
-    exe_dir = run_pyinstaller(clean=args.clean)
+    output = run_pyinstaller(clean=args.clean)
 
     with_chrome = False
     if not args.no_chrome:
         chromium_exe = find_chromium_exe()
         if chromium_exe:
-            dist_exe_dir = exe_dir if exe_dir.is_dir() else exe_dir.parent
-            copy_chromium(chromium_exe, dist_exe_dir)
+            copy_chromium(chromium_exe, browser_dir_for(output))
             with_chrome = True
         else:
             log("警告: 未找到 Chromium 可执行文件，跳过打包")
 
-    print_report(exe_dir, with_chrome)
+    print_report(output, with_chrome)
 
 
 if __name__ == "__main__":

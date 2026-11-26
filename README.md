@@ -523,7 +523,7 @@ uv run python build.py --no-chrome
 uv run python build.py --clean
 ```
 
-构建产物在 `dist/课程报告生成工具/` 目录下；macOS 还会生成 `dist/课程报告生成工具.app`。
+构建产物：Windows 为 `dist/课程报告生成工具.exe`，Linux 为 `dist/课程报告生成工具`，macOS 为 `dist/课程报告生成工具.app`。Chromium 会复制到可执行文件同级的 `browser/` 目录。
 
 ### GitHub Actions 多平台打包
 
@@ -549,7 +549,7 @@ PyInstaller 不支持交叉编译，因此 `.github/workflows/desktop-build.yml`
 
 `build.py` 会自动把 Playwright 的 Chromium 打包进去，接收方只需：
 
-1. 将 `dist/课程报告生成工具/` 整个目录拷贝到目标机器
+1. 将 `dist/` 下对应平台的可执行文件（或 `.app`）和 `browser/` 目录一起拷贝，保持同级结构
 2. 双击 `课程报告生成工具.exe`（Windows）或运行 `课程报告生成工具`（macOS/Linux）
 3. 浏览器打开 [http://127.0.0.1:8765](http://127.0.0.1:8765)
 
@@ -567,9 +567,9 @@ uv run python -m playwright install chromium
 
 | 平台 | 构建命令 | 产物 |
 |------|---------|------|
-| Windows | `uv run python build.py` | `dist/课程报告生成工具/课程报告生成工具.exe` |
+| Windows | `uv run python build.py` | `dist/课程报告生成工具.exe` + `dist/browser/` |
 | macOS | `uv run python build.py` | `dist/课程报告生成工具.app` |
-| Linux | `uv run python build.py` | `dist/课程报告生成工具/课程报告生成工具` |
+| Linux | `uv run python build.py` | `dist/课程报告生成工具` + `dist/browser/` |
 
 > **注意：** PyInstaller 不支持交叉编译。Windows 包必须在 Windows 上构建，macOS 包同理。
 
