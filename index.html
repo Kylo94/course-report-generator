@@ -33,7 +33,7 @@
     <section class="hero" id="top">
       <div class="wrap hero-grid">
         <div class="hero-copy">
-          <span class="badge">v1.4.1 · 已发布</span>
+          <span class="badge"><span data-version-label>v1.4.1</span> · 已发布</span>
           <h1>把一节课，变成一份<br /><em>看得见成长</em>的报告</h1>
           <p class="lede">
             面向少儿编程教师的本地工具。选择课程代码文件夹，AI 生成知识点、内容概述、作业与个性化评价，
@@ -79,40 +79,38 @@
       </div>
     </section>
 
-    <section class="section alt" id="download">
+    <section class="download-section" id="download">
       <div class="wrap">
-        <div class="section-head">
-          <span class="kicker">下载</span>
-          <h2>v1.4.1 桌面版</h2>
-          <p>选择对应平台下载。包内已包含 Chromium，解压后直接运行，无需安装 Python 或 Node。</p>
+        <div class="download-hero">
+          <div>
+            <span class="kicker">下载</span>
+            <h2>桌面版 <span data-version-label>最新版本</span></h2>
+            <p>由 GitHub Actions 在对应平台原生构建，内置 Chromium。下载后直接运行，不需要安装 Python 或 Node。</p>
+            <div class="download-meta">
+              <span>四平台原生包</span>
+              <span>内置浏览器</span>
+              <span>开源可审计</span>
+            </div>
+          </div>
+          <a class="release-link" href="https://github.com/Kylo94/course-report-generator/releases" target="_blank" rel="noopener">
+            查看全部版本 <span aria-hidden="true">→</span>
+          </a>
         </div>
-        <div class="download-grid">
-          <article class="download-card">
-            <span class="download-platform">Windows</span>
-            <h3>x64</h3>
-            <p>ZIP 压缩包，内含 <code>课程报告生成工具.exe</code> 和 <code>browser/</code>。</p>
-            <a class="download-btn" href="https://github.com/Kylo94/course-report-generator/releases/download/v1.4.1/course-report-generator-windows-x64-v1.4.1.zip" target="_blank" rel="noopener">下载 ZIP</a>
-          </article>
-          <article class="download-card">
-            <span class="download-platform">macOS</span>
-            <h3>Intel x64</h3>
-            <p>DMG 镜像，内含 <code>.app</code>，拖动到「应用程序」即可。</p>
-            <a class="download-btn" href="https://github.com/Kylo94/course-report-generator/releases/download/v1.4.1/course-report-generator-macos-x64-v1.4.1.dmg" target="_blank" rel="noopener">下载 DMG</a>
-          </article>
-          <article class="download-card">
-            <span class="download-platform">macOS</span>
-            <h3>Apple Silicon</h3>
-            <p>适用于 M 系列芯片的 DMG 镜像，内含 arm64 版 <code>.app</code>。</p>
-            <a class="download-btn" href="https://github.com/Kylo94/course-report-generator/releases/download/v1.4.1/course-report-generator-macos-arm64-v1.4.1.dmg" target="_blank" rel="noopener">下载 DMG</a>
-          </article>
-          <article class="download-card">
-            <span class="download-platform">Linux</span>
-            <h3>x64</h3>
-            <p>TAR.GZ 压缩包，内含可执行文件和 <code>browser/</code>。</p>
-            <a class="download-btn" href="https://github.com/Kylo94/course-report-generator/releases/download/v1.4.1/course-report-generator-linux-x64-v1.4.1.tar.gz" target="_blank" rel="noopener">下载 TAR.GZ</a>
-          </article>
+
+        <div class="download-grid" id="download-grid"></div>
+
+        <noscript>
+          <div class="download-fallback">
+            请到 <a href="https://github.com/Kylo94/course-report-generator/releases" target="_blank" rel="noopener">GitHub Releases</a> 下载对应平台的安装包。
+          </div>
+        </noscript>
+
+        <div class="download-guide">
+          <div><span>01</span><p><strong>Windows</strong> 下载 ZIP，解压后运行 <code>.exe</code>。</p></div>
+          <div><span>02</span><p><strong>Intel Mac</strong> 下载 Intel x64 的 DMG。</p></div>
+          <div><span>03</span><p><strong>M 系列 Mac</strong> 下载 Apple Silicon 的 DMG。</p></div>
+          <div><span>04</span><p><strong>Linux</strong> 下载 TAR.GZ，解压后运行可执行文件。</p></div>
         </div>
-        <p class="note">所有版本均由 GitHub Actions 在对应平台上构建。查看更多历史版本请访问 <a href="https://github.com/Kylo94/course-report-generator/releases" target="_blank" rel="noopener">Releases</a>。</p>
       </div>
     </section>
 
