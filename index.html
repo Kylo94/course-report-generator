@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>课程报告生成工具 v1.4.0</title>
+  <meta name="description" content="少儿编程课程报告自动生成工具：AI 生成内容、模板化 PDF/Word 导出、班级批量处理与加密 API Key 管理。" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="#top" aria-label="回到顶部">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="3" y="5" width="26" height="22" rx="5" fill="#5b8cff" />
+          <path d="M10 13h12M10 19h8" stroke="#fff" stroke-width="2.2" stroke-linecap="round" />
+        </svg>
+        <span>课程报告生成工具</span>
+      </a>
+      <nav>
+        <a href="#features">功能</a>
+        <a href="#quickstart">快速开始</a>
+        <a href="#docker">镜像</a>
+        <a href="#cost">成本</a>
+        <a class="nav-github" href="https://github.com/Kylo94/course-report-generator" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" id="top">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <span class="badge">v1.4.0 · 已发布</span>
+          <h1>把一节课，变成一份<br /><em>看得见成长</em>的报告</h1>
+          <p class="lede">
+            面向少儿编程教师的本地工具。选择课程代码文件夹，AI 生成知识点、内容概述、作业与个性化评价，
+            再按模板导出 PDF / Word。数据留在本地，API Key 加密保存。
+          </p>
+          <div class="hero-actions">
+            <a class="btn primary" href="#quickstart">开始使用</a>
+            <a class="btn ghost" href="#docker">拉取镜像</a>
+          </div>
+          <div class="hero-meta">
+            <span>FastAPI + Vue 3</span>
+            <span>DeepSeek / OpenAI / Claude 等</span>
+            <span>amd64 + arm64</span>
+          </div>
+        </div>
+
+        <div class="hero-visual" aria-label="产品界面示意">
+          <div class="mock-window">
+            <div class="mock-bar">
+              <span class="mock-dot red"></span><span class="mock-dot yellow"></span><span class="mock-dot green"></span>
+              <span class="mock-url">localhost:8765</span>
+            </div>
+            <div class="mock-body">
+              <aside class="mock-side">
+                <span class="mock-item active">报告工作台</span>
+                <span class="mock-item">模板管理</span>
+                <span class="mock-item">设置</span>
+              </aside>
+              <div class="mock-main">
+                <div class="mock-title">周六 8:00 · 01 基本语法</div>
+                <div class="mock-row"><span class="mock-chip">知识点</span><span class="mock-line w80"></span></div>
+                <div class="mock-row"><span class="mock-chip">内容概述</span><span class="mock-line w65"></span></div>
+                <div class="mock-row"><span class="mock-chip">作业</span><span class="mock-line w72"></span></div>
+                <div class="mock-paper">
+                  <div class="paper-head"></div>
+                  <div class="paper-line"></div><div class="paper-line short"></div>
+                  <div class="paper-line"></div><div class="paper-line mid"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="kicker">为什么用它</span>
+          <h2>从代码到家长能读懂的报告</h2>
+          <p>不是通用聊天机器人，而是围绕课程教学场景打磨的完整流程。</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span class="feature-index">01</span>
+            <h3>AI 内容生成</h3>
+            <p>自动读取课程代码，生成知识点、内容概述、作业/单词卡与学生个性化评价。</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-index">02</span>
+            <h3>批量班级处理</h3>
+            <p>共享内容只生成一次，逐学生评价并发生成；观察文本可逐人填写。</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-index">03</span>
+            <h3>模板与导出</h3>
+            <p>内置多套模板，支持自定义主题、Logo、代码截图，一键导出 PDF 与 Word。</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-index">04</span>
+            <h3>安全与本地化</h3>
+            <p>API Key 存在系统钥匙串或本地加密文件；用户设置与报告数据都留在自己的机器。</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-index">05</span>
+            <h3>设置页集中管理</h3>
+            <p>供应商、模型、密钥、默认模板、思考模式都在页面里配置，保存即时生效。</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-index">06</span>
+            <h3>低成本运行</h3>
+            <p>默认关闭 DeepSeek 思考模式，一个 3 人班的生成成本约 0.027 元。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="quickstart">
+      <div class="wrap two-col">
+        <div>
+          <div class="section-head left">
+            <span class="kicker">本地运行</span>
+            <h2>两条命令开始</h2>
+            <p>克隆仓库后，用 uv 安装依赖并启动。首次打开请到「设置」页填写 API Key。</p>
+          </div>
+          <div class="steps">
+            <div class="step"><span>1</span><p>安装依赖</p></div>
+            <div class="step"><span>2</span><p>启动服务</p></div>
+            <div class="step"><span>3</span><p>打开设置页配置 AI</p></div>
+          </div>
+        </div>
+        <div class="code-stack">
+          <div class="code-block">
+            <button class="copy" type="button">复制</button>
+            <pre><code>git clone https://github.com/Kylo94/course-report-generator.git
+cd course-report-generator
+uv sync
+uv run python main.py</code></pre>
+          </div>
+          <p class="hint">浏览器打开 <code>http://localhost:8765</code></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="docker">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="kicker">容器部署</span>
+          <h2>直接从 GitHub 拉取镜像</h2>
+          <p>推送到 main 或打版本 tag 时，GitHub Actions 会自动构建多架构镜像。</p>
+        </div>
+        <div class="docker-grid">
+          <div class="code-block">
+            <div class="code-label">一次性登录（私仓需要）</div>
+            <button class="copy" type="button">复制</button>
+            <pre><code>echo &lt;PAT&gt; | docker login ghcr.io -u Kylo94 --password-stdin</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">拉取指定版本</div>
+            <button class="copy" type="button">复制</button>
+            <pre><code>docker pull ghcr.io/kylo94/course-report-generator:1.4.0</code></pre>
+          </div>
+          <div class="code-block wide">
+            <div class="code-label">用仓库提供的 compose 文件启动</div>
+            <button class="copy" type="button">复制</button>
+            <pre><code>docker compose -f docker-compose.ghcr.yml up -d
+# 指定版本
+CRG_IMAGE_TAG=1.4.0 docker compose -f docker-compose.ghcr.yml up -d</code></pre>
+          </div>
+        </div>
+        <p class="note">PAT 只需 <code>read:packages</code> 权限。数据卷挂载在 <code>./data</code>，升级镜像不会丢设置。</p>
+      </div>
+    </section>
+
+    <section class="section alt" id="cost">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="kicker">成本实测</span>
+          <h2>默认关闭思考模式，省下约 70%</h2>
+          <p>同一个 3 人班级、同一课程，在空闲时段用 DeepSeek 官方价格实测。</p>
+        </div>
+        <div class="cost-table" role="table" aria-label="成本对比表">
+          <div class="cost-row head" role="row">
+            <span role="columnheader">方案</span>
+            <span role="columnheader">输入 token</span>
+            <span role="columnheader">输出 token</span>
+            <span role="columnheader">推理 token</span>
+            <span role="columnheader">空闲成本</span>
+          </div>
+          <div class="cost-row" role="row">
+            <span role="cell">思考模式开启</span><span role="cell">22,821</span><span role="cell">17,641</span><span role="cell">16,259</span><span role="cell" class="cost-high">0.093 元</span>
+          </div>
+          <div class="cost-row highlight" role="row">
+            <span role="cell">思考模式关闭（默认）</span><span role="cell">21,978</span><span role="cell">1,252</span><span role="cell">0</span><span role="cell" class="cost-low">0.027 元</span>
+          </div>
+        </div>
+        <p class="note">收费口径按 DeepSeek 官方定价：输入 1 元/百万 token（缓存未命中），输出 4 元/百万 token（空闲时段）。</p>
+      </div>
+    </section>
+
+    <section class="section" id="changelog">
+      <div class="wrap two-col">
+        <div class="section-head left">
+          <span class="kicker">最近更新</span>
+          <h2>v1.4.0</h2>
+        </div>
+        <ul class="changelog">
+          <li>DeepSeek 思考模式默认关闭，并在设置页提供开关。</li>
+          <li>GitHub Actions 自动构建 amd64 / arm64 镜像并推送 GHCR。</li>
+          <li>新增 <code>docker-compose.ghcr.yml</code>，一条命令拉取运行。</li>
+          <li>v1.3.0：AI 配置迁移到设置页，API Key 加密存储，默认模板后端持久化。</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap footer-inner">
+      <span>课程报告生成工具 · v1.4.0</span>
+      <a href="https://github.com/Kylo94/course-report-generator" target="_blank" rel="noopener">查看源码</a>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
