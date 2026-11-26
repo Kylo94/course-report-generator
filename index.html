@@ -111,6 +111,7 @@
           <div><span>03</span><p><strong>M 系列 Mac</strong> 下载 Apple Silicon 的 DMG。</p></div>
           <div><span>04</span><p><strong>Linux</strong> 下载 TAR.GZ，解压后运行可执行文件。</p></div>
         </div>
+        <p class="note download-note">macOS DMG 打开后包含 App、<code>Applications</code> 快捷方式和「启动说明.txt」。首次打开如提示“未知开发者”，按说明操作即可。</p>
       </div>
     </section>
 
@@ -351,6 +352,15 @@ docker compose -f docker-compose.ghcr.yml down
           <details>
             <summary>有 Windows / macOS 桌面版吗？怎么下载？</summary>
             <p>有。推送 <code>v*</code> tag 时，GitHub Actions 会在四个原生 runner 上分别打包并发布到 Releases：Windows x64 为 <code>.zip</code>（内含 <code>.exe</code> 和 <code>browser/</code>），macOS x64 / arm64 为 <code>.dmg</code>（内含 <code>.app</code>），Linux x64 为 <code>.tar.gz</code>。无需安装 Python。PyInstaller 不支持交叉编译，所以每个平台都在对应系统上构建。</p>
+          </details>
+          <details>
+            <summary>macOS 提示“未知开发者”或“无法验证开发者”怎么办？</summary>
+            <p>应用由 GitHub Actions 从公开源码构建，但未做 Apple 开发者签名与公证，所以 macOS 首次打开会拦截。DMG 内也附带了「启动说明.txt」。任选一种方式：</p>
+            <ol>
+              <li>将 App 拖到「应用程序」，按住 Control 点击图标 → 「打开」→ 弹窗中再次选择「打开」。</li>
+              <li>终端执行 <code>xattr -cr "/Applications/课程报告生成工具.app"</code>，然后重新双击。</li>
+              <li>「系统设置」→「隐私与安全性」→ 找到对应提示 → 「仍要打开」。</li>
+            </ol>
           </details>
           <details>
             <summary>升级镜像会丢数据吗？</summary>
