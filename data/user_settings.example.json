@@ -1,0 +1,24 @@
+{
+  "custom_output_dir": "",
+  "default_project_dir": "",
+  "image_dpi": 150,
+  "image_quality": 95,
+  "image_enabled": true,
+  "auto_save_interval_seconds": 30,
+  "default_template_id": "classic",
+  "llm_provider": "deepseek",
+  "llm_base_url": "",
+  "llm_default_model": "deepseek-chat",
+  "llm_max_tokens": 8192,
+  "llm_timeout": 60,
+  "llm_max_retries": 2,
+  "llm_thinking_enabled": false,
+  "llm_temperature": {
+    "knowledge_points": 0.3,
+    "content_summary": 0.5,
+    "homework": 0.5,
+    "vocabulary": 0.5,
+    "ability_improvement": 0.5,
+    "evaluation": 0.9
+  }
+}

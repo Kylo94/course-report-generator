@@ -139,7 +139,8 @@ docker run -d \
 | 文件 | 用途 | 是否入 git |
 |---|---|---|
 | `config/app.yaml` | 应用配置：服务器端口、数据库、报告目录、Logo 等 | 是 |
-| `data/user_settings.json` | 用户设置：AI 配置（不含明文 Key）、默认模板、路径等 | 否 |
+| `data/user_settings.json` | 本机用户设置：AI 配置（不含明文 Key）、默认模板、路径等 | 否（已忽略） |
+| `data/user_settings.example.json` | 用户设置示例，仅作参考 | 是 |
 | `data/.llm_secret.key` / `.llm_secret.enc` | API Key 加密密钥与密文 | 否（已忽略） |
 | `config/llm.yaml.example` | 旧版配置格式参考（已废弃） | 是 |
 

@@ -98,10 +98,11 @@ dist_run.log
 *.run.log
 
 # =========================
-# Local config (含 API Key，绝不入库)
+# Local config & user data (个人配置与密钥，不入库)
 # =========================
 config/llm.yaml
 config/app.yaml.local
+data/user_settings.json
 data/.llm_secret.key
 data/.llm_secret.enc
 .env
