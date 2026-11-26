@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>课程报告生成工具 v1.4.0</title>
+  <title>课程报告生成工具 v1.4.1</title>
   <meta name="description" content="少儿编程课程报告自动生成工具：AI 生成内容、模板化 PDF/Word 导出、班级批量处理与加密 API Key 管理。" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -32,7 +32,7 @@
     <section class="hero" id="top">
       <div class="wrap hero-grid">
         <div class="hero-copy">
-          <span class="badge">v1.4.0 · 已发布</span>
+          <span class="badge">v1.4.1 · 已发布</span>
           <h1>把一节课，变成一份<br /><em>看得见成长</em>的报告</h1>
           <p class="lede">
             面向少儿编程教师的本地工具。选择课程代码文件夹，AI 生成知识点、内容概述、作业与个性化评价，
@@ -219,7 +219,7 @@ uv run pytest -q</code></pre>
           <div class="code-block">
             <div class="code-label">拉取指定版本</div>
             <button class="copy" type="button">复制</button>
-            <pre><code>docker pull ghcr.io/kylo94/course-report-generator:1.4.0</code></pre>
+            <pre><code>docker pull ghcr.io/kylo94/course-report-generator:1.4.1</code></pre>
           </div>
           <div class="code-block">
             <div class="code-label">拉取最新版</div>
@@ -230,7 +230,7 @@ uv run pytest -q</code></pre>
             <div class="code-label">用仓库提供的 compose 文件启动</div>
             <button class="copy" type="button">复制</button>
             <pre><code>docker compose -f docker-compose.ghcr.yml up -d
-CRG_IMAGE_TAG=1.4.0 docker compose -f docker-compose.ghcr.yml up -d</code></pre>
+CRG_IMAGE_TAG=1.4.1 docker compose -f docker-compose.ghcr.yml up -d</code></pre>
           </div>
           <div class="code-block wide">
             <div class="code-label">日常运维</div>
@@ -328,12 +328,14 @@ docker compose -f docker-compose.ghcr.yml down
       <div class="wrap two-col">
         <div class="section-head left">
           <span class="kicker">最近更新</span>
-          <h2>v1.4.0</h2>
+          <h2>v1.4.1</h2>
         </div>
         <ul class="changelog">
-          <li>DeepSeek 思考模式默认关闭，并在设置页提供开关。</li>
-          <li>GitHub Actions 自动构建 amd64 / arm64 镜像并推送 GHCR，同时支持四平台桌面打包发布。</li>
-          <li>新增 <code>docker-compose.ghcr.yml</code>，一条命令拉取运行。</li>
+          <li>修复 Windows 打包输出编码与 onefile 产物识别问题。</li>
+          <li>桌面包改为平台原生格式：Windows 为 ZIP，macOS 为 DMG，Linux 为 TAR.GZ。</li>
+          <li>镜像构建只由版本 tag 触发，GitHub Actions 升级到 Node 24。</li>
+          <li>新增项目主页与 <code>docker-compose.ghcr.yml</code> 拉取方案。</li>
+          <li>v1.4.0：思考模式默认关闭并提供设置开关，GHCR 多架构镜像与四平台打包上线。</li>
           <li>v1.3.0：AI 配置迁移到设置页，API Key 加密存储，默认模板后端持久化。</li>
         </ul>
       </div>
@@ -342,7 +344,7 @@ docker compose -f docker-compose.ghcr.yml down
 
   <footer>
     <div class="wrap footer-inner">
-      <span>课程报告生成工具 · v1.4.0</span>
+      <span>课程报告生成工具 · v1.4.1</span>
       <a href="https://github.com/Kylo94/course-report-generator" target="_blank" rel="noopener">查看源码</a>
     </div>
   </footer>
