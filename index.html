@@ -313,6 +313,10 @@ docker compose -f docker-compose.ghcr.yml down
             <p>日常生成建议关闭，省钱且快很多。遇到特别复杂、需要模型反复推敲的内容，可以在设置页临时打开；它只影响 DeepSeek，且会显著增加推理 token。</p>
           </details>
           <details>
+            <summary>有 Windows / macOS 桌面版吗？怎么下载？</summary>
+            <p>有。推送 <code>v*</code> tag 时，GitHub Actions 会在 Windows x64、macOS x64、macOS arm64、Linux x64 四个原生 runner 上分别打包并发布到 Releases。下载 <code>course-report-generator-&lt;平台&gt;-v&lt;版本&gt;.tar.gz</code> 解压即可，无需安装 Python。PyInstaller 不支持交叉编译，所以每个平台都在对应系统上构建。</p>
+          </details>
+          <details>
             <summary>升级镜像会丢数据吗？</summary>
             <p>不会。用户设置、数据库、加密密钥和报告都在挂载的 <code>./data</code> 目录里。升级时停止容器、拉取新镜像、重新启动即可。</p>
           </details>
@@ -328,7 +332,7 @@ docker compose -f docker-compose.ghcr.yml down
         </div>
         <ul class="changelog">
           <li>DeepSeek 思考模式默认关闭，并在设置页提供开关。</li>
-          <li>GitHub Actions 自动构建 amd64 / arm64 镜像并推送 GHCR。</li>
+          <li>GitHub Actions 自动构建 amd64 / arm64 镜像并推送 GHCR，同时支持四平台桌面打包发布。</li>
           <li>新增 <code>docker-compose.ghcr.yml</code>，一条命令拉取运行。</li>
           <li>v1.3.0：AI 配置迁移到设置页，API Key 加密存储，默认模板后端持久化。</li>
         </ul>
