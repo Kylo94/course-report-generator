@@ -70,9 +70,10 @@ ghcr.io/kylo94/course-report-generator:<版本号>
 ghcr.io/kylo94/course-report-generator:latest
 ```
 
-私仓镜像需要一次性登录，PAT 只需 `read:packages` 权限：
+仓库和 GHCR 镜像均为公开，直接拉取即可，**无需登录**。只有以后把镜像包改成私有时，才需要一次性登录（PAT 需 `read:packages` 权限）：
 
 ```bash
+# 仅当镜像包改为私有时需要
 echo <你的PAT> | docker login ghcr.io -u Kylo94 --password-stdin
 ```
 
