@@ -45,12 +45,14 @@ class TestSettingsAPI:
             "llm_provider": "openai",
             "llm_default_model": "gpt-4o-mini",
             "llm_timeout": 30,
+            "llm_thinking_enabled": True,
             "default_template_id": "academic",
         })
         assert resp.status_code == 200
         data = resp.json()
         assert data["llm_provider"] == "openai"
         assert data["llm_timeout"] == 30
+        assert data["llm_thinking_enabled"] is True
         assert data["default_template_id"] == "academic"
         assert data["api_key_configured"] is True
         assert key not in str(data)

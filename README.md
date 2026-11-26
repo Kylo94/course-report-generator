@@ -1,4 +1,4 @@
-# 📄 课程报告生成工具 v1.3.0
+# 📄 课程报告生成工具 v1.4.0
 
 **Course Report Generator** — 少儿编程教师课后报告自动生成工具。
 
@@ -61,7 +61,37 @@ uv run python main.py
 - 安装 [Docker](https://docs.docker.com/engine/install/) 和 [Docker Compose](https://docs.docker.com/compose/install/)（Compose 插件一般随 Docker Desktop 自带）
 - 一个 AI 供应商的 API Key（DeepSeek / 通义千问 / OpenAI / Claude 等）
 
-### 方式一：docker compose（推荐）
+### 方式一：从 GitHub 拉取镜像（推荐）
+
+GitHub Actions 会在 push 到 `main` 或打 `v*` tag 时自动构建 amd64 / arm64 镜像并推送到 GHCR：
+
+```
+ghcr.io/kylo94/course-report-generator:<版本号>
+ghcr.io/kylo94/course-report-generator:latest
+```
+
+私仓镜像需要一次性登录，PAT 只需 `read:packages` 权限：
+
+```bash
+echo <你的PAT> | docker login ghcr.io -u Kylo94 --password-stdin
+```
+
+直接用提供的 compose 文件拉取并启动：
+
+```bash
+# 默认 latest
+docker compose -f docker-compose.ghcr.yml up -d
+
+# 固定版本
+CRG_IMAGE_TAG=1.4.0 docker compose -f docker-compose.ghcr.yml up -d
+
+# 手动拉取
+docker pull ghcr.io/kylo94/course-report-generator:1.4.0
+```
+
+如果本地构建版正在运行，先执行 `docker compose down`，避免容器名和端口冲突。数据仍然持久化在 `./data`。
+
+### 方式二：本地 docker compose 构建
 
 非敏感的应用配置在 **`config/app.yaml`**；AI 配置与默认模板在应用「设置」页面维护，保存到挂载的 `./data/user_settings.json`，API Key 加密保存在系统钥匙串或 `data/.llm_secret.*`。
 
@@ -81,7 +111,7 @@ docker compose down
 
 `docker-compose.yml` 只挂载 `./data` 用于持久化用户设置与加密密钥；宿主机只发布 **8765** 一个入口。设置页面保存后即时生效，无需重启容器。
 
-### 方式二：纯 docker
+### 方式三：纯 docker
 
 ```bash
 # 构建镜像
@@ -410,8 +440,9 @@ int main() {
 
 ### AI 配置（设置页面）
 
-在应用左侧「设置」→「AI 服务」卡片中填写供应商、API Key、模型、超时、重试次数、最大 Token 与各步骤温度参数，点击「保存设置」即时生效。
+在应用左侧「设置」→「AI 服务」卡片中填写供应商、API Key、模型、超时、重试次数、最大 Token、思考模式与各步骤温度参数，点击「保存设置」即时生效。
 
+- **思考模式默认关闭**：DeepSeek 开启后会先输出推理再回答，实测一个 3 人班的生成成本约从 0.026 元升到 0.093 元（空闲时段）、耗时从 11 秒升到 81 秒；需要更强推理时可临时打开。
 - API Key 优先保存在系统钥匙串（macOS 钥匙串 / Windows 凭据管理器），不可用时保存为本地加密文件；
 - `data/user_settings.json` 中不写入明文 Key，接口只返回「已配置」状态和脱敏尾号；
 - 旧版 `config/llm.yaml` 仅在首次升级时迁移一次，之后不再生效；
@@ -580,6 +611,7 @@ dist/课程报告生成工具/
 ## 版本历史
 
 ```
+v1.4.0 — DeepSeek 思考模式默认关闭并提供设置开关（班级报告成本约降 70%）；GitHub Actions 自动构建多架构镜像并推送 GHCR，提供 docker-compose.ghcr.yml 拉取方案
 v1.3.0 — AI 配置迁移到「设置」页面；API Key 加密存储（系统钥匙串 / 本地加密文件）；默认模板改为后端持久化；配置保存即时生效
 v1.2.0 — 支持 C/C++ 工程；新增「素白极简」低打印负担模板；Classic/素白极简 Word 采用 PDF 风格卡片版式；导出按钮合并为「导出报告」；宿主机端口固定 8765
 v1.1.0 — 重构项目文档，详述代码注释规范以提高AI准确度；去除作业评分标准

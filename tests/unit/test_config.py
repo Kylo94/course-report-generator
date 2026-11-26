@@ -143,11 +143,13 @@ class TestUserSettings:
             "default_template_id": "cartoon",
             "llm_provider": "openai",
             "llm_default_model": "gpt-4o-mini",
+            "llm_thinking_enabled": True,
             "llm_temperature": {"evaluation": 0.7},
         })
         assert s.report.default_template == "cartoon"
         assert s.llm.provider == "openai"
         assert s.llm.default_model == "gpt-4o-mini"
+        assert s.llm.thinking_enabled is True
         assert s.llm.temperature["evaluation"] == 0.7
 
     def test_update_saves_api_key_encrypted(

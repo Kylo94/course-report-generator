@@ -98,6 +98,14 @@ class TestGetProvider:
         p = get_provider(cfg)
         assert isinstance(p, OpenAICompatProvider) or p.name == "deepseek"
 
+    def test_deepseek_thinking_disabled_by_default(self) -> None:
+        p = get_provider(LLMConfig(provider="deepseek", api_key="test"))
+        assert p.get_chat_model().extra_body == {"thinking": {"type": "disabled"}}
+
+    def test_deepseek_thinking_can_be_enabled(self) -> None:
+        p = get_provider(LLMConfig(provider="deepseek", api_key="test", thinking_enabled=True))
+        assert p.get_chat_model().extra_body == {"thinking": {"type": "enabled"}}
+
     def test_minimax(self) -> None:
         cfg = LLMConfig(provider="minimax", api_key="test")
         p = get_provider(cfg)

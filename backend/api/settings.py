@@ -46,6 +46,7 @@ class SettingsUpdate(BaseModel):
     llm_max_tokens: int | None = Field(default=None, ge=1, le=1_000_000)
     llm_timeout: int | None = Field(default=None, ge=1, le=600)
     llm_max_retries: int | None = Field(default=None, ge=0, le=10)
+    llm_thinking_enabled: bool | None = None
     llm_temperature: dict[str, float] | None = None
 
     @field_validator("llm_temperature")

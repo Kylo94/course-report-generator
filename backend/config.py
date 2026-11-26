@@ -107,6 +107,7 @@ class LLMConfig(BaseModel):
     max_tokens: int = 8192
     timeout: int = 60
     max_retries: int = 2
+    thinking_enabled: bool = False  # DeepSeek 思考模式，默认关闭以节省成本
     temperature: dict[str, float] = Field(default_factory=lambda: {
         "knowledge_points": 0.3,
         "content_summary": 0.5,
@@ -405,6 +406,7 @@ LLM_USER_FIELDS: dict[str, str] = {
     "llm_max_tokens": "max_tokens",
     "llm_timeout": "timeout",
     "llm_max_retries": "max_retries",
+    "llm_thinking_enabled": "thinking_enabled",
 }
 
 
@@ -476,6 +478,7 @@ def _collect_user_data(settings: Settings) -> dict[str, Any]:
         "llm_max_tokens": settings.llm.max_tokens,
         "llm_timeout": settings.llm.timeout,
         "llm_max_retries": settings.llm.max_retries,
+        "llm_thinking_enabled": settings.llm.thinking_enabled,
         "llm_temperature": dict(settings.llm.temperature),
     }
 

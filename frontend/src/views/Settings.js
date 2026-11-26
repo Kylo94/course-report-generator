@@ -65,6 +65,12 @@ const SettingsView = {
           <el-form-item label="最大 Token">
             <el-input-number v-model="form.llm_max_tokens" :min="1" :max="1000000" :step="1024" controls-position="right" />
           </el-form-item>
+          <el-form-item label="思考模式">
+            <el-switch v-model="form.llm_thinking_enabled" />
+            <span style="margin-left:8px;color:#909399;font-size:12px;">
+              仅 DeepSeek 生效。开启后模型先推理再回答，成本约高 3 倍且更慢；默认关闭。
+            </span>
+          </el-form-item>
           <el-form-item>
             <el-collapse style="width:100%;">
               <el-collapse-item title="高级：各生成步骤的温度参数">
@@ -246,6 +252,7 @@ const SettingsView = {
         llm_max_tokens: 8192,
         llm_timeout: 60,
         llm_max_retries: 2,
+        llm_thinking_enabled: false,
         llm_temperature: {
           knowledge_points: 0.3,
           content_summary: 0.5,
@@ -422,6 +429,7 @@ const SettingsView = {
         llm_max_tokens: 8192,
         llm_timeout: 60,
         llm_max_retries: 2,
+        llm_thinking_enabled: false,
         llm_temperature: this._defaultTemperature(),
         // 保留已保存的 API Key，恢复默认不会清除密钥
         llm_api_key: '',

@@ -22,6 +22,11 @@ class DeepSeekProvider(LLMProvider):
             timeout=self.config.timeout,
             max_retries=self.config.max_retries,
             max_tokens=self.config.max_tokens or 8192,
+            extra_body={
+                "thinking": {
+                    "type": "enabled" if self.config.thinking_enabled else "disabled"
+                }
+            },
         )
 
     def test_connection(self) -> tuple[bool, str]:
