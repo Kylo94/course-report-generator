@@ -529,19 +529,19 @@ uv run python build.py --clean
 
 PyInstaller 不支持交叉编译，因此 `.github/workflows/desktop-build.yml` 使用四个原生 runner 分别构建：
 
-| Runner | 产物标识 |
-|---|---|
-| `windows-latest` | `windows-x64` |
-| `macos-15-intel` | `macos-x64` |
-| `macos-15` | `macos-arm64` |
-| `ubuntu-latest` | `linux-x64` |
+| Runner | 产物标识 | 格式 |
+|---|---|---|
+| `windows-latest` | `windows-x64` | `.zip`（含 `课程报告生成工具.exe` 和 `browser/`） |
+| `macos-15-intel` | `macos-x64` | `.dmg`（含 `.app`） |
+| `macos-15` | `macos-arm64` | `.dmg`（含 `.app`） |
+| `ubuntu-latest` | `linux-x64` | `.tar.gz`（含可执行文件和 `browser/`） |
 
 触发方式：
 
-- 推送 `v*.*.*` tag：四个平台并行构建，并自动把压缩包发布到 GitHub Releases。
+- 推送 `v*.*.*` tag：四个平台并行构建，汇总后统一发布到 GitHub Releases；旧的包会被清理，避免并发发布丢附件。
 - 在 Actions 页面手动运行 `Desktop Build`：产出 Actions artifact，可勾选不打包 Chromium 以缩小体积。
 
-压缩包命名为 `course-report-generator-<平台>-v<版本号>.tar.gz`，版本号取自 `backend/version.py`。用户下载解压后直接运行对应平台的可执行文件即可。
+文件名格式为 `course-report-generator-<平台>-v<版本号>.<扩展名>`，版本号取自 `backend/version.py`。
 
 ### 分发给其他人
 
