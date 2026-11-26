@@ -25,6 +25,11 @@ from pathlib import Path
 
 from backend.version import __version__
 
+# Windows 控制台默认 cp1252 无法输出中文/emoji，CI 与本地构建都统一使用 UTF-8。
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 PROJECT_ROOT = Path(__file__).resolve().parent
 DIST_DIR = PROJECT_ROOT / "dist"
 APP_NAME = "课程报告生成工具"
@@ -147,7 +152,7 @@ def run_pyinstaller(clean: bool = False) -> Path:
 
     spec = PROJECT_ROOT / "build.spec"
     if not spec.exists():
-        log(f"错误: build.spec 不存在")
+        log("错误: build.spec 不存在")
         sys.exit(1)
 
     run([sys.executable, "-m", "PyInstaller", str(spec), "--noconfirm"])
@@ -168,7 +173,7 @@ def run_pyinstaller(clean: bool = False) -> Path:
         if exe_dir.exists():
             log(f"可执行目录: {exe_dir}")
             return exe_dir
-        log(f"错误: 构建产物未找到")
+        log("错误: 构建产物未找到")
         sys.exit(1)
 
 
@@ -192,8 +197,8 @@ def print_report(exe_dir: Path, with_chrome: bool) -> None:
         chrome_size = _dir_size(exe_dir / "browser") if (exe_dir / "browser").exists() else 0
         print(f"   其中 Chromium: {chrome_size // 1024 // 1024} MB")
     else:
-        print(f"   注意: 未打包 Chromium")
-        print(f"         用户需自行安装: python -m playwright install chromium")
+        print("   注意: 未打包 Chromium")
+        print("         用户需自行安装: python -m playwright install chromium")
 
     print()
 

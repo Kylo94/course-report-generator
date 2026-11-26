@@ -26,6 +26,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
 
     strategy:
       fail-fast: false
