@@ -523,7 +523,25 @@ uv run python build.py --no-chrome
 uv run python build.py --clean
 ```
 
-构建产物在 `dist/课程报告生成工具/` 目录下。
+构建产物在 `dist/课程报告生成工具/` 目录下；macOS 还会生成 `dist/课程报告生成工具.app`。
+
+### GitHub Actions 多平台打包
+
+PyInstaller 不支持交叉编译，因此 `.github/workflows/desktop-build.yml` 使用四个原生 runner 分别构建：
+
+| Runner | 产物标识 |
+|---|---|
+| `windows-latest` | `windows-x64` |
+| `macos-15-intel` | `macos-x64` |
+| `macos-15` | `macos-arm64` |
+| `ubuntu-latest` | `linux-x64` |
+
+触发方式：
+
+- 推送 `v*.*.*` tag：四个平台并行构建，并自动把压缩包发布到 GitHub Releases。
+- 在 Actions 页面手动运行 `Desktop Build`：产出 Actions artifact，可勾选不打包 Chromium 以缩小体积。
+
+压缩包命名为 `course-report-generator-<平台>-v<版本号>.tar.gz`，版本号取自 `backend/version.py`。用户下载解压后直接运行对应平台的可执行文件即可。
 
 ### 分发给其他人
 
@@ -616,7 +634,7 @@ dist/课程报告生成工具/
 ## 版本历史
 
 ```
-v1.4.0 — DeepSeek 思考模式默认关闭并提供设置开关（班级报告成本约降 70%）；GitHub Actions 自动构建多架构镜像并推送 GHCR，提供 docker-compose.ghcr.yml 拉取方案
+v1.4.0 — DeepSeek 思考模式默认关闭并提供设置开关（班级报告成本约降 70%）；GitHub Actions 自动构建多架构镜像并推送 GHCR，支持四平台桌面打包发布，提供 docker-compose.ghcr.yml 拉取方案
 v1.3.0 — AI 配置迁移到「设置」页面；API Key 加密存储（系统钥匙串 / 本地加密文件）；默认模板改为后端持久化；配置保存即时生效
 v1.2.0 — 支持 C/C++ 工程；新增「素白极简」低打印负担模板；Classic/素白极简 Word 采用 PDF 风格卡片版式；导出按钮合并为「导出报告」；宿主机端口固定 8765
 v1.1.0 — 重构项目文档，详述代码注释规范以提高AI准确度；去除作业评分标准

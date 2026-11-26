@@ -1,0 +1,86 @@
+# ===================================================================
+# GitHub Actions — 多平台桌面版打包
+# ===================================================================
+# PyInstaller 不支持交叉编译，因此在各自原生 runner 上分别构建：
+#   - windows-latest  -> windows-x64
+#   - macos-15-intel  -> macos-x64
+#   - macos-15        -> macos-arm64
+#   - ubuntu-latest   -> linux-x64
+#
+# 打 tag 时自动发布到 GitHub Releases；手动触发时产出 Actions artifact。
+# ===================================================================
+name: Desktop Build
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      no_chrome:
+        description: 不打包 Chromium（产物更小，但运行环境需自行安装浏览器）
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: windows-x64
+          - os: macos-15-intel
+            target: macos-x64
+          - os: macos-15
+            target: macos-arm64
+          - os: ubuntu-latest
+            target: linux-x64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Install Chromium system dependencies (Linux)
+        if: matrix.target == 'linux-x64'
+        run: uv run python -m playwright install-deps chromium
+
+      - name: Build desktop app
+        shell: bash
+        env:
+          BUILD_ARGS: ${{ (github.event_name == 'workflow_dispatch' && inputs.no_chrome) && '--no-chrome' || '' }}
+        run: uv run python build.py --clean $BUILD_ARGS
+
+      - name: Create archive
+        shell: bash
+        run: |
+          VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' backend/version.py)
+          ARCHIVE="course-report-generator-${{ matrix.target }}-v${VERSION}.tar.gz"
+          tar -czf "$ARCHIVE" -C dist .
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        if: github.event_name != 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: course-report-generator-${{ matrix.target }}
+          path: ${{ env.ARCHIVE }}
+          if-no-files-found: error
+
+      - name: Publish GitHub Release asset
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ARCHIVE }}
+          generate_release_notes: true
