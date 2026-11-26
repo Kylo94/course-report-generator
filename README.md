@@ -1,8 +1,10 @@
-# 📄 课程报告生成工具 v1.4.0
+# 📄 课程报告生成工具 v1.4.1
 
 **Course Report Generator** — 少儿编程教师课后报告自动生成工具。
 
 选择学生本节课的程序文件夹 + 上传运行截图，一键生成 9 项结构化报告内容，导出排版精美的 4 页 A4 PDF，批量支持最多 50 名学生。
+
+项目主页：[https://kylo94.github.io/course-report-generator/](https://kylo94.github.io/course-report-generator/)
 
 ## 快速体验
 
@@ -74,7 +76,7 @@ ghcr.io/kylo94/course-report-generator:latest
 
 ```bash
 # 拉取指定版本
-docker pull ghcr.io/kylo94/course-report-generator:1.4.0
+docker pull ghcr.io/kylo94/course-report-generator:1.4.1
 
 # 或拉取最新版
 docker pull ghcr.io/kylo94/course-report-generator:latest
@@ -87,7 +89,7 @@ docker pull ghcr.io/kylo94/course-report-generator:latest
 docker compose -f docker-compose.ghcr.yml up -d
 
 # 固定版本
-CRG_IMAGE_TAG=1.4.0 docker compose -f docker-compose.ghcr.yml up -d
+CRG_IMAGE_TAG=1.4.1 docker compose -f docker-compose.ghcr.yml up -d
 
 # 查看日志 / 停止
 docker compose -f docker-compose.ghcr.yml logs -f
@@ -634,6 +636,7 @@ dist/课程报告生成工具/
 ## 版本历史
 
 ```
+v1.4.1 — 修复 Windows 打包输出编码与 onefile 产物识别；改为发布平台原生安装包（zip / dmg / tar.gz）并统一下载入口；镜像构建只由版本 tag 触发；GitHub Actions 升级到 Node 24；新增项目主页
 v1.4.0 — DeepSeek 思考模式默认关闭并提供设置开关（班级报告成本约降 70%）；GitHub Actions 自动构建多架构镜像并推送 GHCR，支持四平台桌面打包发布，提供 docker-compose.ghcr.yml 拉取方案
 v1.3.0 — AI 配置迁移到「设置」页面；API Key 加密存储（系统钥匙串 / 本地加密文件）；默认模板改为后端持久化；配置保存即时生效
 v1.2.0 — 支持 C/C++ 工程；新增「素白极简」低打印负担模板；Classic/素白极简 Word 采用 PDF 风格卡片版式；导出按钮合并为「导出报告」；宿主机端口固定 8765
