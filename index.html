@@ -18,10 +18,11 @@
         <span>课程报告生成工具</span>
       </a>
       <nav>
-        <a href="#features">功能</a>
-        <a href="#quickstart">快速开始</a>
+        <a href="#workflow">使用流程</a>
+        <a href="#quickstart">开始</a>
         <a href="#docker">镜像</a>
         <a href="#cost">成本</a>
+        <a href="#faq">常见问题</a>
         <a class="nav-github" href="https://github.com/Kylo94/course-report-generator" target="_blank" rel="noopener">GitHub</a>
       </nav>
     </div>
@@ -38,13 +39,13 @@
             再按模板导出 PDF / Word。数据留在本地，API Key 加密保存。
           </p>
           <div class="hero-actions">
-            <a class="btn primary" href="#quickstart">开始使用</a>
+            <a class="btn primary" href="#workflow">看使用流程</a>
             <a class="btn ghost" href="#docker">拉取镜像</a>
           </div>
           <div class="hero-meta">
             <span>FastAPI + Vue 3</span>
             <span>DeepSeek / OpenAI / Claude 等</span>
-            <span>amd64 + arm64</span>
+            <span>amd64 + arm64 镜像</span>
           </div>
         </div>
 
@@ -77,60 +78,113 @@
       </div>
     </section>
 
-    <section class="section" id="features">
+    <section class="section" id="workflow">
       <div class="wrap">
         <div class="section-head">
-          <span class="kicker">为什么用它</span>
-          <h2>从代码到家长能读懂的报告</h2>
-          <p>不是通用聊天机器人，而是围绕课程教学场景打磨的完整流程。</p>
+          <span class="kicker">使用流程</span>
+          <h2>四步完成一份班级报告</h2>
+          <p>第一次使用先配置 AI；之后每节课只需要选择班级、代码文件夹和观察文本。</p>
         </div>
-        <div class="feature-grid">
-          <article class="feature-card">
-            <span class="feature-index">01</span>
-            <h3>AI 内容生成</h3>
-            <p>自动读取课程代码，生成知识点、内容概述、作业/单词卡与学生个性化评价。</p>
+        <div class="workflow-grid">
+          <article class="workflow-card">
+            <span class="workflow-num">01</span>
+            <h3>配置 AI 服务</h3>
+            <p>进入左侧「设置」→「AI 服务」，选择供应商、填入 API Key、确认模型和地址，然后点「保存并测试连接」。</p>
+            <ul>
+              <li>支持 DeepSeek / MiniMax / 通义千问 / 智谱 GLM / OpenAI / Claude</li>
+              <li>Key 加密保存，页面只显示尾号</li>
+              <li>思考模式默认关闭，省钱且更快</li>
+            </ul>
           </article>
-          <article class="feature-card">
-            <span class="feature-index">02</span>
-            <h3>批量班级处理</h3>
-            <p>共享内容只生成一次，逐学生评价并发生成；观察文本可逐人填写。</p>
+          <article class="workflow-card">
+            <span class="workflow-num">02</span>
+            <h3>准备课程材料</h3>
+            <p>在「报告工作台」选择班级，填写课程主题和日期，指向本节课的代码文件夹；也可以上传运行截图、代码截图和作业截图。</p>
+            <ul>
+              <li>有代码截图时可以跳过 AI 读代码</li>
+              <li>有作业截图时可以跳过作业生成</li>
+              <li>逐学生观察会用于个性化评价</li>
+            </ul>
           </article>
-          <article class="feature-card">
-            <span class="feature-index">03</span>
-            <h3>模板与导出</h3>
-            <p>内置多套模板，支持自定义主题、Logo、代码截图，一键导出 PDF 与 Word。</p>
+          <article class="workflow-card">
+            <span class="workflow-num">03</span>
+            <h3>批量生成内容</h3>
+            <p>点击生成后，知识点、内容概述、作业/单词卡作为班级共享内容只生成一次；每名学生的评价再单独生成。</p>
+            <ul>
+              <li>共享阶段 4 次调用，全班复用</li>
+              <li>学生评价并发生成，速度更快</li>
+              <li>生成结果作为草稿可继续编辑</li>
+            </ul>
           </article>
-          <article class="feature-card">
-            <span class="feature-index">04</span>
-            <h3>安全与本地化</h3>
-            <p>API Key 存在系统钥匙串或本地加密文件；用户设置与报告数据都留在自己的机器。</p>
-          </article>
-          <article class="feature-card">
-            <span class="feature-index">05</span>
-            <h3>设置页集中管理</h3>
-            <p>供应商、模型、密钥、默认模板、思考模式都在页面里配置，保存即时生效。</p>
-          </article>
-          <article class="feature-card">
-            <span class="feature-index">06</span>
-            <h3>低成本运行</h3>
-            <p>默认关闭 DeepSeek 思考模式，一个 3 人班的生成成本约 0.027 元。</p>
+          <article class="workflow-card">
+            <span class="workflow-num">04</span>
+            <h3>导出与交付</h3>
+            <p>选择模板后导出 PDF 或 Word。默认模板可以在「设置」页或「模板管理」页指定，之后批量生成会自动选中。</p>
+            <ul>
+              <li>内置 classic / academic / cartoon / 科技前沿 / 素白极简</li>
+              <li>支持自定义主题、字体、Logo 与截图</li>
+              <li>导出文件保存在 data/reports</li>
+            </ul>
           </article>
         </div>
       </div>
     </section>
 
-    <section class="section alt" id="quickstart">
+    <section class="section alt" id="features">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="kicker">核心能力</span>
+          <h2>围绕教学场景打磨，而不是通用聊天</h2>
+          <p>从代码分析到家长可读的表达，每一步都有明确约束和本地数据掌控。</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span class="feature-index">01</span>
+            <h3>AI 内容生成</h3>
+            <p>自动读取课程代码，生成知识点、内容概述、作业/单词卡与学生个性化评价。已填字段会被跳过，不重复消耗 token。</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-index">02</span>
+            <h3>批量班级处理</h3>
+            <p>共享内容只生成一次，逐学生评价并发生成；支持未到课学生排除和逐人观察文本。</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-index">03</span>
+            <h3>模板与导出</h3>
+            <p>内置多套模板，支持自定义主题、Logo、代码截图，一键导出 PDF 与 Word，版式适合直接发给家长。</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-index">04</span>
+            <h3>安全与本地化</h3>
+            <p>API Key 存在系统钥匙串或本地加密文件；用户设置、数据库和报告都留在自己的机器或挂载目录。</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-index">05</span>
+            <h3>设置页集中管理</h3>
+            <p>供应商、模型、密钥、默认模板、路径、图片转换参数都在页面里配置，保存后即时生效，无需重启。</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-index">06</span>
+            <h3>低成本运行</h3>
+            <p>默认关闭 DeepSeek 思考模式，一个 3 人班的生成成本约 0.027 元；需要更强推理时可临时打开。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="quickstart">
       <div class="wrap two-col">
         <div>
           <div class="section-head left">
             <span class="kicker">本地运行</span>
             <h2>两条命令开始</h2>
-            <p>克隆仓库后，用 uv 安装依赖并启动。首次打开请到「设置」页填写 API Key。</p>
+            <p>需要 Python 3.11+ 和 uv。第一次打开浏览器后，先去设置页填 API Key，再回到工作台生成报告。</p>
           </div>
-          <div class="steps">
-            <div class="step"><span>1</span><p>安装依赖</p></div>
-            <div class="step"><span>2</span><p>启动服务</p></div>
-            <div class="step"><span>3</span><p>打开设置页配置 AI</p></div>
+          <div class="check-list">
+            <div><span></span><p>安装 <a href="https://docs.astral.sh/uv/" target="_blank" rel="noopener">uv</a> 与 Python 3.11+</p></div>
+            <div><span></span><p>准备一个 AI 供应商的 API Key</p></div>
+            <div><span></span><p>准备课程代码文件夹，或运行/代码/作业截图</p></div>
+            <div><span></span><p>浏览器访问 <code>http://localhost:8765</code></p></div>
           </div>
         </div>
         <div class="code-stack">
@@ -141,47 +195,66 @@ cd course-report-generator
 uv sync
 uv run python main.py</code></pre>
           </div>
-          <p class="hint">浏览器打开 <code>http://localhost:8765</code></p>
+          <div class="code-block">
+            <div class="code-label">开发时常用</div>
+            <button class="copy" type="button">复制</button>
+            <pre><code># 改了后端代码后重启
+uv run python main.py
+
+# 运行测试
+uv run pytest -q</code></pre>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="section" id="docker">
+    <section class="section alt" id="docker">
       <div class="wrap">
         <div class="section-head">
           <span class="kicker">容器部署</span>
-          <h2>直接从 GitHub 拉取镜像</h2>
-          <p>推送到 main 或打版本 tag 时，GitHub Actions 会自动构建多架构镜像。</p>
+          <h2>从 GitHub 拉取镜像运行</h2>
+          <p>推送到 main 或打版本 tag 时，GitHub Actions 会自动构建 amd64 / arm64 镜像并推送到 GHCR。镜像公开，直接拉取即可。</p>
         </div>
         <div class="docker-grid">
-          <div class="code-block">
-            <div class="code-label">仅当镜像改为私有时才需要登录</div>
-            <button class="copy" type="button">复制</button>
-            <pre><code>echo &lt;PAT&gt; | docker login ghcr.io -u Kylo94 --password-stdin</code></pre>
-          </div>
           <div class="code-block">
             <div class="code-label">拉取指定版本</div>
             <button class="copy" type="button">复制</button>
             <pre><code>docker pull ghcr.io/kylo94/course-report-generator:1.4.0</code></pre>
           </div>
+          <div class="code-block">
+            <div class="code-label">拉取最新版</div>
+            <button class="copy" type="button">复制</button>
+            <pre><code>docker pull ghcr.io/kylo94/course-report-generator:latest</code></pre>
+          </div>
           <div class="code-block wide">
             <div class="code-label">用仓库提供的 compose 文件启动</div>
             <button class="copy" type="button">复制</button>
             <pre><code>docker compose -f docker-compose.ghcr.yml up -d
-# 指定版本
 CRG_IMAGE_TAG=1.4.0 docker compose -f docker-compose.ghcr.yml up -d</code></pre>
           </div>
+          <div class="code-block wide">
+            <div class="code-label">日常运维</div>
+            <button class="copy" type="button">复制</button>
+            <pre><code>docker compose -f docker-compose.ghcr.yml logs -f
+docker compose -f docker-compose.ghcr.yml down
+# 升级：先 down，再改 CRG_IMAGE_TAG 或拉 latest，然后 up -d</code></pre>
+          </div>
         </div>
-        <p class="note">仓库与镜像均为公开，直接拉取即可，无需登录；若以后改为私有，PAT 需 <code>read:packages</code> 权限。数据卷挂载在 <code>./data</code>，升级镜像不会丢设置。</p>
+        <div class="dir-list">
+          <div><strong>./data</strong><span>数据库、用户设置、加密密钥、报告输出、截图与 Logo</span></div>
+          <div><strong>config/app.yaml</strong><span>端口、数据库地址、报告目录等非敏感配置</span></div>
+          <div><strong>挂载目录</strong><span>课程代码所在路径需要同时挂载进容器，路径要与页面里填写的一致</span></div>
+        </div>
+        <p class="note">如果本地构建版正在运行，先执行 <code>docker compose down</code>，避免容器名和 8765 端口冲突。</p>
       </div>
     </section>
 
-    <section class="section alt" id="cost">
+    <section class="section" id="cost">
       <div class="wrap">
         <div class="section-head">
           <span class="kicker">成本实测</span>
           <h2>默认关闭思考模式，省下约 70%</h2>
-          <p>同一个 3 人班级、同一课程，在空闲时段用 DeepSeek 官方价格实测。</p>
+          <p>同一个 3 人班级、同一课程，在空闲时段用 DeepSeek 官方价格实测。思考模式默认开启时，推理 token 会按输出价格计费。</p>
         </div>
         <div class="cost-table" role="table" aria-label="成本对比表">
           <div class="cost-row head" role="row">
@@ -198,7 +271,52 @@ CRG_IMAGE_TAG=1.4.0 docker compose -f docker-compose.ghcr.yml up -d</code></pre>
             <span role="cell">思考模式关闭（默认）</span><span role="cell">21,978</span><span role="cell">1,252</span><span role="cell">0</span><span role="cell" class="cost-low">0.027 元</span>
           </div>
         </div>
+        <div class="save-tips">
+          <h3>还能怎么省</h3>
+          <ul>
+            <li>保持思考模式关闭；只有在遇到难判定的复杂内容时临时打开。</li>
+            <li>已有代码截图时打开「跳过 AI 读代码」，直接省掉一次大输出调用。</li>
+            <li>已有作业截图时打开「跳过作业生成」，单词卡不需要时可以关掉。</li>
+            <li>已填好的知识点、内容概述、作业会被复用，不会重复请求 AI。</li>
+            <li>避免频繁点「重新生成」；生成结果可直接在报告编辑器里手动修改。</li>
+          </ul>
+        </div>
         <p class="note">收费口径按 DeepSeek 官方定价：输入 1 元/百万 token（缓存未命中），输出 4 元/百万 token（空闲时段）。</p>
+      </div>
+    </section>
+
+    <section class="section alt" id="faq">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="kicker">常见问题</span>
+          <h2>使用前值得知道的事</h2>
+        </div>
+        <div class="faq">
+          <details open>
+            <summary>必须联网吗？</summary>
+            <p>AI 生成需要联网访问供应商 API；模板编辑、草稿保存、PDF / Word 导出都可以在本地完成。API Key 未配置时，页面仍可管理学生和模板。</p>
+          </details>
+          <details>
+            <summary>API Key 保存在哪里？会不会明文写进文件？</summary>
+            <p>优先保存在系统钥匙串（macOS 钥匙串 / Windows 凭据管理器），不可用时保存为本地 Fernet 加密文件。<code>data/user_settings.json</code> 不保存明文，接口只返回是否配置和尾号。</p>
+          </details>
+          <details>
+            <summary>默认模板为什么之前总丢失？现在怎么保存？</summary>
+            <p>旧版只存在浏览器 localStorage，清缓存或换浏览器就会丢。现在默认模板保存到后端用户设置，在「设置」页下拉框或「模板管理」页点「设为默认」都会持久化。</p>
+          </details>
+          <details>
+            <summary>支持哪些 AI 供应商？</summary>
+            <p>DeepSeek、MiniMax、通义千问、智谱 GLM、OpenAI 和 Anthropic Claude。设置页切换供应商后，记得同时更新对应模型的 API Key 和模型名。</p>
+          </details>
+          <details>
+            <summary>思考模式要不要开？</summary>
+            <p>日常生成建议关闭，省钱且快很多。遇到特别复杂、需要模型反复推敲的内容，可以在设置页临时打开；它只影响 DeepSeek，且会显著增加推理 token。</p>
+          </details>
+          <details>
+            <summary>升级镜像会丢数据吗？</summary>
+            <p>不会。用户设置、数据库、加密密钥和报告都在挂载的 <code>./data</code> 目录里。升级时停止容器、拉取新镜像、重新启动即可。</p>
+          </details>
+        </div>
       </div>
     </section>
 
