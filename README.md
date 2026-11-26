@@ -70,14 +70,17 @@ ghcr.io/kylo94/course-report-generator:<版本号>
 ghcr.io/kylo94/course-report-generator:latest
 ```
 
-仓库和 GHCR 镜像均为公开，直接拉取即可，**无需登录**。只有以后把镜像包改成私有时，才需要一次性登录（PAT 需 `read:packages` 权限）：
+镜像是公开的，直接拉取即可。
 
 ```bash
-# 仅当镜像包改为私有时需要
-echo <你的PAT> | docker login ghcr.io -u Kylo94 --password-stdin
+# 拉取指定版本
+docker pull ghcr.io/kylo94/course-report-generator:1.4.0
+
+# 或拉取最新版
+docker pull ghcr.io/kylo94/course-report-generator:latest
 ```
 
-直接用提供的 compose 文件拉取并启动：
+用提供的 compose 文件启动：
 
 ```bash
 # 默认 latest
@@ -86,8 +89,9 @@ docker compose -f docker-compose.ghcr.yml up -d
 # 固定版本
 CRG_IMAGE_TAG=1.4.0 docker compose -f docker-compose.ghcr.yml up -d
 
-# 手动拉取
-docker pull ghcr.io/kylo94/course-report-generator:1.4.0
+# 查看日志 / 停止
+docker compose -f docker-compose.ghcr.yml logs -f
+docker compose -f docker-compose.ghcr.yml down
 ```
 
 如果本地构建版正在运行，先执行 `docker compose down`，避免容器名和端口冲突。数据仍然持久化在 `./data`。
