@@ -155,7 +155,7 @@ uv run python main.py</code></pre>
         </div>
         <div class="docker-grid">
           <div class="code-block">
-            <div class="code-label">一次性登录（私仓需要）</div>
+            <div class="code-label">仅当镜像改为私有时才需要登录</div>
             <button class="copy" type="button">复制</button>
             <pre><code>echo &lt;PAT&gt; | docker login ghcr.io -u Kylo94 --password-stdin</code></pre>
           </div>
@@ -172,7 +172,7 @@ uv run python main.py</code></pre>
 CRG_IMAGE_TAG=1.4.0 docker compose -f docker-compose.ghcr.yml up -d</code></pre>
           </div>
         </div>
-        <p class="note">PAT 只需 <code>read:packages</code> 权限。数据卷挂载在 <code>./data</code>，升级镜像不会丢设置。</p>
+        <p class="note">仓库与镜像均为公开，直接拉取即可，无需登录；若以后改为私有，PAT 需 <code>read:packages</code> 权限。数据卷挂载在 <code>./data</code>，升级镜像不会丢设置。</p>
       </div>
     </section>
 
